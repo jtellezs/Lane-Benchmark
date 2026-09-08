@@ -30,6 +30,11 @@
         <members>Pricing_Department_Setting.Default</members>
         <name>CustomMetadata</name>
     </types>
+    <!-- Security -->
+    <types>
+        <members>Pricing_Department_User</members>
+        <name>PermissionSet</name>
+    </types>
     <!-- Custom fields on the managed Carrier Quote object read by the controller -->
     <types>
         <members>rtms__CarrierQuote__c.Accepted_quote__c</members>
