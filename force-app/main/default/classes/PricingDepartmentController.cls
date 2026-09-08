@@ -53,19 +53,49 @@ public without sharing class PricingDepartmentController {
     if (excludedContactIdsOverride != null) {
       return excludedContactIdsOverride;
     }
-    Set<String> ids = new Set<String>();
     Pricing_Department_Setting__mdt setting = Pricing_Department_Setting__mdt.getInstance(
       'Default'
     );
-    if (setting == null || String.isBlank(setting.Excluded_Contact_Ids__c)) {
+    return parseExcludedContactIds(
+      setting == null ? null : setting.Excluded_Contact_Ids__c
+    );
+  }
+
+  /**
+   * Parses a comma-separated list of Contact Ids, tolerating admin data-entry mistakes:
+   * malformed or wrong-length entries are logged and skipped rather than thrown.
+   */
+  @TestVisible
+  private static Set<String> parseExcludedContactIds(String raw) {
+    Set<String> ids = new Set<String>();
+    if (String.isBlank(raw)) {
       return ids;
     }
-    for (String raw : setting.Excluded_Contact_Ids__c.split(',')) {
-      String trimmed = raw.trim();
+    for (String entry : raw.split(',')) {
+      String trimmed = entry.trim();
+      if (String.isBlank(trimmed)) {
+        continue;
+      }
+      Boolean isValid = false;
       if (trimmed.length() == 15 || trimmed.length() == 18) {
-        Id contactId = Id.valueOf(trimmed);
-        ids.add(String.valueOf(contactId));
-        ids.add(String.valueOf(contactId).left(15));
+        try {
+          Id contactId = Id.valueOf(trimmed);
+          if (contactId.getSObjectType() == Contact.SObjectType) {
+            ids.add(String.valueOf(contactId));
+            ids.add(String.valueOf(contactId).left(15));
+            isValid = true;
+          }
+        } catch (System.StringException e) {
+          isValid = false;
+        }
+      }
+      if (!isValid) {
+        System.debug(
+          LoggingLevel.WARN,
+          'Pricing_Department_Setting.Default: ignoring invalid Contact Id "' +
+            trimmed +
+            '"'
+        );
       }
     }
     return ids;

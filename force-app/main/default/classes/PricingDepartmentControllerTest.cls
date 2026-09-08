@@ -503,4 +503,39 @@ private class PricingDepartmentControllerTest {
       );
     }
   }
+
+  @IsTest
+  static void parseExcludedContactIdsSkipsInvalidEntries() {
+    String validContactId = '0033l00002px9ja';
+    Id validId = Id.valueOf(validContactId);
+
+    Test.startTest();
+    Set<String> ids = PricingDepartmentController.parseExcludedContactIds(
+      validContactId + ', not-an-id, 0033l00002px9j, 001000000000001AAA ,'
+    );
+    Set<String> fromNull = PricingDepartmentController.parseExcludedContactIds(
+      null
+    );
+    Set<String> fromBlank = PricingDepartmentController.parseExcludedContactIds(
+      '  '
+    );
+    Test.stopTest();
+
+    System.assertEquals(
+      2,
+      ids.size(),
+      'Only the valid Contact id (both forms) should survive: ' +
+      String.join(new List<String>(ids), ', ')
+    );
+    System.assert(
+      ids.contains(String.valueOf(validId)),
+      '18-char form present'
+    );
+    System.assert(
+      ids.contains(String.valueOf(validId).left(15)),
+      '15-char form present'
+    );
+    System.assertEquals(0, fromNull.size(), 'null input yields an empty set');
+    System.assertEquals(0, fromBlank.size(), 'blank input yields an empty set');
+  }
 }
