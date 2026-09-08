@@ -12,3 +12,6 @@ package.xml
 **/__tests__/**
 
 node_modules/
+
+# Profiles are reference only; access is granted through permission sets
+force-app/main/default/profiles/**

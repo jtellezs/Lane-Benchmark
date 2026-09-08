@@ -8,16 +8,16 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 
 ## What is in here
 
-| Layer | Component | Notes |
-|---|---|---|
-| Navigation | `tabs/Pricing_Department` | Custom tab pointing at the app page |
-| Page | `flexipages/Pricing_Department` | App page, default home template, one region |
-| UI | `lwc/pricingDepartment` | Filters, quote table, stats header, carrier detail modal |
-| Apex | `classes/PricingDepartmentController` | Two `@AuraEnabled(cacheable=true)` methods: `getCarrierQuotes`, `getUniqueModeOptions` |
-| Apex tests | `PricingDepartmentControllerTest`, `PricingTestDataFactory` | Behavior tests; the factory builds the minimum valid Revenova graph because DevPro has no records |
-| Data | `objects/rtms__CarrierQuote__c/fields/*` | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas |
-| Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups |
-| Security | `profiles/Pricing` | Scoped copy of the Pricing profile (only entries for components in this project). Access is profile-based; no permission set exists for this app |
+| Layer            | Component                                                                                         | Notes                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Navigation       | `tabs/Pricing_Department`                                                                         | Custom tab pointing at the app page                                                                                                              |
+| Page             | `flexipages/Pricing_Department`                                                                   | App page, default home template, one region                                                                                                      |
+| UI               | `lwc/pricingDepartment`                                                                           | Filters, quote table, stats header, carrier detail modal                                                                                         |
+| Apex             | `classes/PricingDepartmentController`                                                             | Two `@AuraEnabled(cacheable=true)` methods: `getCarrierQuotes`, `getUniqueModeOptions`                                                           |
+| Apex tests       | `PricingDepartmentControllerTest`, `PricingTestDataFactory`                                       | Behavior tests; the factory builds the minimum valid Revenova graph because DevPro has no records                                                |
+| Data             | `objects/rtms__CarrierQuote__c/fields/*`                                                          | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas                                                                   |
+| Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups                                                                                                |
+| Security         | `profiles/Pricing`                                                                                | Scoped copy of the Pricing profile (only entries for components in this project). Access is profile-based; no permission set exists for this app |
 
 Not included on purpose:
 
@@ -41,11 +41,11 @@ returns at most 500 records ordered by `Quote_Date__c` desc.
 
 ### Environments
 
-| Org | Alias | Role | Data |
-|---|---|---|---|
-| Production | `vscodeOrg` | Source of truth, last stop. Never deploy from a laptop. | Real |
-| PostProduc (Full) | `sandbox` | UAT and anything that needs real loads, stops, quotes | Real, copied at refresh |
-| DevPro (Developer Pro) | `devpro` | All development and CI validation | Metadata only, no records |
+| Org                    | Alias       | Role                                                    | Data                      |
+| ---------------------- | ----------- | ------------------------------------------------------- | ------------------------- |
+| Production             | `vscodeOrg` | Source of truth, last stop. Never deploy from a laptop. | Real                      |
+| PostProduc (Full)      | `sandbox`   | UAT and anything that needs real loads, stops, quotes   | Real, copied at refresh   |
+| DevPro (Developer Pro) | `devpro`    | All development and CI validation                       | Metadata only, no records |
 
 After a DevPro refresh, authorize the refreshed org with:
 
@@ -90,10 +90,10 @@ Org aliases: `sandbox` = postproduction sandbox, `Full` = full sandbox, `vscodeO
 
 ## Git remotes
 
-| Remote | URL | Account |
-|---|---|---|
-| `origin` | https://github.com/IulianEnescu78/PricingDepartment | personal (primary) |
-| `tplm` | https://github.com/TPLM/PricingDepartment | Trans-Pro org, via the `IulianEnescu` GitHub login |
+| Remote   | URL                                                 | Account                                            |
+| -------- | --------------------------------------------------- | -------------------------------------------------- |
+| `origin` | https://github.com/IulianEnescu78/PricingDepartment | personal (primary)                                 |
+| `tplm`   | https://github.com/TPLM/PricingDepartment           | Trans-Pro org, via the `IulianEnescu` GitHub login |
 
 Always push `origin` first, then `tplm`. The default credential helper holds the personal
 login, which cannot see the private TPLM repo, so push to `tplm` with the work token:

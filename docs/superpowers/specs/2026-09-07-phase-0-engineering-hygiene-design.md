@@ -10,11 +10,11 @@ already-known bugs as the first change through that pipeline.
 
 ## Environments
 
-| Org | Alias | Role | Data |
-|---|---|---|---|
-| Production | `vscodeOrg` | Source of truth, last stop | Real |
-| PostProduc (Full) | `sandbox` | UAT; anything that needs real loads, stops, quotes | Real, copied at refresh |
-| DevPro (Developer Pro) | `devpro` | All development and CI validation | **Metadata only. No records.** |
+| Org                    | Alias       | Role                                               | Data                           |
+| ---------------------- | ----------- | -------------------------------------------------- | ------------------------------ |
+| Production             | `vscodeOrg` | Source of truth, last stop                         | Real                           |
+| PostProduc (Full)      | `sandbox`   | UAT; anything that needs real loads, stops, quotes | Real, copied at refresh        |
+| DevPro (Developer Pro) | `devpro`    | All development and CI validation                  | **Metadata only. No records.** |
 
 Consequences of DevPro having no data:
 
@@ -62,11 +62,11 @@ One workflow file, `.github/workflows/ci.yml`, identical in both repositories
 (`IulianEnescu78/PricingDepartment` and `TPLM/PricingDepartment`), triggered on
 `pull_request` and on `push` to `main`. Three independent jobs:
 
-| Job | Steps | Fails when |
-|---|---|---|
-| `lwc` | `npm ci`, ESLint, Prettier check, `sfdx-lwc-jest --coverage` | any lint error, formatting drift, or failing Jest test |
-| `apex` | install `@salesforce/cli`, `sf org login sfdx-url` from secret, `sf project deploy validate -x manifest/package.xml --test-level RunSpecifiedTests --tests PricingDepartmentControllerTest` | compile error, test failure, or deployment error |
-| `pmd` | PMD (latest 7.x) with the Apex quickstart ruleset on `force-app/**/*.cls`, results as PR annotations | any Priority 1 or 2 violation |
+| Job    | Steps                                                                                                                                                                                       | Fails when                                             |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `lwc`  | `npm ci`, ESLint, Prettier check, `sfdx-lwc-jest --coverage`                                                                                                                                | any lint error, formatting drift, or failing Jest test |
+| `apex` | install `@salesforce/cli`, `sf org login sfdx-url` from secret, `sf project deploy validate -x manifest/package.xml --test-level RunSpecifiedTests --tests PricingDepartmentControllerTest` | compile error, test failure, or deployment error       |
+| `pmd`  | PMD (latest 7.x) with the Apex quickstart ruleset on `force-app/**/*.cls`, results as PR annotations                                                                                        | any Priority 1 or 2 violation                          |
 
 Secret: `SFDX_AUTH_URL_DEVPRO`, set in both repos. Obtained after the DevPro
 login with `sf org display -o devpro --verbose --json`, piped straight into

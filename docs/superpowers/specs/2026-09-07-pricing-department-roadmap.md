@@ -42,14 +42,14 @@ object (delays the interactive features; possible later on top of B).
 
 ## Phases
 
-| # | Phase | Lands | Rough calendar |
-|---|---|---|---|
-| 0 | Engineering hygiene | Dev sandbox, CI on pull requests (deploy validate, Apex tests, Jest, PMD), real Apex tests with a test data factory, bug-fix PR for the known issues | 1-2 weeks |
-| 1 | Lane foundation | Lane fields on Load, record-triggered flow on Stop/Load, 24-month backfill batch, Place object + normalizer + alias rules owned by pricing | 3-4 weeks |
-| 2 | Search rework | New controller taking one search request and returning rows + stats; place picker with history autocomplete; precision selector | 3 weeks |
-| 3 | Mode & equipment | Selector driven by Mode and Equipment Type objects, category -> equipment, with counts | 1-2 weeks |
-| 4 | Pricing suggestion | Margin input (default 15 %, 20 % one click away, free entry); suggested sell from average and median cost; low/high band | 1 week |
-| 5 | External autocomplete | Mapbox or Google Places fallback when history has no match; on-the-fly geocoding. Vendor chosen with the company; needs key, billing, security review | 2 weeks |
+| #   | Phase                 | Lands                                                                                                                                                 | Rough calendar |
+| --- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| 0   | Engineering hygiene   | Dev sandbox, CI on pull requests (deploy validate, Apex tests, Jest, PMD), real Apex tests with a test data factory, bug-fix PR for the known issues  | 1-2 weeks      |
+| 1   | Lane foundation       | Lane fields on Load, record-triggered flow on Stop/Load, 24-month backfill batch, Place object + normalizer + alias rules owned by pricing            | 3-4 weeks      |
+| 2   | Search rework         | New controller taking one search request and returning rows + stats; place picker with history autocomplete; precision selector                       | 3 weeks        |
+| 3   | Mode & equipment      | Selector driven by Mode and Equipment Type objects, category -> equipment, with counts                                                                | 1-2 weeks      |
+| 4   | Pricing suggestion    | Margin input (default 15 %, 20 % one click away, free entry); suggested sell from average and median cost; low/high band                              | 1 week         |
+| 5   | External autocomplete | Mapbox or Google Places fallback when history has no match; on-the-fly geocoding. Vendor chosen with the company; needs key, billing, security review | 2 weeks        |
 
 ## Standing constraints
 

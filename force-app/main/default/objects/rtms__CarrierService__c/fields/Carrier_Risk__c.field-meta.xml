@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Carrier_Risk__c</fullName>
     <externalId>false</externalId>
-    <formula>TEXT(rtms__Transportation_Profile__r.rtms__Company_Risk__c)</formula>
+    <formula
+  >TEXT(rtms__Transportation_Profile__r.rtms__Company_Risk__c)</formula>
     <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
     <label>Carrier Risk</label>
     <required>false</required>
