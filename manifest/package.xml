@@ -21,6 +21,14 @@
         <members>PricingTestDataFactory</members>
         <name>ApexClass</name>
     </types>
+    <types>
+        <members>Pricing_Department_Setting__mdt</members>
+        <name>CustomObject</name>
+    </types>
+    <types>
+        <members>Pricing_Department_Setting.Default</members>
+        <name>CustomMetadata</name>
+    </types>
     <!-- Custom fields on the managed Carrier Quote object read by the controller -->
     <types>
         <members>rtms__CarrierQuote__c.Accepted_quote__c</members>
@@ -55,6 +63,8 @@
         <members>rtms__Load__c.Mode_For_Sharing__c</members>
         <members>rtms__Load__c.Number_of_Pallets__c</members>
         <members>Account.Number_of_Loads__c</members>
+        <members
+    >Pricing_Department_Setting__mdt.Excluded_Contact_Ids__c</members>
         <name>CustomField</name>
     </types>
     <version>64.0</version>

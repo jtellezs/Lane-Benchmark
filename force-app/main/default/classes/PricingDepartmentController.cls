@@ -1,3 +1,8 @@
+/**
+ * Data source for the Pricing Department page.
+ * Runs WITHOUT SHARING on purpose: pricing must benchmark against every team's carrier quotes,
+ * regardless of load ownership. Do not change to with sharing without a product decision.
+ */
 public without sharing class PricingDepartmentController {
   public class UniqueCarrierQuote {
     public rtms__CarrierQuote__c quote;
@@ -35,15 +40,35 @@ public without sharing class PricingDepartmentController {
     }
   }
 
-  // Test hook. Task 8 replaces the hardcoded id below with custom metadata read through this set.
+  // Test hook: tests set this to control exclusions because custom metadata cannot be inserted in tests.
   @TestVisible
   private static Set<String> excludedContactIdsOverride;
 
+  /**
+   * Contact Ids whose quotes are hidden, from Pricing_Department_Setting__mdt.Default.
+   * Contact_ID__c is a formula returning the 15-character id, so both forms are included.
+   */
+  @TestVisible
   private static Set<String> excludedContactIds() {
     if (excludedContactIdsOverride != null) {
       return excludedContactIdsOverride;
     }
-    return new Set<String>{ '0033l00002px9ja' };
+    Set<String> ids = new Set<String>();
+    Pricing_Department_Setting__mdt setting = Pricing_Department_Setting__mdt.getInstance(
+      'Default'
+    );
+    if (setting == null || String.isBlank(setting.Excluded_Contact_Ids__c)) {
+      return ids;
+    }
+    for (String raw : setting.Excluded_Contact_Ids__c.split(',')) {
+      String trimmed = raw.trim();
+      if (trimmed.length() == 15 || trimmed.length() == 18) {
+        Id contactId = Id.valueOf(trimmed);
+        ids.add(String.valueOf(contactId));
+        ids.add(String.valueOf(contactId).left(15));
+      }
+    }
+    return ids;
   }
 
   @AuraEnabled(cacheable=true)

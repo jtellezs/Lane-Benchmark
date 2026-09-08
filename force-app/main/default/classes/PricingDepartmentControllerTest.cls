@@ -476,4 +476,31 @@ private class PricingDepartmentControllerTest {
 
     System.assertEquals(500, result.size());
   }
+
+  @IsTest
+  static void excludedContactIdsComeFromCustomMetadataInBothIdLengths() {
+    PricingDepartmentController.excludedContactIdsOverride = null;
+    Set<String> ids = PricingDepartmentController.excludedContactIds();
+    List<Pricing_Department_Setting__mdt> settings = [
+      SELECT Excluded_Contact_Ids__c
+      FROM Pricing_Department_Setting__mdt
+      WHERE DeveloperName = 'Default'
+    ];
+    System.assertEquals(
+      1,
+      settings.size(),
+      'The Default setting record must be deployed'
+    );
+    for (String raw : settings[0].Excluded_Contact_Ids__c.split(',')) {
+      Id contactId = Id.valueOf(raw.trim());
+      System.assert(
+        ids.contains(String.valueOf(contactId)),
+        '18-char form present'
+      );
+      System.assert(
+        ids.contains(String.valueOf(contactId).left(15)),
+        '15-char form present'
+      );
+    }
+  }
 }
