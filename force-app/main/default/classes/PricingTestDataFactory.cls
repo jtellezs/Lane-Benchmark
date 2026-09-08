@@ -175,15 +175,75 @@ public class PricingTestDataFactory {
     Account origin,
     Account destination
   ) {
+    return createLoad(g, origin, destination, false);
+  }
+
+  /**
+   * Task 5 fix: setting rtms__Hazardous_Materials__c here (at insert) avoids a separate post-insert
+   * `update`. A second Load DML statement in the same test method routinely trips this org's Load
+   * automation (LoadTrigger plus the "UAT - Load Updated" flow, which together fire on every Load
+   * insert/update and are not bulkified) hard enough to exceed the 100 synchronous SOQL query limit,
+   * and/or a Load validation rule on update. The 3-argument overload delegates here with `false`.
+   */
+  public static rtms__Load__c createLoad(
+    Graph g,
+    Account origin,
+    Account destination,
+    Boolean hazmat
+  ) {
+    return createLoad(g, origin, destination, hazmat, g.customer, g.mode);
+  }
+
+  /**
+   * Same governor-limit rationale as the hazmat overload above: set the customer on the load that
+   * should belong to it at creation instead of updating it afterward. Used by the market-test-filter
+   * scenario in place of `mt.rtms__Customer__c = marketTest.Id; update mt;`.
+   */
+  public static rtms__Load__c createLoad(
+    Graph g,
+    Account origin,
+    Account destination,
+    Account customer
+  ) {
+    return createLoad(g, origin, destination, false, customer, g.mode);
+  }
+
+  /**
+   * Same governor-limit rationale again: assign a distinct rtms__Mode__c record at creation instead
+   * of updating Mode_For_Sharing__c afterward. Used by the unique-mode-options scenario in place of
+   * `b.Mode_For_Sharing__c = 'LTL'; update b;`. Note: Mode_For_Sharing__c is a plain Text field, but
+   * this org's Load automation re-derives it from the actual rtms__Mode__c lookup on save, so
+   * writing the text field directly (without also changing the lookup) gets silently overwritten
+   * back to match the shared graph Mode -- the lookup itself has to point at a different Mode
+   * record for the change to stick.
+   */
+  public static rtms__Load__c createLoad(
+    Graph g,
+    Account origin,
+    Account destination,
+    rtms__Mode__c mode
+  ) {
+    return createLoad(g, origin, destination, false, g.customer, mode);
+  }
+
+  private static rtms__Load__c createLoad(
+    Graph g,
+    Account origin,
+    Account destination,
+    Boolean hazmat,
+    Account customer,
+    rtms__Mode__c mode
+  ) {
     rtms__Load__c load = new rtms__Load__c(
       Name = 'Test Load',
-      rtms__Customer__c = g.customer.Id,
-      rtms__Mode__c = g.mode.Id,
+      rtms__Customer__c = customer.Id,
+      rtms__Mode__c = mode.Id,
       rtms__Equipment_Type__c = g.equipment.Id,
       rtms__Total_Weight__c = 1000,
-      Mode_For_Sharing__c = 'Truckload',
+      Mode_For_Sharing__c = mode.Name,
       TPRO_Division_Name__c = DIVISION,
-      CurrencyIsoCode = 'CAD'
+      CurrencyIsoCode = 'CAD',
+      rtms__Hazardous_Materials__c = hazmat
     );
     insert load;
 

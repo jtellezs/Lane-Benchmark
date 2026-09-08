@@ -35,6 +35,17 @@ public without sharing class PricingDepartmentController {
     }
   }
 
+  // Test hook. Task 8 replaces the hardcoded id below with custom metadata read through this set.
+  @TestVisible
+  private static Set<String> excludedContactIdsOverride;
+
+  private static Set<String> excludedContactIds() {
+    if (excludedContactIdsOverride != null) {
+      return excludedContactIdsOverride;
+    }
+    return new Set<String>{ '0033l00002px9ja' };
+  }
+
   @AuraEnabled(cacheable=true)
   public static List<rtms__CarrierQuote__c> getCarrierQuotes(
     String originFilter,
@@ -100,6 +111,7 @@ public without sharing class PricingDepartmentController {
     String acceptedQuotesFilterStr,
     String declinedQuotesFilterStr
   ) {
+    Set<String> excluded = excludedContactIds();
     return [
       SELECT
         Id,
@@ -144,7 +156,7 @@ public without sharing class PricingDepartmentController {
         AND Quote_Date__c >= :startDate
         AND Accepted_quote__c LIKE :acceptedQuotesFilterStr
         AND Decline_Quotes__c LIKE :declinedQuotesFilterStr
-        AND Contact_ID__c != '0033l00002px9ja'
+        AND Contact_ID__c NOT IN :excluded
       ORDER BY Quote_Date__c DESC
       LIMIT 500
     ];
@@ -157,6 +169,7 @@ public without sharing class PricingDepartmentController {
   ) {
     String originFilterStr = createFilterString(originFilter);
     String destinationFilterStr = createFilterString(destinationFilter);
+    Set<String> excluded = excludedContactIds();
 
     List<rtms__CarrierQuote__c> quotes = [
       SELECT Mode__c
@@ -165,7 +178,7 @@ public without sharing class PricingDepartmentController {
         Origin__c LIKE :originFilterStr
         AND Destination__c LIKE :destinationFilterStr
         AND Origin_Destination_Country__c != ' / '
-        AND Contact_ID__c != '0033l00002px9ja'
+        AND Contact_ID__c NOT IN :excluded
     ];
 
     Set<String> uniqueModeOptionsSet = new Set<String>();

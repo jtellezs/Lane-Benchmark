@@ -17,6 +17,7 @@
     <!-- Apex -->
     <types>
         <members>PricingDepartmentController</members>
+        <members>PricingDepartmentControllerTest</members>
         <members>PricingTestDataFactory</members>
         <name>ApexClass</name>
     </types>
