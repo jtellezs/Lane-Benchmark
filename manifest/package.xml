@@ -17,8 +17,6 @@
     <!-- Apex -->
     <types>
         <members>PricingDepartmentController</members>
-        <members>PricingDepartmentControllerTest3</members>
-        <members>PricingDepartmentController_TGN_TEST</members>
         <name>ApexClass</name>
     </types>
     <!-- Custom fields on the managed Carrier Quote object read by the controller -->
@@ -56,11 +54,6 @@
         <members>rtms__Load__c.Number_of_Pallets__c</members>
         <members>Account.Number_of_Loads__c</members>
         <name>CustomField</name>
-    </types>
-    <!-- Profile scoped to the components above -->
-    <types>
-        <members>Pricing</members>
-        <name>Profile</name>
     </types>
     <version>64.0</version>
 </Package>

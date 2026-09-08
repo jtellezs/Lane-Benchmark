@@ -14,7 +14,7 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 | Page | `flexipages/Pricing_Department` | App page, default home template, one region |
 | UI | `lwc/pricingDepartment` | Filters, quote table, stats header, carrier detail modal |
 | Apex | `classes/PricingDepartmentController` | Two `@AuraEnabled(cacheable=true)` methods: `getCarrierQuotes`, `getUniqueModeOptions` |
-| Apex tests | `PricingDepartmentControllerTest3`, `PricingDepartmentController_TGN_TEST` | |
+| Apex tests | `PricingDepartmentControllerTest`, `PricingTestDataFactory` | Behavior tests; the factory builds the minimum valid Revenova graph because DevPro has no records |
 | Data | `objects/rtms__CarrierQuote__c/fields/*` | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas |
 | Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups |
 | Security | `profiles/Pricing` | Scoped copy of the Pricing profile (only entries for components in this project). Access is profile-based; no permission set exists for this app |
@@ -70,7 +70,12 @@ sf project deploy validate -x manifest/package.xml -o sandbox
 sf project deploy start    -x manifest/package.xml -o sandbox
 
 # Run the tests
-sf apex run test -n PricingDepartmentControllerTest3 -n PricingDepartmentController_TGN_TEST -o sandbox -r human
+sf apex run test -n PricingDepartmentControllerTest -o devpro -r human -w 10
+```
+
+```bash
+# Deploy to DevPro (destructive changes remove retired classes; re-runnable)
+sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o devpro -l RunSpecifiedTests -t PricingDepartmentControllerTest
 ```
 
 Org aliases: `sandbox` = postproduction sandbox, `Full` = full sandbox, `vscodeOrg` = production.
@@ -81,8 +86,6 @@ Org aliases: `sandbox` = postproduction sandbox, `Full` = full sandbox, `vscodeO
 - Every filter is a `LIKE '%x%'` on formula fields, which cannot use indexes; dedupe happens in Apex after the 500-row limit is applied.
 - `handleAcceptedQuotesFilterChange` in the LWC logs `isAcceptedQuotesChecked.isPriceDepChecked`, which throws a ReferenceError.
 - `fetchModeOptions` (server-side mode options) is never called; modes are derived client-side from the result set instead.
-- `PricingDepartmentControllerTest3` (TestGen, 2023) calls `getCarrierQuotes` with 8 arguments; the method now takes 9, so that test no longer compiles. `PricingDepartmentController_TGN_TEST` is the current one.
-- Both tests insert an empty Carrier Quote and only assert nothing; they exercise coverage, not behavior.
 - The LWC API version is 57.0 while the project is on 64.0.
 
 ## Git remotes
