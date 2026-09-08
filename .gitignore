@@ -47,3 +47,6 @@ $RECYCLE.BIN/
 **/.venv/
 **/venv/
 .remember/
+
+# SDD controller workspace (scratch)
+.superpowers/
