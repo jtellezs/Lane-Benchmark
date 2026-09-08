@@ -126,6 +126,7 @@
                         value="priceTeam_01"
                         aria-describedby="priceTeam_01"
                         checked={isPriceDepChecked}
+                        data-filter="marketTest"
                         onchange={handlePriceDepFilterChange}
                       />
                       <span
@@ -155,6 +156,7 @@
                         value="hazMat_01"
                         aria-describedby="hazMat_01"
                         checked={isHazmatChecked}
+                        data-filter="hazmat"
                         onchange={handleHazmatFilterChange}
                       />
                       <span
@@ -181,6 +183,7 @@
                         value="declinedQuotes_01"
                         aria-describedby="declinedQuotes_01"
                         checked={isDeclinedQuotesChecked}
+                        data-filter="declined"
                         onchange={handleDeclinedQuotesFilterChange}
                       />
                       <span
@@ -210,6 +213,7 @@
                         value="quoteAccepted_01"
                         aria-describedby="quoteAccepted_01"
                         checked={isAcceptedQuotesChecked}
+                        data-filter="accepted"
                         onchange={handleAcceptedQuotesFilterChange}
                       />
                       <span
