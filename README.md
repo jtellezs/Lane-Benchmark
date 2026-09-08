@@ -39,6 +39,28 @@ returns at most 500 records ordered by `Quote_Date__c` desc.
 
 ## Working with the org
 
+### Environments
+
+| Org | Alias | Role | Data |
+|---|---|---|---|
+| Production | `vscodeOrg` | Source of truth, last stop. Never deploy from a laptop. | Real |
+| PostProduc (Full) | `sandbox` | UAT and anything that needs real loads, stops, quotes | Real, copied at refresh |
+| DevPro (Developer Pro) | `devpro` | All development and CI validation | Metadata only, no records |
+
+After a DevPro refresh, authorize the refreshed org with:
+
+```bash
+sf org resume sandbox --job-id <id> -o ienescu@trans-pro.com
+```
+
+If the job id isn't available, fall back to a browser login:
+
+```bash
+sf org login web -a devpro -r https://test.salesforce.com
+```
+
+Then regenerate the CI secret (see CI section). A refresh changes the org id and appends `.invalid` to every user email.
+
 ```bash
 # Re-pull everything in the manifest
 sf project retrieve start -x manifest/package.xml -o sandbox
