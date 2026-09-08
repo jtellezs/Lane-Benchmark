@@ -17,6 +17,7 @@
     <!-- Apex -->
     <types>
         <members>PricingDepartmentController</members>
+        <members>PricingTestDataFactory</members>
         <name>ApexClass</name>
     </types>
     <!-- Custom fields on the managed Carrier Quote object read by the controller -->
