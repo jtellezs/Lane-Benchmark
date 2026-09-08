@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <!-- Pricing Department app: Lightning App Page + tab -->
+    <types>
+        <members>Pricing_Department</members>
+        <name>FlexiPage</name>
+    </types>
+    <types>
+        <members>Pricing_Department</members>
+        <name>CustomTab</name>
+    </types>
+    <!-- UI -->
+    <types>
+        <members>pricingDepartment</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <!-- Apex -->
+    <types>
+        <members>PricingDepartmentController</members>
+        <members>PricingDepartmentControllerTest3</members>
+        <members>PricingDepartmentController_TGN_TEST</members>
+        <name>ApexClass</name>
+    </types>
+    <!-- Custom fields on the managed Carrier Quote object read by the controller -->
+    <types>
+        <members>rtms__CarrierQuote__c.Accepted_quote__c</members>
+        <members>rtms__CarrierQuote__c.CAD_Quote_Total__c</members>
+        <members>rtms__CarrierQuote__c.Carrier_Att__c</members>
+        <members>rtms__CarrierQuote__c.Carrier_Contact__c</members>
+        <members>rtms__CarrierQuote__c.Carrier_Name__c</members>
+        <members>rtms__CarrierQuote__c.Carrier_Risk__c</members>
+        <members>rtms__CarrierQuote__c.Contact_Email__c</members>
+        <members>rtms__CarrierQuote__c.Contact_ID__c</members>
+        <members>rtms__CarrierQuote__c.Contact_Phone__c</members>
+        <members>rtms__CarrierQuote__c.Customer_Name__c</members>
+        <members>rtms__CarrierQuote__c.Decline_Quotes__c</members>
+        <members>rtms__CarrierQuote__c.Destination__c</members>
+        <members>rtms__CarrierQuote__c.Equipment_Type__c</members>
+        <members>rtms__CarrierQuote__c.Hazmat__c</members>
+        <members>rtms__CarrierQuote__c.Load_Status__c</members>
+        <members>rtms__CarrierQuote__c.Mode__c</members>
+        <members>rtms__CarrierQuote__c.Nb_Of_Pallets__c</members>
+        <members>rtms__CarrierQuote__c.Nb_of_loads__c</members>
+        <members>rtms__CarrierQuote__c.Ops_Comments__c</members>
+        <members>rtms__CarrierQuote__c.Origin_Destination_Country__c</members>
+        <members>rtms__CarrierQuote__c.Origin__c</members>
+        <members>rtms__CarrierQuote__c.Quote_Date__c</members>
+        <members>rtms__CarrierQuote__c.Ship_Date__c</members>
+        <members>rtms__CarrierQuote__c.Shipping_Date__c</members>
+        <!-- Second-layer dependencies referenced by the formulas above -->
+        <members>rtms__CarrierService__c.Carrier_Name__c</members>
+        <members>rtms__CarrierService__c.Carrier_Risk__c</members>
+        <members>rtms__TransportationProfile__c.BlackList__c</members>
+        <members>rtms__TransportationProfile__c.Outstanding_Claim__c</members>
+        <members>rtms__Load__c.Mode_For_Sharing__c</members>
+        <members>rtms__Load__c.Number_of_Pallets__c</members>
+        <members>Account.Number_of_Loads__c</members>
+        <name>CustomField</name>
+    </types>
+    <!-- Profile scoped to the components above -->
+    <types>
+        <members>Pricing</members>
+        <name>Profile</name>
+    </types>
+    <version>64.0</version>
+</Package>

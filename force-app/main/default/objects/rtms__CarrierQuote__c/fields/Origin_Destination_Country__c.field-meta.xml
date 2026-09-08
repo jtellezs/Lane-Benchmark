@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Origin_Destination_Country__c</fullName>
+    <externalId>false</externalId>
+    <formula>rtms__Load__r.rtms__First_Stop__r.rtms__Location2__r.ShippingCountry+&apos; / &apos;+ rtms__Load__r.rtms__Last_Stop__r.rtms__Location2__r.ShippingCountry</formula>
+    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <label>Origin / Destination Country</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

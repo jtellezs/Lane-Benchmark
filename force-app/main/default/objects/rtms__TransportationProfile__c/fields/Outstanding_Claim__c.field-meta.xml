@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Outstanding_Claim__c</fullName>
+    <defaultValue>false</defaultValue>
+    <inlineHelpText>This box will be checked if there is a claim opened against this carrier. It is recommended to keep the &apos;Carrier Review Status&apos; in &apos;Pending&apos; until the claim is closed.</inlineHelpText>
+    <label>Outstanding Claim</label>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Checkbox</type>
+</CustomField>
