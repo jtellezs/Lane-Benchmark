@@ -19,11 +19,18 @@
     <types>
         <members>PricingDepartmentController</members>
         <members>PricingDepartmentControllerTest</members>
+        <members>PlaceNormalizer</members>
+        <members>PlaceNormalizerTest</members>
         <members>PricingTestDataFactory</members>
+        <members>PricingTestDataFactoryTest</members>
+        <members>PlaceBuilderBatch</members>
+        <members>PlaceUsageBatch</members>
+        <members>PlaceBuilderBatchTest</members>
         <name>ApexClass</name>
     </types>
     <types>
         <members>Pricing_Department_Setting__mdt</members>
+        <members>Pricing_Place__c</members>
         <name>CustomObject</name>
     </types>
     <types>
@@ -71,6 +78,17 @@
         <members>Account.Number_of_Loads__c</members>
         <members
     >Pricing_Department_Setting__mdt.Excluded_Contact_Ids__c</members>
+        <members>Pricing_Place__c.Key__c</members>
+        <members>Pricing_Place__c.City__c</members>
+        <members>Pricing_Place__c.Province__c</members>
+        <members>Pricing_Place__c.Country__c</members>
+        <members>Pricing_Place__c.Geolocation__c</members>
+        <members>Pricing_Place__c.Location_Count__c</members>
+        <members>Pricing_Place__c.Load_Count_365d__c</members>
+        <members>Pricing_Place__c.Aliases__c</members>
+        <members>Pricing_Place__c.Spellings__c</members>
+        <members>Pricing_Place__c.Postal_Prefix__c</members>
+        <members>Pricing_Place__c.Active__c</members>
         <name>CustomField</name>
     </types>
     <version>64.0</version>

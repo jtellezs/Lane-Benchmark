@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>Pricing Place</label>
+    <pluralLabel>Pricing Places</pluralLabel>
+    <nameField>
+        <label>Place</label>
+        <type>Text</type>
+    </nameField>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <sharingModel>ReadWrite</sharingModel>
+    <enableActivities>false</enableActivities>
+    <enableHistory>false</enableHistory>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <description
+  >One record per city/province/country seen in shipping locations. Built by PlaceBuilderBatch; aliases and Active are curated by pricing. Used by Lane Benchmark autocomplete and radius search centers.</description>
+</CustomObject>

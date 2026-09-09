@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Postal_Prefix__c</fullName>
+    <label>Postal Prefix</label>
+    <type>Text</type>
+    <length>3</length>
+    <externalId>false</externalId>
+    <required>false</required>
+    <unique>false</unique>
+    <inlineHelpText
+  >Most common first three characters of the locations' postal codes (FSA or ZIP3). Maintained by PlaceBuilderBatch.</inlineHelpText>
+</CustomField>
