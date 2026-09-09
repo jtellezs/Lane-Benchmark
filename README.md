@@ -83,10 +83,93 @@ sf project deploy start -x manifest/package.xml --post-destructive-changes manif
 
 Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
 
+### Place dictionary
+
+`Pricing_Place__c` was built once in PostProduc on 2026-09-09 by running:
+
+```apex
+Database.executeBatch(new PlaceBuilderBatch(), 2000);
+```
+
+(`sf apex run -o sandbox` with that one line; `PlaceBuilderBatch.finish()` chains
+`PlaceWriteBatch`, which upserts the built rows in governor-safe per-scope
+transactions, then chains `PlaceUsageBatch` to fill `Load_Count_365d__c`, which
+also writes through `PlaceWriteBatch`.) Rerun the same command any time; it never
+deletes a place and never overwrites `Aliases__c` or `Active__c`.
+
+Result: **10,496 places** (`SELECT COUNT() FROM Pricing_Place__c`), built from
+58,755 location accounts referenced by a stop, which carry 11,479 distinct raw
+`ShippingCity` spellings before normalization — so `PlaceNormalizer` collapses at
+least 983 spelling/case/accent variants into shared keys (places are also split by
+province and country, so the true collapse per city name is higher than that
+difference suggests).
+
+**No permission set or profile grants object or field-level read on
+`Pricing_Place__c` yet** (phase 1 only writes it from Apex, which runs in system
+mode and ignores FLS; phase 2's `Lane_Benchmark_User` permission set needs to add
+it, or the place picker won't render and nobody, including System Administrator,
+can query these fields from the API, Execute Anonymous, reports, or list views).
+Until that grant exists, the **top 20 places by load count** cannot be queried by
+`sf data query` or `sf apex run` as documented in the phase 1 spec's Definition of
+done — every field except `Key__c` returns `No such column`. To produce the table,
+an admin first goes to Setup → Object Manager → `Pricing_Place__c` → each field →
+**Set Field-Level Security** → grant read to System Administrator (or add the
+grants to a permission set and assign it), then run:
+
+```bash
+sf data query -q "SELECT Name, Key__c, Location_Count__c, Load_Count_365d__c, Postal_Prefix__c FROM Pricing_Place__c ORDER BY Load_Count_365d__c DESC NULLS LAST LIMIT 20" -o sandbox
+```
+
+Montréal/Montreal spot check (`Name`, `Key__c` are readable without the grant
+above):
+
+```
+SELECT Name, Key__c FROM Pricing_Place__c WHERE Key__c LIKE 'montreal|%'
+Montréal, QC, CA | montreal|qc|ca
+Montreal, , CA   | montreal||ca
+```
+
+`montreal|qc|ca` is the intended collapse: the org's location accounts spell this
+city 22 different ways under `ShippingState = QC` (577 "Montréal", 573 "MONTREAL",
+plus accented/cased/punctuated variants and a few unrelated near-matches like
+"Montrose" and "Montréal-Nord", which correctly stay separate places), and
+`PlaceNormalizer` maps every "Montréal"/"Montreal"/"MONTREAL" spelling under QC/CA
+to that one key. `montreal||ca` is a second, minor key from a handful of accounts
+where the full city/province/postal string was typed into `ShippingCity` with
+`ShippingState` left blank (e.g. "Montreal QC", "MONTREAL, QC H2P 1L5") — real,
+messy source data the normalizer correctly treats as a different (blank-province)
+key rather than silently guessing the province.
+
+### Lane search
+
+`LaneSearchService.search(LaneSearchRequest)` returns a `LaneSearchResult` (rows,
+`statsByCurrency` per currency, `truncated`, `elapsedMs`, `dedupedCount`). A worked
+example against real data lives at `scripts/apex/laneSearchExample.apex` (run with
+`sf apex run -f scripts/apex/laneSearchExample.apex -o sandbox`); measured timings
+are recorded in `docs/superpowers/specs/2026-09-09-phase-1-search-foundation-design.md`
+under Outcome. Sample request, city precision, last 90 days:
+
+```apex
+LaneSearchRequest r = new LaneSearchRequest();
+r.originKey = 'montreal|qc|ca';
+r.destinationKey = 'toronto|on|ca';
+r.originPrecision = LaneSearchRequest.Precision.CITY;
+r.destinationPrecision = LaneSearchRequest.Precision.CITY;
+r.lookbackDays = 90;
+LaneSearchResult res = LaneSearchService.search(r);
+```
+
+### Support case
+
+Custom-index request for `rtms__Load__c.rtms__City_Lane__c` /
+`rtms__State_Lane__c` / `rtms__Zip3_Lane__c`: case number ______ (filed by the
+user).
+
 ## Known issues worth fixing
 
 - The excluded Contact Ids now live in `Pricing_Department_Setting__mdt` (record `Default`, field `Excluded_Contact_Ids__c`) instead of being hardcoded. `PricingDepartmentController` is still `without sharing`; that is intentional and documented in the class. The repo is the source of truth for `Pricing_Department_Setting.Default`; every deploy overwrites the org value, so admins request changes by pull request.
 - Every filter is a `LIKE '%x%'` on formula fields, which cannot use indexes; dedupe happens in Apex after the 500-row limit is applied.
+- No permission set or profile grants field-level or object read on `Pricing_Place__c` (see "Place dictionary" above); only Apex (system mode) can read it today. Phase 2 must add it to `Lane_Benchmark_User`.
 
 ## Continuous integration
 

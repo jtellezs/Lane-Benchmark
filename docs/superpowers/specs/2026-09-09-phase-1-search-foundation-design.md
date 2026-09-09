@@ -212,3 +212,148 @@ Jest: none in phase 1 (no UI change). CI unchanged.
 5. Support case for custom indexes filed (number in the README).
 6. Roadmap updated: phase 2 is the UI on this service, phase 3 folded in,
    phase 4 per-currency pricing suggestion, phase 5 unchanged.
+
+## Outcome (2026-09-09)
+
+Checked against the Definition of done above, item by item:
+
+1. **Deployed through CI — done.** `Pricing_Place__c`, `PlaceNormalizer`,
+   `PlaceBuilderBatch`, `PlaceWriteBatch`, `PlaceUsageBatch`,
+   `LaneSearchService`, `LaneSearchQueryBuilder`, `LaneSearchFilters`,
+   `LaneSearchRequest`, `LaneSearchResult`, the factory extensions, and
+   supporting tests all merged to `main` through the standard PR pipeline:
+   origin (`IulianEnescu78/PricingDepartment`) PRs **#9, #10, #11**; mirror
+   (`TPLM/PricingDepartment`) PRs **#7, #8, #9**; all six MERGED. Deployed to
+   PostProduc across three deploys: `0AfbZ00000CndR7SAJ` (22 tests, Tasks
+   1-4), `0AfbZ00000CnqWPSAZ` (35 tests, Tasks 5-7), and
+   `0AfbZ00000CnrU5SAJ` (36 tests, the `PlaceWriteBatch` fix below).
+2. **Batch run, count and spot check recorded; top 20 pending an FLS
+   grant.** The batch ran once in PostProduc on 2026-09-09 (job chain
+   `707bZ00000qwuH7QAI` → `707bZ00000qwtbMQAQ` → `707bZ00000qwmU2QAI` →
+   `707bZ00000qwvMhQAI`, all `Completed`, 0 errors — see the write-batch fix
+   below for why there's a chain of four jobs instead of two). Result:
+   **10,496 `Pricing_Place__c` records**, from 58,755 qualifying location
+   accounts carrying 11,479 distinct raw `ShippingCity` spellings. Spot
+   check: `Key__c LIKE 'montreal|%'` returns `montreal|qc|ca` ("Montréal,
+   QC, CA") and a minor second key `montreal||ca` from a few accounts with
+   the whole address typed into `ShippingCity` and `ShippingState` left
+   blank; grouping the raw `Account.ShippingCity` values feeding
+   `montreal|qc|ca` shows 577 "Montréal", 573 "MONTREAL", and 18 more
+   accented/cased/punctuated variants all collapsing into that one key, so
+   the intended Montréal/Montreal collapse is confirmed. **The "top 20
+   places by load count" table could not be produced**: no permission set
+   or profile grants field-level read on any `Pricing_Place__c` field except
+   the always-visible `Key__c`/`Name`/standard fields — not even to System
+   Administrator, which is the profile every `sf` command in this project
+   runs as. `SELECT Location_Count__c, Load_Count_365d__c, ... FROM
+Pricing_Place__c` fails with `No such column` from `sf data query`, from
+   static and dynamic SOQL in Execute Anonymous, and from the Tooling API
+   (`sObject type 'Pricing_Place__c' is not supported`); only Apex compiled
+   into a saved class (system mode, ignores FLS) can read these fields — see
+   README "Place dictionary" for the fix and the exact query to run once it
+   lands. `LaneSearchService.search()` itself is unaffected (proven by item
+   4 below): the FLS enforcement is scoped to the SOQL literally written
+   inside an anonymous block, not to SOQL inside classes it calls.
+3. **Tests pass — done**, per the deploy IDs in item 1 (36/36 passing after
+   the `PlaceWriteBatch` fix, reported alongside the fix's deploy).
+4. **Example script run against real data — done.**
+   `scripts/apex/laneSearchExample.apex` needed no changes: it already used
+   current field names (`includeStopGeolocation`, `Precision` enum values)
+   with no reference to the renamed `Accepted`/`acceptedFilter` (see
+   adaptations below). Montreal → Toronto, last 90 days, run 2026-09-09:
+
+   | Precision                 | Rows | Truncated | ms  | Notes                                                       |
+   | ------------------------- | ---- | --------- | --- | ----------------------------------------------------------- |
+   | CITY                      | 1    | false     | 997 | CAD only, single quote                                      |
+   | PROVINCE                  | 476  | false     | 618 | CAD + 1 USD row                                             |
+   | ZIP3                      | 0    | false     | 867 | no quotes matched this pair's postal prefixes in the window |
+   | RADIUS (100 mi both ends) | 377  | false     | 399 | CAD only                                                    |
+
+   365-day radius comparison (100 mi both ends), accounts-only vs.
+   with-stop-geolocation:
+
+   - `includeStopGeolocation = false` (accounts only): **19,730 ms**
+   - `includeStopGeolocation = true` (with stop geolocation OR): **2,244 ms**
+
+   The with-stops form was **faster**, not slower, in this run — the
+   opposite of the "OR condition costs more" expectation. This is a single,
+   order-dependent measurement: the two requests reuse the same `r2`
+   object and run back-to-back in one transaction, so the second query
+   (`withStops`) benefits from whatever the platform cached (query plan,
+   buffer pool) while running the first. It is **not** reliable evidence
+   that adding the OR is free, only evidence that a single un-repeated,
+   un-randomized pair of runs in one session cannot separate the two
+   effects. Since the measured ratio is nowhere near "more than 1.5x
+   slower" for `includeStopGeolocation = true` (if anything it points the
+   other way), the phase 2 default stays **`includeStopGeolocation = true`**
+   per the spec's original rule; phase 2 should re-measure with the run
+   order alternated/repeated before trusting either number for UI latency
+   budgeting.
+
+5. **Support case — placeholder only.** README has the line; the case
+   number is the user's action, not filed by this work.
+6. **Roadmap updated** — see the roadmap doc: phase 1 status, and a new
+   phase 6 (RFP tool) row plus a Backlog note.
+
+### Adaptations recorded here honestly
+
+- Revenova's managed `rtms__StopUpsert` trigger blanks stop-level
+  `rtms__City__c` / `rtms__Postal_Code__c` / `rtms__Geolocation__c` on any
+  stop that has `rtms__Location2__c` set (in and out of test context). The
+  factory writes lane keys itself rather than relying on that trigger;
+  account-less (ad hoc) stops keep their own geolocation, which is exactly
+  the fallback the RADIUS precision's OR condition depends on.
+- Account `State`/`Country` picklists in this org reject abbreviations
+  ("QC", "CA"); `PricingTestDataFactory.createLocation` must be called with
+  full names ("Quebec", "Canada").
+- `LaneSearchRequest.Accepted.ANY` and a field named `accepted` could not be
+  used as specified: `ANY` is a reserved Apex identifier, and a field named
+  `accepted` collided with the `Accepted` enum type (Apex is
+  case-insensitive). Renamed to `Accepted.ANY_STATUS` and
+  `req.acceptedFilter`.
+- The lane-search SOQL-building logic and the filter-application logic were
+  split out of `LaneSearchService` into `LaneSearchQueryBuilder` and
+  `LaneSearchFilters` to keep every class under PMD's class-level
+  cyclomatic-complexity threshold without a suppression.
+- `Spellings__c` (all known spellings for a place, newline-separated) and
+  `Postal_Prefix__c` (most common postal prefix among the place's
+  locations) were added to `Pricing_Place__c` beyond the fields originally
+  listed in this spec's "Place dictionary" table; both are read by
+  `PlaceBuilderBatchTest` and used in the README's spot check.
+- **The DML-row-limit bug and its fix.** The first attempt to run the batch
+  in PostProduc (before the fix below) failed: `PlaceBuilderBatch.finish()`
+  upserted every built `Pricing_Place__c` row in one transaction, chunked
+  into `Database.upsert()` calls of 2,000 records each, on the assumption
+  that chunking avoided Salesforce's DML-row governor limits. It does not:
+  Apex has two separate limits — 10,000 rows per single DML statement (which
+  chunking does avoid) and **10,000 rows per transaction, cumulative across
+  every DML statement in that transaction** (which chunking inside one
+  `finish()` invocation does not avoid, since all the chunks are still one
+  transaction). With 58,755 qualifying accounts and 11,479 distinct raw
+  city spellings, the true place count (10,496) is well above that per-
+  transaction ceiling, so `finish()` threw `Too many DML rows: 10001`,
+  which rolled back every upsert in that transaction — the run completed
+  with `NumberOfErrors = 1` and left `Pricing_Place__c` at zero rows. The
+  same bug existed in `PlaceUsageBatch.finish()`'s single unchunked
+  `update updates;`. The fix: a new `PlaceWriteBatch implements
+Database.Batchable<Pricing_Place__c>`, whose `start()` returns the
+  already-built `List<Pricing_Place__c>` as an `Iterable`, so each
+  `execute()` scope runs in its **own** transaction — the per-transaction
+  limit resets every 2,000 rows no matter how many rows there are in total.
+  `PlaceBuilderBatch.finish()` now hands its built rows to
+  `PlaceWriteBatch(records, chainUsageBatch = true)`, which chains
+  `PlaceUsageBatch` once it finishes; `PlaceUsageBatch.finish()` now hands
+  its changed rows to a second `PlaceWriteBatch(records, chainUsageBatch =
+false)`. Fixed and merged as origin #11 / TPLM #9, deployed as
+  `0AfbZ00000CnrU5SAJ` (36 tests). The rerun after the fix produced the
+  chain of four completed jobs recorded in item 2 above, with 0 errors
+  throughout.
+- **The `Pricing_Place__c` field-level-security gap** (item 2 above): no
+  permission set or profile grants object or field read on
+  `Pricing_Place__c`, discovered while trying to query the top 20 places
+  for this Outcome. Not a regression from this phase's work — the object
+  was never given a permission set because phase 1 has no UI touching it
+  directly (`LaneSearchService` reads it in system-mode Apex) — but it is a
+  hard blocker for phase 2's place picker and for any admin/report/API
+  access to this data, and needs to be in scope for phase 2's
+  `Lane_Benchmark_User` permission set, not deferred further.
