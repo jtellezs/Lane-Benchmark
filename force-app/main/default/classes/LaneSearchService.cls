@@ -1,0 +1,176 @@
+/**
+ * Lane search over rtms__CarrierQuote__c. Orchestrates a search: validate the request, resolve
+ * places, build the dynamic SOQL (LaneSearchQueryBuilder.buildSoql), run it, then dedupe rows and
+ * compute per-currency statistics. See LaneSearchQueryBuilder for how precisions map onto
+ * Revenova's lane keys on the Load (CITY, PROVINCE, ZIP3) or DISTANCE() through the stops
+ * (RADIUS), and for the currency/mode/equipment/hazmat/market-test/accepted filters.
+ */
+// Runs without sharing on purpose: pricing benchmarks every team's quotes. Access is gated by the Lane Benchmark permission sets.
+// Task 7 review ruling: the SOQL-building logic (every precision/filter branch) was extracted
+// into LaneSearchQueryBuilder so this class stays small enough that its PMD complexity total
+// needs no suppression - see LaneSearchQueryBuilder's class doc.
+public without sharing class LaneSearchService {
+  @SuppressWarnings(
+    'PMD.ApexCRUDViolation'
+  ) // system mode by design (see class comment); Database.queryWithBinds also counts as CRUD for PMD
+  public static LaneSearchResult search(LaneSearchRequest req) {
+    req.validate();
+    Map<String, Pricing_Place__c> places = loadPlaces(req);
+    Map<String, Object> binds = new Map<String, Object>();
+    String soql = LaneSearchQueryBuilder.buildSoql(req, binds, places);
+    Long t0 = System.currentTimeMillis();
+    List<rtms__CarrierQuote__c> quotes = Database.queryWithBinds(
+      soql,
+      binds,
+      AccessLevel.SYSTEM_MODE
+    );
+    LaneSearchResult result = new LaneSearchResult();
+    result.elapsedMs = System.currentTimeMillis() - t0;
+    result.truncated = quotes.size() > req.rowLimit;
+    if (result.truncated) {
+      quotes.remove(quotes.size() - 1);
+    }
+    collectRows(quotes, result);
+    return result;
+  }
+
+  /**
+   * Dedupes quotes (same fingerprint as PricingDepartmentController.UniqueCarrierQuote, but on
+   * rtms__Carrier_Total__c instead of the CAD-converted total, so USD quotes dedupe too) into
+   * result.rows/dedupedCount, and rolls the surviving totals up into result.statsByCurrency.
+   */
+  private static void collectRows(
+    List<rtms__CarrierQuote__c> quotes,
+    LaneSearchResult result
+  ) {
+    Set<String> seen = new Set<String>();
+    Map<String, List<Decimal>> totalsByCurrency = new Map<String, List<Decimal>>();
+    for (rtms__CarrierQuote__c q : quotes) {
+      String fingerprint =
+        String.valueOf(q.rtms__Carrier_Total__c) +
+        '|' +
+        q.Carrier_Name__c +
+        '|' +
+        q.Origin__c +
+        '|' +
+        q.Destination__c +
+        '|' +
+        q.Mode__c +
+        '|' +
+        q.Equipment_Type__c;
+      if (seen.contains(fingerprint)) {
+        result.dedupedCount++;
+        continue;
+      }
+      seen.add(fingerprint);
+      result.rows.add(toRow(q));
+      String cur = q.CurrencyIsoCode == null ? 'CAD' : q.CurrencyIsoCode;
+      if (!totalsByCurrency.containsKey(cur)) {
+        totalsByCurrency.put(cur, new List<Decimal>());
+      }
+      totalsByCurrency.get(cur)
+        .add(q.rtms__Carrier_Total__c == null ? 0 : q.rtms__Carrier_Total__c);
+    }
+    for (String cur : totalsByCurrency.keySet()) {
+      result.statsByCurrency.put(cur, stats(totalsByCurrency.get(cur)));
+    }
+  }
+
+  /**
+   * count includes zero totals; countNonZero and min/max/avg/median exclude them (matching the
+   * phase 0 statistics). median: odd count is the middle value, even count is the mean of the two
+   * middle values.
+   */
+  @TestVisible
+  private static LaneSearchResult.Stats stats(List<Decimal> totals) {
+    LaneSearchResult.Stats s = new LaneSearchResult.Stats();
+    List<Decimal> nonZero = new List<Decimal>();
+    for (Decimal t : totals) {
+      s.count++;
+      if (t != 0) {
+        nonZero.add(t);
+      }
+    }
+    s.countNonZero = nonZero.size();
+    if (nonZero.isEmpty()) {
+      return s;
+    }
+    nonZero.sort();
+    Decimal sum = 0;
+    for (Decimal t : nonZero) {
+      sum += t;
+    }
+    s.min = nonZero[0];
+    s.max = nonZero[nonZero.size() - 1];
+    s.avg = (sum / nonZero.size()).setScale(2);
+    Integer n = nonZero.size();
+    s.median = Math.mod(n, 2) == 1
+      ? nonZero[n / 2]
+      : ((nonZero[n / 2 - 1] + nonZero[n / 2]) / 2).setScale(2);
+    return s;
+  }
+
+  @SuppressWarnings(
+    'PMD.ApexCRUDViolation'
+  ) // system mode by design (see class comment)
+  private static Map<String, Pricing_Place__c> loadPlaces(
+    LaneSearchRequest req
+  ) {
+    Set<String> keys = new Set<String>();
+    if (String.isNotBlank(req.originKey)) {
+      keys.add(req.originKey);
+    }
+    if (String.isNotBlank(req.destinationKey)) {
+      keys.add(req.destinationKey);
+    }
+    Map<String, Pricing_Place__c> byKey = new Map<String, Pricing_Place__c>();
+    if (keys.isEmpty()) {
+      return byKey;
+    }
+    for (Pricing_Place__c p : [
+      SELECT
+        Key__c,
+        City__c,
+        Province__c,
+        Country__c,
+        Geolocation__Latitude__s,
+        Geolocation__Longitude__s,
+        Postal_Prefix__c,
+        Spellings__c
+      FROM Pricing_Place__c
+      WHERE Key__c IN :keys
+    ]) {
+      byKey.put(p.Key__c, p);
+    }
+    for (String k : keys) {
+      if (!byKey.containsKey(k)) {
+        throw new LaneSearchException('Unknown place key: ' + k);
+      }
+    }
+    return byKey;
+  }
+
+  private static LaneSearchResult.Row toRow(rtms__CarrierQuote__c q) {
+    LaneSearchResult.Row r = new LaneSearchResult.Row();
+    r.quoteId = q.Id;
+    r.quoteName = q.Name;
+    r.loadId = q.rtms__Load__c;
+    r.origin = q.Origin__c;
+    r.destination = q.Destination__c;
+    r.mode = q.Mode__c;
+    r.equipment = q.Equipment_Type__c;
+    r.equipmentCategory = q.rtms__Load__r
+      ?.rtms__Equipment_Type__r
+      ?.rtms__Category__c;
+    r.carrierName = q.Carrier_Name__c;
+    r.contactName = q.Carrier_Contact__c;
+    r.currencyIsoCode = q.CurrencyIsoCode;
+    r.carrierTotal = q.rtms__Carrier_Total__c;
+    r.quoteDate = q.Quote_Date__c;
+    r.hazmat = q.Hazmat__c == 'Hazmat';
+    r.accepted = q.rtms__Accepted__c;
+    r.loadStatus = q.Load_Status__c;
+    r.opsComments = q.Ops_Comments__c;
+    return r;
+  }
+}

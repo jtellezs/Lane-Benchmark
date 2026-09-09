@@ -71,14 +71,14 @@ sf project deploy validate -x manifest/package.xml -o sandbox
 sf project deploy start    -x manifest/package.xml -o sandbox
 
 # Run the tests
-sf apex run test -n PricingDepartmentControllerTest -n PlaceNormalizerTest -n PricingTestDataFactoryTest -n PlaceBuilderBatchTest -o sandbox -r human -w 15
+sf apex run test -n PricingDepartmentControllerTest -n PlaceNormalizerTest -n PricingTestDataFactoryTest -n PlaceBuilderBatchTest -n LaneSearchServiceTest -o sandbox -r human -w 15
 ```
 
 ```bash
 # Deploy to PostProduc. --post-destructive-changes is a two-step, not a re-runnable one:
 # add the members to manifest/destructiveChangesPost.xml, deploy once, then empty the
 # manifest again. A second deploy naming already-deleted components fails the whole run.
-sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o sandbox -l RunSpecifiedTests -t PricingDepartmentControllerTest PlaceNormalizerTest PricingTestDataFactoryTest PlaceBuilderBatchTest
+sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o sandbox -l RunSpecifiedTests -t PricingDepartmentControllerTest PlaceNormalizerTest PricingTestDataFactoryTest PlaceBuilderBatchTest LaneSearchServiceTest
 ```
 
 Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
@@ -93,11 +93,11 @@ Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
 `.github/workflows/ci.yml` runs on every pull request and on pushes to `main`, identically
 in both repositories:
 
-| Job    | What it does                                                                           | Fails on                                   |
-| ------ | -------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `lwc`  | `npm ci`, ESLint, Prettier check, Jest with coverage                                   | lint error, formatting drift, failing test |
-| `apex` | `sf project deploy validate` against PostProduc with `PricingDepartmentControllerTest` | compile error, test failure                |
-| `pmd`  | PMD 7 Apex quickstart, priority 3 (all quickstart rules), text output in the job log   | any quickstart violation                   |
+| Job    | What it does                                                                                                  | Fails on                                   |
+| ------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `lwc`  | `npm ci`, ESLint, Prettier check, Jest with coverage                                                          | lint error, formatting drift, failing test |
+| `apex` | validates the manifest against PostProduc and runs the project's test classes (see the workflow for the list) | compile error, test failure                |
+| `pmd`  | PMD 7 Apex quickstart, priority 3 (all quickstart rules), text output in the job log                          | any quickstart violation                   |
 
 CI never deploys. Deploys to PostProduc are run by a developer after merge (command
 above).
