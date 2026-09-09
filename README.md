@@ -8,16 +8,16 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 
 ## What is in here
 
-| Layer | Component | Notes |
-|---|---|---|
-| Navigation | `tabs/Pricing_Department` | Custom tab pointing at the app page |
-| Page | `flexipages/Pricing_Department` | App page, default home template, one region |
-| UI | `lwc/pricingDepartment` | Filters, quote table, stats header, carrier detail modal |
-| Apex | `classes/PricingDepartmentController` | Two `@AuraEnabled(cacheable=true)` methods: `getCarrierQuotes`, `getUniqueModeOptions` |
-| Apex tests | `PricingDepartmentControllerTest3`, `PricingDepartmentController_TGN_TEST` | |
-| Data | `objects/rtms__CarrierQuote__c/fields/*` | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas |
-| Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups |
-| Security | `profiles/Pricing` | Scoped copy of the Pricing profile (only entries for components in this project). Access is profile-based; no permission set exists for this app |
+| Layer            | Component                                                                                         | Notes                                                                                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Navigation       | `tabs/Pricing_Department`                                                                         | Custom tab pointing at the app page                                                                                                              |
+| Page             | `flexipages/Pricing_Department`                                                                   | App page, default home template, one region                                                                                                      |
+| UI               | `lwc/pricingDepartment`                                                                           | Filters, quote table, stats header, carrier detail modal                                                                                         |
+| Apex             | `classes/PricingDepartmentController`                                                             | Two `@AuraEnabled(cacheable=true)` methods: `getCarrierQuotes`, `getUniqueModeOptions`                                                           |
+| Apex tests       | `PricingDepartmentControllerTest`, `PricingTestDataFactory`                                       | Behavior tests; the factory builds the minimum valid Revenova graph the managed triggers require, so tests do not depend on org data             |
+| Data             | `objects/rtms__CarrierQuote__c/fields/*`                                                          | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas                                                                   |
+| Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups                                                                                                |
+| Security         | `profiles/Pricing`                                                                                | Scoped copy of the Pricing profile (only entries for components in this project). Access is profile-based; no permission set exists for this app |
 
 Not included on purpose:
 
@@ -39,6 +39,29 @@ returns at most 500 records ordered by `Quote_Date__c` desc.
 
 ## Working with the org
 
+### Environments
+
+| Org        | Alias       | Role                                            | Data                    |
+| ---------- | ----------- | ----------------------------------------------- | ----------------------- |
+| PostProduc | `sandbox`   | Develop, test, CI, UAT. Real deploys land here. | Real, copied at refresh |
+| Production | `vscodeOrg` | Live. Deployed after sign-off in PostProduc     | Real                    |
+
+Full is other teams' active development sandbox and is not used for this project.
+A Developer Pro sandbox (`devpro`) was also tried, but it cannot insert `rtms__Load__c`:
+the Revenova managed triggers need configuration records that only a data-carrying
+sandbox has.
+
+### After a PostProduc refresh
+
+Re-authorize the refreshed org:
+
+```bash
+sf org login web -a sandbox -r https://test.salesforce.com
+```
+
+Then regenerate the CI secret in the TPLM repository (see CI section). A refresh changes
+the org id and appends `.invalid` to every user email.
+
 ```bash
 # Re-pull everything in the manifest
 sf project retrieve start -x manifest/package.xml -o sandbox
@@ -48,10 +71,15 @@ sf project deploy validate -x manifest/package.xml -o sandbox
 sf project deploy start    -x manifest/package.xml -o sandbox
 
 # Run the tests
-sf apex run test -n PricingDepartmentControllerTest3 -n PricingDepartmentController_TGN_TEST -o sandbox -r human
+sf apex run test -n PricingDepartmentControllerTest -o sandbox -r human -w 10
 ```
 
-Org aliases: `sandbox` = postproduction sandbox, `Full` = full sandbox, `vscodeOrg` = production.
+```bash
+# Deploy to PostProduc (destructive changes remove retired classes; re-runnable)
+sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o sandbox -l RunSpecifiedTests -t PricingDepartmentControllerTest
+```
+
+Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
 
 ## Known issues worth fixing
 
@@ -59,16 +87,50 @@ Org aliases: `sandbox` = postproduction sandbox, `Full` = full sandbox, `vscodeO
 - Every filter is a `LIKE '%x%'` on formula fields, which cannot use indexes; dedupe happens in Apex after the 500-row limit is applied.
 - `handleAcceptedQuotesFilterChange` in the LWC logs `isAcceptedQuotesChecked.isPriceDepChecked`, which throws a ReferenceError.
 - `fetchModeOptions` (server-side mode options) is never called; modes are derived client-side from the result set instead.
-- `PricingDepartmentControllerTest3` (TestGen, 2023) calls `getCarrierQuotes` with 8 arguments; the method now takes 9, so that test no longer compiles. `PricingDepartmentController_TGN_TEST` is the current one.
-- Both tests insert an empty Carrier Quote and only assert nothing; they exercise coverage, not behavior.
 - The LWC API version is 57.0 while the project is on 64.0.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`, identically
+in both repositories:
+
+| Job    | What it does                                                                           | Fails on                                   |
+| ------ | -------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `lwc`  | `npm ci`, ESLint, Prettier check, Jest with coverage                                   | lint error, formatting drift, failing test |
+| `apex` | `sf project deploy validate` against PostProduc with `PricingDepartmentControllerTest` | compile error, test failure                |
+| `pmd`  | PMD 7 Apex quickstart, priority 1-2                                                    | any P1/P2 violation                        |
+
+CI never deploys. Deploys to PostProduc are run by a developer after merge (command
+above).
+
+Secret `SFDX_AUTH_URL_POSTPRODUC` is set in the TPLM repository only. The personal
+mirror (`IulianEnescu78/PricingDepartment`) has no org secret, so its `apex` job detects
+that and skips its Salesforce steps instead of failing; the `apex` job only validates for
+real in the TPLM repository. Regenerate the secret after every PostProduc refresh:
+
+```bash
+set -o pipefail
+sf org auth show-sfdx-auth-url -o sandbox --json 2>/dev/null \
+  | python3 -c "import json,sys; u=json.load(sys.stdin)['result']['sfdxAuthUrl']; assert u.startswith('force://'); sys.stdout.write(u)" \
+  | GH_TOKEN=$(gh auth token -u IulianEnescu) gh secret set SFDX_AUTH_URL_POSTPRODUC -R TPLM/PricingDepartment
+```
+
+Never echo or print the auth URL; pipe it directly from `sf org auth show-sfdx-auth-url` into
+`gh secret set`. (`sf org display --verbose --json` no longer includes the real URL on current
+CLI versions; it returns a `[REDACTED]` placeholder.)
+
+### Branch protection
+
+Not yet enabled in either repository. Branch protection is set up once CI is green on
+`phase-0/foundation` in both repositories, requiring `["lwc", "pmd"]` in
+`IulianEnescu78/PricingDepartment` and `["lwc", "apex", "pmd"]` in `TPLM/PricingDepartment`.
 
 ## Git remotes
 
-| Remote | URL | Account |
-|---|---|---|
-| `origin` | https://github.com/IulianEnescu78/PricingDepartment | personal (primary) |
-| `tplm` | https://github.com/TPLM/PricingDepartment | Trans-Pro org, via the `IulianEnescu` GitHub login |
+| Remote   | URL                                                 | Account                                            |
+| -------- | --------------------------------------------------- | -------------------------------------------------- |
+| `origin` | https://github.com/IulianEnescu78/PricingDepartment | personal (primary)                                 |
+| `tplm`   | https://github.com/TPLM/PricingDepartment           | Trans-Pro org, via the `IulianEnescu` GitHub login |
 
 Always push `origin` first, then `tplm`. The default credential helper holds the personal
 login, which cannot see the private TPLM repo, so push to `tplm` with the work token:

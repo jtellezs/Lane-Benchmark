@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<ruleset
+  name="Pricing Department Apex rules"
+  xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd"
+>
+    <description
+  >Apex quickstart rules. CI fails on priority 1 and 2 only.</description>
+    <rule ref="rulesets/apex/quickstart.xml">
+        <!-- Test classes deliberately create many records inline. -->
+        <exclude name="ApexUnitTestClassShouldHaveRunAs" />
+    </rule>
+</ruleset>

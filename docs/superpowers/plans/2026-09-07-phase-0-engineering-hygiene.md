@@ -38,24 +38,24 @@ Verify: `sf org display -o devpro` shows `Connected Status: Connected` and an Or
 
 ## File structure
 
-| Path | Responsibility |
-|---|---|
-| `.forceignore` | Exclude profiles and Jest tests from deploys |
-| `.github/workflows/ci.yml` | Three CI jobs: `lwc`, `apex`, `pmd` |
-| `config/pmd-ruleset.xml` | PMD ruleset: Apex quickstart, priority 1-2 gate |
-| `manifest/package.xml` | Deployable members (already exists; updated) |
-| `manifest/destructiveChangesPost.xml` | Removes the two retired test classes |
-| `force-app/main/default/lwc/quoteStats/quoteStats.js` | Pure functions: statistics, row shaping, mode options |
-| `force-app/main/default/lwc/quoteStats/__tests__/quoteStats.test.js` | Unit tests for the pure module |
-| `force-app/main/default/lwc/pricingDepartment/*` | Existing component, slimmed to UI state + Apex calls |
-| `force-app/main/default/lwc/pricingDepartment/__tests__/pricingDepartment.test.js` | Component tests |
-| `force-app/main/default/classes/PricingTestDataFactory.cls` | Builds the minimum valid Revenova graph for tests |
-| `force-app/main/default/classes/PricingDepartmentControllerTest.cls` | Behavior tests for the controller |
-| `force-app/main/default/classes/PricingDepartmentController.cls` | Existing controller; excluded contacts from custom metadata |
-| `force-app/main/default/objects/Pricing_Department_Setting__mdt/**` | Custom metadata type + `Excluded_Contact_Ids__c` |
-| `force-app/main/default/customMetadata/Pricing_Department_Setting.Default.md-meta.xml` | The one settings record |
-| `force-app/main/default/permissionsets/Pricing_Department_User.permissionset-meta.xml` | Tab, Apex, field read access |
-| `README.md` | Environment table, runbook, CI notes |
+| Path                                                                                   | Responsibility                                              |
+| -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `.forceignore`                                                                         | Exclude profiles and Jest tests from deploys                |
+| `.github/workflows/ci.yml`                                                             | Three CI jobs: `lwc`, `apex`, `pmd`                         |
+| `config/pmd-ruleset.xml`                                                               | PMD ruleset: Apex quickstart, priority 1-2 gate             |
+| `manifest/package.xml`                                                                 | Deployable members (already exists; updated)                |
+| `manifest/destructiveChangesPost.xml`                                                  | Removes the two retired test classes                        |
+| `force-app/main/default/lwc/quoteStats/quoteStats.js`                                  | Pure functions: statistics, row shaping, mode options       |
+| `force-app/main/default/lwc/quoteStats/__tests__/quoteStats.test.js`                   | Unit tests for the pure module                              |
+| `force-app/main/default/lwc/pricingDepartment/*`                                       | Existing component, slimmed to UI state + Apex calls        |
+| `force-app/main/default/lwc/pricingDepartment/__tests__/pricingDepartment.test.js`     | Component tests                                             |
+| `force-app/main/default/classes/PricingTestDataFactory.cls`                            | Builds the minimum valid Revenova graph for tests           |
+| `force-app/main/default/classes/PricingDepartmentControllerTest.cls`                   | Behavior tests for the controller                           |
+| `force-app/main/default/classes/PricingDepartmentController.cls`                       | Existing controller; excluded contacts from custom metadata |
+| `force-app/main/default/objects/Pricing_Department_Setting__mdt/**`                    | Custom metadata type + `Excluded_Contact_Ids__c`            |
+| `force-app/main/default/customMetadata/Pricing_Department_Setting.Default.md-meta.xml` | The one settings record                                     |
+| `force-app/main/default/permissionsets/Pricing_Department_User.permissionset-meta.xml` | Tab, Apex, field read access                                |
+| `README.md`                                                                            | Environment table, runbook, CI notes                        |
 
 Retired: `classes/PricingDepartmentControllerTest3.cls(-meta.xml)`, `classes/PricingDepartmentController_TGN_TEST.cls(-meta.xml)`.
 
@@ -64,10 +64,12 @@ Retired: `classes/PricingDepartmentControllerTest3.cls(-meta.xml)`, `classes/Pri
 ### Task 1: Reconcile the repo against the refreshed DevPro
 
 **Files:**
+
 - Modify: `force-app/**` only if the diff review says production had newer Pricing Department metadata (expected: no changes)
 - Modify: `README.md` (environment table)
 
 **Interfaces:**
+
 - Produces: DevPro contains exactly the repo's version of every manifest member. Later tasks deploy to `devpro` freely.
 
 - [ ] **Step 1: Confirm the org is the refreshed one**
@@ -100,11 +102,11 @@ Insert after the "Working with the org" heading in `README.md`:
 ```markdown
 ### Environments
 
-| Org | Alias | Role | Data |
-|---|---|---|---|
-| Production | `vscodeOrg` | Source of truth, last stop. Never deploy from a laptop. | Real |
-| PostProduc (Full) | `sandbox` | UAT and anything that needs real loads, stops, quotes | Real, copied at refresh |
-| DevPro (Developer Pro) | `devpro` | All development and CI validation | Metadata only, no records |
+| Org                    | Alias       | Role                                                    | Data                      |
+| ---------------------- | ----------- | ------------------------------------------------------- | ------------------------- |
+| Production             | `vscodeOrg` | Source of truth, last stop. Never deploy from a laptop. | Real                      |
+| PostProduc (Full)      | `sandbox`   | UAT and anything that needs real loads, stops, quotes   | Real, copied at refresh   |
+| DevPro (Developer Pro) | `devpro`    | All development and CI validation                       | Metadata only, no records |
 
 After a DevPro refresh: `sf org logout -o devpro --no-prompt`, `sf org login web -a devpro -r https://test.salesforce.com`, then regenerate the CI secret (see CI section). A refresh changes the org id and appends `.invalid` to every user email.
 ```
@@ -122,10 +124,12 @@ git commit -m "Document environments and DevPro refresh runbook"
 ### Task 2: Node toolchain, Husky, forceignore, project name
 
 **Files:**
+
 - Modify: `package.json` (name only), `sfdx-project.json` (name), `.forceignore`
 - Create: `package-lock.json`
 
 **Interfaces:**
+
 - Produces: `npm run lint`, `npm run prettier:verify`, `npm test` all runnable; pre-commit hook active.
 
 - [ ] **Step 1: Rename the project**
@@ -162,12 +166,14 @@ Expected: lint-staged output appears before the commit is created. If the hook f
 ### Task 3: Extract `quoteStats` pure module with Jest tests
 
 **Files:**
+
 - Create: `force-app/main/default/lwc/quoteStats/quoteStats.js`
 - Create: `force-app/main/default/lwc/quoteStats/quoteStats.js-meta.xml`
 - Create: `force-app/main/default/lwc/quoteStats/__tests__/quoteStats.test.js`
 - Modify: `force-app/main/default/lwc/pricingDepartment/pricingDepartment.js`
 
 **Interfaces:**
+
 - Produces (imported by Task 4 and later phases):
   - `calculateStats(quotes: Array<{CAD_Quote_Total__c:number}>) => { min:number, max:number, avg:number, roundedAvg:string, nbOfQuotes:number, nbOfQuotesNotZero:number }`
   - `shapeRows(quotes: Array<object>) => Array<object & { rowNumber:number, id:number, cellModeClass:string, showAdditionalContent:boolean, additionalContentKey:string }>`
@@ -178,56 +184,77 @@ Expected: lint-staged output appears before the commit is created. If the hook f
 `force-app/main/default/lwc/quoteStats/__tests__/quoteStats.test.js`:
 
 ```javascript
-import { calculateStats, shapeRows, modeOptionsFrom } from 'c/quoteStats';
+import { calculateStats, shapeRows, modeOptionsFrom } from "c/quoteStats";
 
-const q = (total, mode = 'Truckload', id = 'a') => ({ Id: id, CAD_Quote_Total__c: total, Mode__c: mode });
-
-describe('calculateStats', () => {
-    it('returns zeros for an empty list', () => {
-        expect(calculateStats([])).toEqual({
-            min: 0, max: 0, avg: 0, roundedAvg: '0.00', nbOfQuotes: 0, nbOfQuotesNotZero: 0
-        });
-    });
-
-    it('ignores zero totals for min, max and average but counts them', () => {
-        const s = calculateStats([q(0), q(100), q(300)]);
-        expect(s.min).toBe(100);
-        expect(s.max).toBe(300);
-        expect(s.avg).toBe(200);
-        expect(s.roundedAvg).toBe('200.00');
-        expect(s.nbOfQuotes).toBe(3);
-        expect(s.nbOfQuotesNotZero).toBe(2);
-    });
-
-    it('rounds the average to two decimals as a string', () => {
-        expect(calculateStats([q(100), q(101), q(101)]).roundedAvg).toBe('100.67');
-    });
+const q = (total, mode = "Truckload", id = "a") => ({
+  Id: id,
+  CAD_Quote_Total__c: total,
+  Mode__c: mode
 });
 
-describe('shapeRows', () => {
-    it('numbers rows from 1 and assigns the mode cell class', () => {
-        const rows = shapeRows([q(1, 'LTL', 'x'), q(2, 'Truckload', 'y'), q(3, 'Freight Forwarding', 'z'), q(4, 'Drayage', 'w')]);
-        expect(rows.map((r) => r.rowNumber)).toEqual([1, 2, 3, 4]);
-        expect(rows.map((r) => r.cellModeClass)).toEqual(['ltl-cell', 'ftl-cell', 'freight-cell', '']);
-        expect(rows[0].additionalContentKey).toBe('x-additional-content');
-        expect(rows[0].showAdditionalContent).toBe(false);
+describe("calculateStats", () => {
+  it("returns zeros for an empty list", () => {
+    expect(calculateStats([])).toEqual({
+      min: 0,
+      max: 0,
+      avg: 0,
+      roundedAvg: "0.00",
+      nbOfQuotes: 0,
+      nbOfQuotesNotZero: 0
     });
+  });
 
-    it('does not mutate the input objects', () => {
-        const input = [q(1)];
-        shapeRows(input);
-        expect(input[0].rowNumber).toBeUndefined();
-    });
+  it("ignores zero totals for min, max and average but counts them", () => {
+    const s = calculateStats([q(0), q(100), q(300)]);
+    expect(s.min).toBe(100);
+    expect(s.max).toBe(300);
+    expect(s.avg).toBe(200);
+    expect(s.roundedAvg).toBe("200.00");
+    expect(s.nbOfQuotes).toBe(3);
+    expect(s.nbOfQuotesNotZero).toBe(2);
+  });
+
+  it("rounds the average to two decimals as a string", () => {
+    expect(calculateStats([q(100), q(101), q(101)]).roundedAvg).toBe("100.67");
+  });
 });
 
-describe('modeOptionsFrom', () => {
-    it('lists distinct modes after an All option', () => {
-        expect(modeOptionsFrom([q(1, 'LTL'), q(2, 'Truckload'), q(3, 'LTL')])).toEqual([
-            { label: '-- All --', value: '' },
-            { label: 'LTL', value: 'LTL' },
-            { label: 'Truckload', value: 'Truckload' }
-        ]);
-    });
+describe("shapeRows", () => {
+  it("numbers rows from 1 and assigns the mode cell class", () => {
+    const rows = shapeRows([
+      q(1, "LTL", "x"),
+      q(2, "Truckload", "y"),
+      q(3, "Freight Forwarding", "z"),
+      q(4, "Drayage", "w")
+    ]);
+    expect(rows.map((r) => r.rowNumber)).toEqual([1, 2, 3, 4]);
+    expect(rows.map((r) => r.cellModeClass)).toEqual([
+      "ltl-cell",
+      "ftl-cell",
+      "freight-cell",
+      ""
+    ]);
+    expect(rows[0].additionalContentKey).toBe("x-additional-content");
+    expect(rows[0].showAdditionalContent).toBe(false);
+  });
+
+  it("does not mutate the input objects", () => {
+    const input = [q(1)];
+    shapeRows(input);
+    expect(input[0].rowNumber).toBeUndefined();
+  });
+});
+
+describe("modeOptionsFrom", () => {
+  it("lists distinct modes after an All option", () => {
+    expect(
+      modeOptionsFrom([q(1, "LTL"), q(2, "Truckload"), q(3, "LTL")])
+    ).toEqual([
+      { label: "-- All --", value: "" },
+      { label: "LTL", value: "LTL" },
+      { label: "Truckload", value: "Truckload" }
+    ]);
+  });
 });
 ```
 
@@ -242,62 +269,65 @@ Expected: FAIL, "Cannot find module 'c/quoteStats'".
 
 ```javascript
 const MODE_CELL_CLASS = {
-    LTL: 'ltl-cell',
-    Truckload: 'ftl-cell',
-    'Freight Forwarding': 'freight-cell'
+  LTL: "ltl-cell",
+  Truckload: "ftl-cell",
+  "Freight Forwarding": "freight-cell"
 };
 
 export function calculateStats(quotes) {
-    let sum = 0;
-    let count = 0;
-    let countZero = 0;
-    let min = Number.MAX_VALUE;
-    let max = -Number.MAX_VALUE;
+  let sum = 0;
+  let count = 0;
+  let countZero = 0;
+  let min = Number.MAX_VALUE;
+  let max = -Number.MAX_VALUE;
 
-    quotes.forEach((quote) => {
-        const total = quote.CAD_Quote_Total__c;
-        if (!total) {
-            countZero += 1;
-            return;
-        }
-        if (total < min) min = total;
-        if (total > max) max = total;
-        sum += total;
-        count += 1;
-    });
+  quotes.forEach((quote) => {
+    const total = quote.CAD_Quote_Total__c;
+    if (!total) {
+      countZero += 1;
+      return;
+    }
+    if (total < min) min = total;
+    if (total > max) max = total;
+    sum += total;
+    count += 1;
+  });
 
-    const avg = count === 0 ? 0 : sum / count;
-    return {
-        min: count === 0 ? 0 : min,
-        max: count === 0 ? 0 : max,
-        avg,
-        roundedAvg: avg.toFixed(2),
-        nbOfQuotes: count + countZero,
-        nbOfQuotesNotZero: count
-    };
+  const avg = count === 0 ? 0 : sum / count;
+  return {
+    min: count === 0 ? 0 : min,
+    max: count === 0 ? 0 : max,
+    avg,
+    roundedAvg: avg.toFixed(2),
+    nbOfQuotes: count + countZero,
+    nbOfQuotesNotZero: count
+  };
 }
 
 export function shapeRows(quotes) {
-    return quotes.map((quote, index) => ({
-        ...quote,
-        rowNumber: index + 1,
-        id: index,
-        cellModeClass: MODE_CELL_CLASS[quote.Mode__c] || '',
-        showAdditionalContent: false,
-        additionalContentKey: `${quote.Id}-additional-content`
-    }));
+  return quotes.map((quote, index) => ({
+    ...quote,
+    rowNumber: index + 1,
+    id: index,
+    cellModeClass: MODE_CELL_CLASS[quote.Mode__c] || "",
+    showAdditionalContent: false,
+    additionalContentKey: `${quote.Id}-additional-content`
+  }));
 }
 
 export function modeOptionsFrom(quotes) {
-    const modes = [...new Set(quotes.map((quote) => quote.Mode__c))];
-    return [{ label: '-- All --', value: '' }, ...modes.map((mode) => ({ label: mode, value: mode }))];
+  const modes = [...new Set(quotes.map((quote) => quote.Mode__c))];
+  return [
+    { label: "-- All --", value: "" },
+    ...modes.map((mode) => ({ label: mode, value: mode }))
+  ];
 }
 ```
 
 `force-app/main/default/lwc/quoteStats/quoteStats.js-meta.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <LightningComponentBundle xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>64.0</apiVersion>
     <isExposed>false</isExposed>
@@ -316,7 +346,7 @@ In `force-app/main/default/lwc/pricingDepartment/pricingDepartment.js`:
 Add after the two `@salesforce/apex` imports:
 
 ```javascript
-import { calculateStats, shapeRows, modeOptionsFrom } from 'c/quoteStats';
+import { calculateStats, shapeRows, modeOptionsFrom } from "c/quoteStats";
 ```
 
 Replace the body of the `if (result) { ... }` block inside `fetchCarrierQuotes` with:
@@ -360,12 +390,14 @@ git commit -m "Extract quote statistics and row shaping into a pure quoteStats m
 ### Task 4: Apex test data factory (discovery in DevPro)
 
 **Files:**
+
 - Create: `force-app/main/default/classes/PricingTestDataFactory.cls`
 - Create: `force-app/main/default/classes/PricingTestDataFactory.cls-meta.xml`
 - Create (temporary, deleted at end of task): `scripts/apex/factorySmoke.apex`
 - Modify: `manifest/package.xml`
 
 **Interfaces:**
+
 - Produces (used by Task 5):
   - `PricingTestDataFactory.Graph` with public fields `customer`, `vendor`, `originLocation`, `destinationLocation` (Account), `quoteContact` (Contact), `profile` (rtms__TransportationProfile__c), `mode` (rtms__Mode__c), `equipment` (rtms__EquipmentType__c), `carrierService` (rtms__CarrierService__c)
   - `static Graph createGraph()` inserts everything above and returns it
@@ -374,18 +406,18 @@ git commit -m "Extract quote statistics and row shaping into a pure quoteStats m
 
 Facts already established from the PostProduc describe (the factory encodes them):
 
-| Object | Required / needed | Why |
-|---|---|---|
-| Account (vendor) | `RecordType` = `Carrier`, `rtms__TMS_Type__c` = `Carrier (Ground)` | Validation rule `Carrier_service_only_for_carriers` |
-| Account (customer) | `rtms__TMS_Type__c` = `Customer`, full Billing address, `Industry` | Validation rules `Billing_Addres_is_Mandatory`, `Force_to_enter_the_industry` |
-| Account (locations) | `RecordType` = `Shipper_Consignee`, `ShippingCity/State/Country`, `ShippingLatitude/Longitude` | Load origin/destination formulas read `rtms__Location2__r` |
-| rtms__TransportationProfile__c | `RecordType` = `Carrier` | Active rule `Credit_limit_zero` only bites `Shipper_Consignee` |
-| rtms__Mode__c | `Name`, `rtms__Order__c`, `rtms__Minimum_Weight__c`, `rtms__Maximum_Weight__c` | Required fields |
-| rtms__EquipmentType__c | `Name`, `rtms__Max_Weight__c`, `rtms__Mode__c` (multipicklist), `rtms__Category__c` | Required fields |
-| rtms__CarrierService__c | `rtms__Mode__c`, `rtms__Carrier__c`, `rtms__Transportation_Profile__c`, `rtms__Minimum_Weight__c`, `rtms__Maximum_Weight__c`, `rtms__Quote_Contact__c` | Required fields; contact drives `Contact_ID__c` |
-| rtms__Load__c | `rtms__Total_Weight__c`, `TPRO_Division_Name__c` = `Trans-Pro Logistics Inc`, `rtms__Customer__c`, `rtms__Mode__c`, `rtms__Equipment_Type__c`, `Mode_For_Sharing__c`, `CurrencyIsoCode` = `CAD` | Required + formulas the page reads |
-| rtms__Stop__c | `rtms__Load__c`, `rtms__Number__c`, `rtms__Location2__c` | Required; location feeds origin/destination |
-| rtms__CarrierQuote__c | `rtms__Load__c`, `rtms__Carrier_Service__c`, `rtms__Vendor__c`, `rtms__Carrier_Total__c`, `CurrencyIsoCode` = `CAD` | Required + `CAD_Quote_Total__c` formula |
+| Object                         | Required / needed                                                                                                                                                                               | Why                                                                           |
+| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Account (vendor)               | `RecordType` = `Carrier`, `rtms__TMS_Type__c` = `Carrier (Ground)`                                                                                                                              | Validation rule `Carrier_service_only_for_carriers`                           |
+| Account (customer)             | `rtms__TMS_Type__c` = `Customer`, full Billing address, `Industry`                                                                                                                              | Validation rules `Billing_Addres_is_Mandatory`, `Force_to_enter_the_industry` |
+| Account (locations)            | `RecordType` = `Shipper_Consignee`, `ShippingCity/State/Country`, `ShippingLatitude/Longitude`                                                                                                  | Load origin/destination formulas read `rtms__Location2__r`                    |
+| rtms__TransportationProfile__c | `RecordType` = `Carrier`                                                                                                                                                                        | Active rule `Credit_limit_zero` only bites `Shipper_Consignee`                |
+| rtms__Mode__c                  | `Name`, `rtms__Order__c`, `rtms__Minimum_Weight__c`, `rtms__Maximum_Weight__c`                                                                                                                  | Required fields                                                               |
+| rtms__EquipmentType__c         | `Name`, `rtms__Max_Weight__c`, `rtms__Mode__c` (multipicklist), `rtms__Category__c`                                                                                                             | Required fields                                                               |
+| rtms__CarrierService__c        | `rtms__Mode__c`, `rtms__Carrier__c`, `rtms__Transportation_Profile__c`, `rtms__Minimum_Weight__c`, `rtms__Maximum_Weight__c`, `rtms__Quote_Contact__c`                                          | Required fields; contact drives `Contact_ID__c`                               |
+| rtms__Load__c                  | `rtms__Total_Weight__c`, `TPRO_Division_Name__c` = `Trans-Pro Logistics Inc`, `rtms__Customer__c`, `rtms__Mode__c`, `rtms__Equipment_Type__c`, `Mode_For_Sharing__c`, `CurrencyIsoCode` = `CAD` | Required + formulas the page reads                                            |
+| rtms__Stop__c                  | `rtms__Load__c`, `rtms__Number__c`, `rtms__Location2__c`                                                                                                                                        | Required; location feeds origin/destination                                   |
+| rtms__CarrierQuote__c          | `rtms__Load__c`, `rtms__Carrier_Service__c`, `rtms__Vendor__c`, `rtms__Carrier_Total__c`, `CurrencyIsoCode` = `CAD`                                                                             | Required + `CAD_Quote_Total__c` formula                                       |
 
 Known unknown: the custom triggers `LoadTrigger`, `LoadStatusTrigger`, `LoadFinancialTrigger`, `LoadARTrigger`, `StopTrigger`, `AccountTrigger` and the managed Revenova triggers may demand more. Step 3 is the discovery loop; every fix goes into the factory, never into a test.
 
@@ -401,137 +433,207 @@ Known unknown: the custom triggers `LoadTrigger`, `LoadStatusTrigger`, `LoadFina
  */
 @IsTest
 public class PricingTestDataFactory {
+  public static final String DIVISION = 'Trans-Pro Logistics Inc';
 
-    public static final String DIVISION = 'Trans-Pro Logistics Inc';
+  public class Graph {
+    public Account customer;
+    public Account vendor;
+    public Account originLocation;
+    public Account destinationLocation;
+    public Contact quoteContact;
+    public rtms__TransportationProfile__c profile;
+    public rtms__Mode__c mode;
+    public rtms__EquipmentType__c equipment;
+    public rtms__CarrierService__c carrierService;
+  }
 
-    public class Graph {
-        public Account customer;
-        public Account vendor;
-        public Account originLocation;
-        public Account destinationLocation;
-        public Contact quoteContact;
-        public rtms__TransportationProfile__c profile;
-        public rtms__Mode__c mode;
-        public rtms__EquipmentType__c equipment;
-        public rtms__CarrierService__c carrierService;
+  private static Id recordTypeId(String sobjectName, String developerName) {
+    return Schema.getGlobalDescribe()
+      .get(sobjectName)
+      .getDescribe()
+      .getRecordTypeInfosByDeveloperName()
+      .get(developerName)
+      .getRecordTypeId();
+  }
+
+  public static Graph createGraph() {
+    Graph g = new Graph();
+
+    g.customer = new Account(
+      Name = 'Test Customer',
+      RecordTypeId = recordTypeId('Account', 'Customer'),
+      rtms__TMS_Type__c = 'Customer',
+      Industry = 'Other',
+      BillingStreet = '1 Test St',
+      BillingCity = 'Montreal',
+      BillingState = 'Quebec',
+      BillingPostalCode = 'H1A 1A1',
+      BillingCountry = 'Canada',
+      CurrencyIsoCode = 'CAD'
+    );
+    g.vendor = new Account(
+      Name = 'Test Carrier',
+      RecordTypeId = recordTypeId('Account', 'Carrier'),
+      rtms__TMS_Type__c = 'Carrier (Ground)',
+      CurrencyIsoCode = 'CAD'
+    );
+    g.originLocation = location(
+      'Origin Co',
+      'Montreal',
+      'Quebec',
+      'Canada',
+      45.5019,
+      -73.5674
+    );
+    g.destinationLocation = location(
+      'Destination Co',
+      'Toronto',
+      'Ontario',
+      'Canada',
+      43.6532,
+      -79.3832
+    );
+    insert new List<Account>{
+      g.customer,
+      g.vendor,
+      g.originLocation,
+      g.destinationLocation
+    };
+
+    g.quoteContact = new Contact(
+      FirstName = 'Quote',
+      LastName = 'Contact',
+      AccountId = g.vendor.Id,
+      Email = 'quote.contact@example.invalid',
+      Phone = '514-555-0100'
+    );
+    insert g.quoteContact;
+
+    g.profile = new rtms__TransportationProfile__c(
+      Name = 'Test Carrier Profile',
+      RecordTypeId = recordTypeId('rtms__TransportationProfile__c', 'Carrier'),
+      rtms__Company_Risk__c = 'Acceptable'
+    );
+    insert g.profile;
+
+    g.mode = new rtms__Mode__c(
+      Name = 'Truckload',
+      rtms__Order__c = 1,
+      rtms__Minimum_Weight__c = 0,
+      rtms__Maximum_Weight__c = 100000
+    );
+    insert g.mode;
+
+    g.equipment = new rtms__EquipmentType__c(
+      Name = 'Dry Van 53\'',
+      rtms__Max_Weight__c = 45000,
+      rtms__Mode__c = 'Truckload',
+      rtms__Category__c = 'Van',
+      rtms__Enabled__c = true
+    );
+    insert g.equipment;
+
+    g.carrierService = new rtms__CarrierService__c(
+      Name = 'Test Carrier Service',
+      rtms__Carrier__c = g.vendor.Id,
+      rtms__Mode__c = g.mode.Id,
+      rtms__Transportation_Profile__c = g.profile.Id,
+      rtms__Quote_Contact__c = g.quoteContact.Id,
+      rtms__Minimum_Weight__c = 0,
+      rtms__Maximum_Weight__c = 100000
+    );
+    insert g.carrierService;
+    return g;
+  }
+
+  private static Account location(
+    String name,
+    String city,
+    String state,
+    String country,
+    Decimal lat,
+    Decimal lng
+  ) {
+    return new Account(
+      Name = name,
+      RecordTypeId = recordTypeId('Account', 'Shipper_Consignee'),
+      rtms__TMS_Type__c = 'Shipper/Consignee',
+      ShippingStreet = '1 Dock Rd',
+      ShippingCity = city,
+      ShippingState = state,
+      ShippingPostalCode = 'A1A 1A1',
+      ShippingCountry = country,
+      ShippingLatitude = lat,
+      ShippingLongitude = lng,
+      CurrencyIsoCode = 'CAD'
+    );
+  }
+
+  /** Inserts a load with a pickup at the origin location and a delivery at the destination location. */
+  public static rtms__Load__c createLoad(
+    Graph g,
+    Account origin,
+    Account destination
+  ) {
+    rtms__Load__c load = new rtms__Load__c(
+      Name = 'Test Load',
+      rtms__Customer__c = g.customer.Id,
+      rtms__Mode__c = g.mode.Id,
+      rtms__Equipment_Type__c = g.equipment.Id,
+      rtms__Total_Weight__c = 1000,
+      Mode_For_Sharing__c = 'Truckload',
+      TPRO_Division_Name__c = DIVISION,
+      CurrencyIsoCode = 'CAD'
+    );
+    insert load;
+
+    rtms__Stop__c pickup = new rtms__Stop__c(
+      rtms__Load__c = load.Id,
+      rtms__Number__c = 1,
+      rtms__Location2__c = origin.Id
+    );
+    rtms__Stop__c delivery = new rtms__Stop__c(
+      rtms__Load__c = load.Id,
+      rtms__Number__c = 2,
+      rtms__Location2__c = destination.Id
+    );
+    insert new List<rtms__Stop__c>{ pickup, delivery };
+
+    load = [
+      SELECT Id, rtms__First_Stop__c, rtms__Last_Stop__c
+      FROM rtms__Load__c
+      WHERE Id = :load.Id
+    ];
+    if (load.rtms__First_Stop__c == null || load.rtms__Last_Stop__c == null) {
+      load.rtms__First_Stop__c = pickup.Id;
+      load.rtms__Last_Stop__c = delivery.Id;
+      update load;
     }
+    return load;
+  }
 
-    private static Id recordTypeId(String sobjectName, String developerName) {
-        return Schema.getGlobalDescribe().get(sobjectName).getDescribe()
-            .getRecordTypeInfosByDeveloperName().get(developerName).getRecordTypeId();
-    }
-
-    public static Graph createGraph() {
-        Graph g = new Graph();
-
-        g.customer = new Account(
-            Name = 'Test Customer',
-            RecordTypeId = recordTypeId('Account', 'Customer'),
-            rtms__TMS_Type__c = 'Customer',
-            Industry = 'Other',
-            BillingStreet = '1 Test St', BillingCity = 'Montreal', BillingState = 'Quebec',
-            BillingPostalCode = 'H1A 1A1', BillingCountry = 'Canada',
-            CurrencyIsoCode = 'CAD'
-        );
-        g.vendor = new Account(
-            Name = 'Test Carrier',
-            RecordTypeId = recordTypeId('Account', 'Carrier'),
-            rtms__TMS_Type__c = 'Carrier (Ground)',
-            CurrencyIsoCode = 'CAD'
-        );
-        g.originLocation = location('Origin Co', 'Montreal', 'Quebec', 'Canada', 45.5019, -73.5674);
-        g.destinationLocation = location('Destination Co', 'Toronto', 'Ontario', 'Canada', 43.6532, -79.3832);
-        insert new List<Account>{ g.customer, g.vendor, g.originLocation, g.destinationLocation };
-
-        g.quoteContact = new Contact(FirstName = 'Quote', LastName = 'Contact', AccountId = g.vendor.Id,
-            Email = 'quote.contact@example.invalid', Phone = '514-555-0100');
-        insert g.quoteContact;
-
-        g.profile = new rtms__TransportationProfile__c(
-            Name = 'Test Carrier Profile',
-            RecordTypeId = recordTypeId('rtms__TransportationProfile__c', 'Carrier'),
-            rtms__Company_Risk__c = 'Acceptable'
-        );
-        insert g.profile;
-
-        g.mode = new rtms__Mode__c(Name = 'Truckload', rtms__Order__c = 1,
-            rtms__Minimum_Weight__c = 0, rtms__Maximum_Weight__c = 100000);
-        insert g.mode;
-
-        g.equipment = new rtms__EquipmentType__c(Name = 'Dry Van 53\'', rtms__Max_Weight__c = 45000,
-            rtms__Mode__c = 'Truckload', rtms__Category__c = 'Van', rtms__Enabled__c = true);
-        insert g.equipment;
-
-        g.carrierService = new rtms__CarrierService__c(
-            Name = 'Test Carrier Service',
-            rtms__Carrier__c = g.vendor.Id,
-            rtms__Mode__c = g.mode.Id,
-            rtms__Transportation_Profile__c = g.profile.Id,
-            rtms__Quote_Contact__c = g.quoteContact.Id,
-            rtms__Minimum_Weight__c = 0,
-            rtms__Maximum_Weight__c = 100000
-        );
-        insert g.carrierService;
-        return g;
-    }
-
-    private static Account location(String name, String city, String state, String country, Decimal lat, Decimal lng) {
-        return new Account(
-            Name = name,
-            RecordTypeId = recordTypeId('Account', 'Shipper_Consignee'),
-            rtms__TMS_Type__c = 'Shipper/Consignee',
-            ShippingStreet = '1 Dock Rd', ShippingCity = city, ShippingState = state,
-            ShippingPostalCode = 'A1A 1A1', ShippingCountry = country,
-            ShippingLatitude = lat, ShippingLongitude = lng,
-            CurrencyIsoCode = 'CAD'
-        );
-    }
-
-    /** Inserts a load with a pickup at the origin location and a delivery at the destination location. */
-    public static rtms__Load__c createLoad(Graph g, Account origin, Account destination) {
-        rtms__Load__c load = new rtms__Load__c(
-            Name = 'Test Load',
-            rtms__Customer__c = g.customer.Id,
-            rtms__Mode__c = g.mode.Id,
-            rtms__Equipment_Type__c = g.equipment.Id,
-            rtms__Total_Weight__c = 1000,
-            Mode_For_Sharing__c = 'Truckload',
-            TPRO_Division_Name__c = DIVISION,
-            CurrencyIsoCode = 'CAD'
-        );
-        insert load;
-
-        rtms__Stop__c pickup = new rtms__Stop__c(rtms__Load__c = load.Id, rtms__Number__c = 1, rtms__Location2__c = origin.Id);
-        rtms__Stop__c delivery = new rtms__Stop__c(rtms__Load__c = load.Id, rtms__Number__c = 2, rtms__Location2__c = destination.Id);
-        insert new List<rtms__Stop__c>{ pickup, delivery };
-
-        load = [SELECT Id, rtms__First_Stop__c, rtms__Last_Stop__c FROM rtms__Load__c WHERE Id = :load.Id];
-        if (load.rtms__First_Stop__c == null || load.rtms__Last_Stop__c == null) {
-            load.rtms__First_Stop__c = pickup.Id;
-            load.rtms__Last_Stop__c = delivery.Id;
-            update load;
-        }
-        return load;
-    }
-
-    /** Returns an uninserted carrier quote on the graph's carrier service. Tests tweak fields, then insert. */
-    public static rtms__CarrierQuote__c buildQuote(Graph g, rtms__Load__c load, Decimal cadTotal) {
-        return new rtms__CarrierQuote__c(
-            rtms__Load__c = load.Id,
-            rtms__Carrier_Service__c = g.carrierService.Id,
-            rtms__Vendor__c = g.vendor.Id,
-            rtms__Quote_Contact__c = g.quoteContact.Id,
-            rtms__Carrier_Total__c = cadTotal,
-            CurrencyIsoCode = 'CAD'
-        );
-    }
+  /** Returns an uninserted carrier quote on the graph's carrier service. Tests tweak fields, then insert. */
+  public static rtms__CarrierQuote__c buildQuote(
+    Graph g,
+    rtms__Load__c load,
+    Decimal cadTotal
+  ) {
+    return new rtms__CarrierQuote__c(
+      rtms__Load__c = load.Id,
+      rtms__Carrier_Service__c = g.carrierService.Id,
+      rtms__Vendor__c = g.vendor.Id,
+      rtms__Quote_Contact__c = g.quoteContact.Id,
+      rtms__Carrier_Total__c = cadTotal,
+      CurrencyIsoCode = 'CAD'
+    );
+  }
 }
 ```
 
 `force-app/main/default/classes/PricingTestDataFactory.cls-meta.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <ApexClass xmlns="http://soap.sforce.com/2006/04/metadata">
     <apiVersion>64.0</apiVersion>
     <status>Active</status>
@@ -587,12 +689,14 @@ git commit -m "Add PricingTestDataFactory that builds a valid Revenova graph for
 ### Task 5: Behavior tests for the controller
 
 **Files:**
+
 - Create: `force-app/main/default/classes/PricingDepartmentControllerTest.cls`
 - Create: `force-app/main/default/classes/PricingDepartmentControllerTest.cls-meta.xml`
 - Modify: `force-app/main/default/classes/PricingDepartmentController.cls` (add a `@TestVisible` excluded-contact override only)
 - Modify: `manifest/package.xml`
 
 **Interfaces:**
+
 - Consumes: `PricingTestDataFactory.createGraph()`, `createLoad(Graph, Account, Account)`, `buildQuote(Graph, rtms__Load__c, Decimal)`
 - Produces: `PricingDepartmentControllerTest`, the only test class CI runs. `PricingDepartmentController.excludedContactIdsOverride` (`@TestVisible private static Set<String>`), reused in Task 8.
 
@@ -625,199 +729,409 @@ Then in both SOQL queries replace `Contact_ID__c != '0033l00002px9ja'` with `Con
 ```apex
 @IsTest
 private class PricingDepartmentControllerTest {
+  private static final String ALL = '';
+  private static final Integer DAYS = 30;
 
-    private static final String ALL = '';
-    private static final Integer DAYS = 30;
+  private static List<rtms__CarrierQuote__c> search(
+    String origin,
+    String destination,
+    String mode,
+    String hazmat,
+    String priceDep,
+    String equipment,
+    Integer days,
+    String accepted,
+    String declined
+  ) {
+    return PricingDepartmentController.getCarrierQuotes(
+      origin,
+      destination,
+      mode,
+      hazmat,
+      priceDep,
+      equipment,
+      days,
+      accepted,
+      declined
+    );
+  }
 
-    private static List<rtms__CarrierQuote__c> search(String origin, String destination, String mode, String hazmat,
-                                                       String priceDep, String equipment, Integer days,
-                                                       String accepted, String declined) {
-        return PricingDepartmentController.getCarrierQuotes(origin, destination, mode, hazmat, priceDep,
-                                                            equipment, days, accepted, declined);
+  private static rtms__CarrierQuote__c insertQuote(
+    PricingTestDataFactory.Graph g,
+    rtms__Load__c load,
+    Decimal total
+  ) {
+    rtms__CarrierQuote__c q = PricingTestDataFactory.buildQuote(g, load, total);
+    insert q;
+    return q;
+  }
+
+  @TestSetup
+  static void noExclusions() {
+    // Nothing here on purpose: each test builds its own graph so field values are explicit.
+  }
+
+  @IsTest
+  static void returnsQuotesMatchingOriginAndDestination() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c mtlToTor = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    rtms__Load__c torToMtl = PricingTestDataFactory.createLoad(
+      g,
+      g.destinationLocation,
+      g.originLocation
+    );
+    insertQuote(g, mtlToTor, 1000);
+    insertQuote(g, torToMtl, 2000);
+
+    Test.startTest();
+    List<rtms__CarrierQuote__c> result = search(
+      'Montreal',
+      'Toronto',
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      DAYS,
+      ALL,
+      ALL
+    );
+    Test.stopTest();
+
+    System.assertEquals(
+      1,
+      result.size(),
+      'Only the Montreal -> Toronto quote should match'
+    );
+    System.assertEquals(1000, result[0].CAD_Quote_Total__c);
+    System.assertEquals('Montreal, Quebec', result[0].Origin__c);
+  }
+
+  @IsTest
+  static void originFilterIsCaseInsensitiveSubstring() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    insertQuote(g, load, 1000);
+
+    System.assertEquals(
+      1,
+      search('montr', ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size()
+    );
+    System.assertEquals(
+      0,
+      search('Calgary', ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size()
+    );
+  }
+
+  @IsTest
+  static void dateWindowExcludesOlderQuotes() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    rtms__CarrierQuote__c recent = insertQuote(g, load, 1000);
+    rtms__CarrierQuote__c old = insertQuote(g, load, 2000);
+    Test.setCreatedDate(recent.Id, Datetime.now().addDays(-2));
+    Test.setCreatedDate(old.Id, Datetime.now().addDays(-10));
+
+    Test.startTest();
+    List<rtms__CarrierQuote__c> last5 = search(
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      5,
+      ALL,
+      ALL
+    );
+    List<rtms__CarrierQuote__c> last30 = search(
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      30,
+      ALL,
+      ALL
+    );
+    Test.stopTest();
+
+    System.assertEquals(
+      1,
+      last5.size(),
+      'A 10-day-old quote is outside a 5-day window'
+    );
+    System.assertEquals(2, last30.size());
+  }
+
+  @IsTest
+  static void hazmatFilterMatchesOnlyHazardousLoads() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c plain = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    rtms__Load__c hazardous = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    hazardous.rtms__Hazardous_Materials__c = true;
+    update hazardous;
+    insertQuote(g, plain, 1000);
+    insertQuote(g, hazardous, 2000);
+
+    List<rtms__CarrierQuote__c> result = search(
+      ALL,
+      ALL,
+      ALL,
+      'Hazmat',
+      ALL,
+      ALL,
+      DAYS,
+      ALL,
+      ALL
+    );
+
+    System.assertEquals(1, result.size());
+    System.assertEquals(2000, result[0].CAD_Quote_Total__c);
+  }
+
+  @IsTest
+  static void marketTestFilterMatchesCustomerName() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Account marketTest = g.customer.clone(false, true, false, false);
+    marketTest.Name = 'Market Test';
+    insert marketTest;
+    rtms__Load__c normal = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    rtms__Load__c mt = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    mt.rtms__Customer__c = marketTest.Id;
+    update mt;
+    insertQuote(g, normal, 1000);
+    insertQuote(g, mt, 3000);
+
+    List<rtms__CarrierQuote__c> result = search(
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      'Market Test',
+      ALL,
+      DAYS,
+      ALL,
+      ALL
+    );
+
+    System.assertEquals(1, result.size());
+    System.assertEquals(3000, result[0].CAD_Quote_Total__c);
+  }
+
+  @IsTest
+  static void acceptedAndDeclinedFlagsFilterOnAcceptedCheckbox() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    rtms__CarrierQuote__c accepted = PricingTestDataFactory.buildQuote(
+      g,
+      load,
+      1000
+    );
+    accepted.rtms__Accepted__c = true;
+    rtms__CarrierQuote__c declined = PricingTestDataFactory.buildQuote(
+      g,
+      load,
+      2000
+    );
+    insert new List<rtms__CarrierQuote__c>{ accepted, declined };
+
+    List<rtms__CarrierQuote__c> onlyAccepted = search(
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      DAYS,
+      'true',
+      ALL
+    );
+    List<rtms__CarrierQuote__c> onlyDeclined = search(
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      DAYS,
+      ALL,
+      'true'
+    );
+
+    System.assertEquals(1, onlyAccepted.size());
+    System.assertEquals(1000, onlyAccepted[0].CAD_Quote_Total__c);
+    System.assertEquals(1, onlyDeclined.size());
+    System.assertEquals(2000, onlyDeclined[0].CAD_Quote_Total__c);
+  }
+
+  @IsTest
+  static void excludedContactIsNeverReturned() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    insertQuote(g, load, 1000);
+    String fifteen = String.valueOf(g.quoteContact.Id).left(15);
+
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>{
+      fifteen
+    };
+    System.assertEquals(
+      0,
+      search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size(),
+      'Quotes whose contact is excluded must not be returned'
+    );
+    System.assertEquals(
+      0,
+      PricingDepartmentController.getUniqueModeOptions(ALL, ALL).size()
+    );
+
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    System.assertEquals(
+      1,
+      search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size()
+    );
+  }
+
+  @IsTest
+  static void identicalQuotesAreDeduplicated() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    insertQuote(g, load, 1000);
+    insertQuote(g, load, 1000);
+    insertQuote(g, load, 1250);
+
+    List<rtms__CarrierQuote__c> result = search(
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      DAYS,
+      ALL,
+      ALL
+    );
+
+    System.assertEquals(
+      2,
+      result.size(),
+      'Same total, carrier, lane, mode and equipment collapse to one row'
+    );
+  }
+
+  @IsTest
+  static void uniqueModeOptionsAreDistinctAndLaneScoped() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c a = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    rtms__Load__c b = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    b.Mode_For_Sharing__c = 'LTL';
+    update b;
+    rtms__Load__c elsewhere = PricingTestDataFactory.createLoad(
+      g,
+      g.destinationLocation,
+      g.originLocation
+    );
+    insertQuote(g, a, 1000);
+    insertQuote(g, a, 1100);
+    insertQuote(g, b, 500);
+    insertQuote(g, elsewhere, 900);
+
+    List<String> modes = PricingDepartmentController.getUniqueModeOptions(
+      'Montreal',
+      'Toronto'
+    );
+
+    System.assertEquals(2, modes.size());
+    System.assert(modes.contains('Truckload') && modes.contains('LTL'));
+  }
+
+  @IsTest
+  static void resultIsCappedAtFiveHundredRows() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    List<rtms__CarrierQuote__c> quotes = new List<rtms__CarrierQuote__c>();
+    for (Integer i = 0; i < 520; i++) {
+      quotes.add(PricingTestDataFactory.buildQuote(g, load, 1000 + i)); // distinct totals so dedupe keeps all
     }
+    insert quotes;
 
-    private static rtms__CarrierQuote__c insertQuote(PricingTestDataFactory.Graph g, rtms__Load__c load, Decimal total) {
-        rtms__CarrierQuote__c q = PricingTestDataFactory.buildQuote(g, load, total);
-        insert q;
-        return q;
-    }
+    Test.startTest();
+    List<rtms__CarrierQuote__c> result = search(
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      ALL,
+      DAYS,
+      ALL,
+      ALL
+    );
+    Test.stopTest();
 
-    @TestSetup
-    static void noExclusions() {
-        // Nothing here on purpose: each test builds its own graph so field values are explicit.
-    }
-
-    @IsTest
-    static void returnsQuotesMatchingOriginAndDestination() {
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        rtms__Load__c mtlToTor = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        rtms__Load__c torToMtl = PricingTestDataFactory.createLoad(g, g.destinationLocation, g.originLocation);
-        insertQuote(g, mtlToTor, 1000);
-        insertQuote(g, torToMtl, 2000);
-
-        Test.startTest();
-        List<rtms__CarrierQuote__c> result = search('Montreal', 'Toronto', ALL, ALL, ALL, ALL, DAYS, ALL, ALL);
-        Test.stopTest();
-
-        System.assertEquals(1, result.size(), 'Only the Montreal -> Toronto quote should match');
-        System.assertEquals(1000, result[0].CAD_Quote_Total__c);
-        System.assertEquals('Montreal, Quebec', result[0].Origin__c);
-    }
-
-    @IsTest
-    static void originFilterIsCaseInsensitiveSubstring() {
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        rtms__Load__c load = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        insertQuote(g, load, 1000);
-
-        System.assertEquals(1, search('montr', ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size());
-        System.assertEquals(0, search('Calgary', ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size());
-    }
-
-    @IsTest
-    static void dateWindowExcludesOlderQuotes() {
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        rtms__Load__c load = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        rtms__CarrierQuote__c recent = insertQuote(g, load, 1000);
-        rtms__CarrierQuote__c old = insertQuote(g, load, 2000);
-        Test.setCreatedDate(recent.Id, Datetime.now().addDays(-2));
-        Test.setCreatedDate(old.Id, Datetime.now().addDays(-10));
-
-        Test.startTest();
-        List<rtms__CarrierQuote__c> last5 = search(ALL, ALL, ALL, ALL, ALL, ALL, 5, ALL, ALL);
-        List<rtms__CarrierQuote__c> last30 = search(ALL, ALL, ALL, ALL, ALL, ALL, 30, ALL, ALL);
-        Test.stopTest();
-
-        System.assertEquals(1, last5.size(), 'A 10-day-old quote is outside a 5-day window');
-        System.assertEquals(2, last30.size());
-    }
-
-    @IsTest
-    static void hazmatFilterMatchesOnlyHazardousLoads() {
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        rtms__Load__c plain = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        rtms__Load__c hazardous = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        hazardous.rtms__Hazardous_Materials__c = true;
-        update hazardous;
-        insertQuote(g, plain, 1000);
-        insertQuote(g, hazardous, 2000);
-
-        List<rtms__CarrierQuote__c> result = search(ALL, ALL, ALL, 'Hazmat', ALL, ALL, DAYS, ALL, ALL);
-
-        System.assertEquals(1, result.size());
-        System.assertEquals(2000, result[0].CAD_Quote_Total__c);
-    }
-
-    @IsTest
-    static void marketTestFilterMatchesCustomerName() {
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        Account marketTest = g.customer.clone(false, true, false, false);
-        marketTest.Name = 'Market Test';
-        insert marketTest;
-        rtms__Load__c normal = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        rtms__Load__c mt = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        mt.rtms__Customer__c = marketTest.Id;
-        update mt;
-        insertQuote(g, normal, 1000);
-        insertQuote(g, mt, 3000);
-
-        List<rtms__CarrierQuote__c> result = search(ALL, ALL, ALL, ALL, 'Market Test', ALL, DAYS, ALL, ALL);
-
-        System.assertEquals(1, result.size());
-        System.assertEquals(3000, result[0].CAD_Quote_Total__c);
-    }
-
-    @IsTest
-    static void acceptedAndDeclinedFlagsFilterOnAcceptedCheckbox() {
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        rtms__Load__c load = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        rtms__CarrierQuote__c accepted = PricingTestDataFactory.buildQuote(g, load, 1000);
-        accepted.rtms__Accepted__c = true;
-        rtms__CarrierQuote__c declined = PricingTestDataFactory.buildQuote(g, load, 2000);
-        insert new List<rtms__CarrierQuote__c>{ accepted, declined };
-
-        List<rtms__CarrierQuote__c> onlyAccepted = search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, 'true', ALL);
-        List<rtms__CarrierQuote__c> onlyDeclined = search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, ALL, 'true');
-
-        System.assertEquals(1, onlyAccepted.size());
-        System.assertEquals(1000, onlyAccepted[0].CAD_Quote_Total__c);
-        System.assertEquals(1, onlyDeclined.size());
-        System.assertEquals(2000, onlyDeclined[0].CAD_Quote_Total__c);
-    }
-
-    @IsTest
-    static void excludedContactIsNeverReturned() {
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        rtms__Load__c load = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        insertQuote(g, load, 1000);
-        String fifteen = String.valueOf(g.quoteContact.Id).left(15);
-
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>{ fifteen };
-        System.assertEquals(0, search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size(),
-            'Quotes whose contact is excluded must not be returned');
-        System.assertEquals(0, PricingDepartmentController.getUniqueModeOptions(ALL, ALL).size());
-
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        System.assertEquals(1, search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size());
-    }
-
-    @IsTest
-    static void identicalQuotesAreDeduplicated() {
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        rtms__Load__c load = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        insertQuote(g, load, 1000);
-        insertQuote(g, load, 1000);
-        insertQuote(g, load, 1250);
-
-        List<rtms__CarrierQuote__c> result = search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL);
-
-        System.assertEquals(2, result.size(), 'Same total, carrier, lane, mode and equipment collapse to one row');
-    }
-
-    @IsTest
-    static void uniqueModeOptionsAreDistinctAndLaneScoped() {
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        rtms__Load__c a = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        rtms__Load__c b = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        b.Mode_For_Sharing__c = 'LTL';
-        update b;
-        rtms__Load__c elsewhere = PricingTestDataFactory.createLoad(g, g.destinationLocation, g.originLocation);
-        insertQuote(g, a, 1000);
-        insertQuote(g, a, 1100);
-        insertQuote(g, b, 500);
-        insertQuote(g, elsewhere, 900);
-
-        List<String> modes = PricingDepartmentController.getUniqueModeOptions('Montreal', 'Toronto');
-
-        System.assertEquals(2, modes.size());
-        System.assert(modes.contains('Truckload') && modes.contains('LTL'));
-    }
-
-    @IsTest
-    static void resultIsCappedAtFiveHundredRows() {
-        PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-        PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-        rtms__Load__c load = PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation);
-        List<rtms__CarrierQuote__c> quotes = new List<rtms__CarrierQuote__c>();
-        for (Integer i = 0; i < 520; i++) {
-            quotes.add(PricingTestDataFactory.buildQuote(g, load, 1000 + i)); // distinct totals so dedupe keeps all
-        }
-        insert quotes;
-
-        Test.startTest();
-        List<rtms__CarrierQuote__c> result = search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL);
-        Test.stopTest();
-
-        System.assertEquals(500, result.size());
-    }
+    System.assertEquals(500, result.size());
+  }
 }
 ```
 
@@ -829,6 +1143,7 @@ Add `<members>PricingDepartmentControllerTest</members>` to the `ApexClass` type
 
 Run: `sf project deploy start -m ApexClass:PricingDepartmentController -m ApexClass:PricingDepartmentControllerTest -o devpro -l RunSpecifiedTests -t PricingDepartmentControllerTest`
 Expected: most tests pass on first run if Task 4's smoke passed. Typical failures and their meaning:
+
 - `returnsQuotesMatchingOriginAndDestination` fails on `Origin__c`: the managed load origin formula formats differently (for example `Montreal, QC`). Read the actual value in the failure message and update the assertion to the real format; note it in the test.
 - `hazmatFilterMatchesOnlyHazardousLoads` fails with a validation error on `update hazardous`: a Load validation rule triggers on update. Set `rtms__Hazardous_Materials__c` through a new optional parameter instead: add `public static rtms__Load__c createLoad(Graph g, Account origin, Account destination, Boolean hazmat)` to the factory and have the 3-argument overload call it with `false`.
 - `resultIsCappedAtFiveHundredRows` hits a governor limit inside managed triggers: reduce to 20 quotes and change the assertion to `System.assert(result.size() <= 500)` plus a comment that the cap is enforced by `LIMIT 500` in the query. Do not delete the test.
@@ -850,12 +1165,14 @@ git commit -m "Add behavior tests for PricingDepartmentController with a test-vi
 ### Task 6: Retire the old test classes
 
 **Files:**
+
 - Delete: `force-app/main/default/classes/PricingDepartmentControllerTest3.cls`, `.cls-meta.xml`
 - Delete: `force-app/main/default/classes/PricingDepartmentController_TGN_TEST.cls`, `.cls-meta.xml`
 - Create: `manifest/destructiveChangesPost.xml`
 - Modify: `manifest/package.xml`, `README.md`
 
 **Interfaces:**
+
 - Produces: DevPro no longer contains the two classes; CI's `RunSpecifiedTests` list has one name.
 
 - [ ] **Step 1: Write the destructive manifest**
@@ -863,7 +1180,7 @@ git commit -m "Add behavior tests for PricingDepartmentController with a test-vi
 `manifest/destructiveChangesPost.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <types>
         <members>PricingDepartmentControllerTest3</members>
@@ -911,11 +1228,13 @@ git commit -m "Retire coverage-only test classes via destructive changes"
 ### Task 7: CI workflow, secrets, branch protection
 
 **Files:**
+
 - Create: `.github/workflows/ci.yml`
 - Create: `config/pmd-ruleset.xml`
 - Modify: `README.md`
 
 **Interfaces:**
+
 - Consumes: `npm run lint`, `npm run prettier:verify`, `npm test`, `manifest/package.xml`, test class `PricingDepartmentControllerTest`.
 - Produces: status checks named `lwc`, `apex`, `pmd`; secret `SFDX_AUTH_URL_DEVPRO` in both repos.
 
@@ -926,15 +1245,18 @@ Spec deviation, deliberate: PMD runs through its CLI with `--minimum-priority 2`
 `config/pmd-ruleset.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<ruleset name="Pricing Department Apex rules"
-         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
-    <description>Apex quickstart rules. CI fails on priority 1 and 2 only.</description>
+<?xml version="1.0" encoding="UTF-8" ?>
+<ruleset
+  name="Pricing Department Apex rules"
+  xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd"
+>
+    <description
+  >Apex quickstart rules. CI fails on priority 1 and 2 only.</description>
     <rule ref="rulesets/apex/quickstart.xml">
         <!-- Test classes deliberately create many records inline. -->
-        <exclude name="ApexUnitTestClassShouldHaveRunAs"/>
+        <exclude name="ApexUnitTestClassShouldHaveRunAs" />
     </rule>
 </ruleset>
 ```
@@ -1078,16 +1400,16 @@ Expected: HTTP 200 with the protection JSON. If the API answers `403` with "Upgr
 
 Append to `README.md`:
 
-```markdown
+````markdown
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on every pull request and on pushes to `main`, identically in both repositories:
 
-| Job | What it does | Fails on |
-|---|---|---|
-| `lwc` | `npm ci`, ESLint, Prettier check, Jest with coverage | lint error, formatting drift, failing test |
-| `apex` | `sf project deploy validate` against DevPro with `PricingDepartmentControllerTest` | compile error, test failure |
-| `pmd` | PMD 7 Apex quickstart, priority 1-2 | any P1/P2 violation |
+| Job    | What it does                                                                       | Fails on                                   |
+| ------ | ---------------------------------------------------------------------------------- | ------------------------------------------ |
+| `lwc`  | `npm ci`, ESLint, Prettier check, Jest with coverage                               | lint error, formatting drift, failing test |
+| `apex` | `sf project deploy validate` against DevPro with `PricingDepartmentControllerTest` | compile error, test failure                |
+| `pmd`  | PMD 7 Apex quickstart, priority 1-2                                                | any P1/P2 violation                        |
 
 CI never deploys. Deploys to DevPro are run by a developer after merge (command above).
 
@@ -1099,14 +1421,16 @@ python3 -c "import json,sys; sys.stdout.write(json.loads(sys.argv[1])['result'][
 python3 -c "import json,sys; sys.stdout.write(json.loads(sys.argv[1])['result']['sfdxAuthUrl'])" "$AUTH_JSON" | GH_TOKEN=$(gh auth token -u IulianEnescu) gh secret set SFDX_AUTH_URL_DEVPRO -R TPLM/PricingDepartment
 unset AUTH_JSON
 ```
-```
+````
+
+````
 
 ```bash
 git add README.md
 git commit -m "Document CI jobs and secret rotation"
 git push origin main
 WT=$(gh auth token -u IulianEnescu) && git -c credential.helper= -c "credential.helper=!f() { echo username=IulianEnescu; echo password=$WT; }; f" push tplm main
-```
+````
 
 (If branch protection succeeded, this README commit must go through a PR instead: branch `phase-0/ci-docs`, open, wait for green, merge.)
 
@@ -1115,12 +1439,14 @@ WT=$(gh auth token -u IulianEnescu) && git -c credential.helper= -c "credential.
 ### Task 8: LWC bug fixes with component tests
 
 **Files:**
+
 - Modify: `force-app/main/default/lwc/pricingDepartment/pricingDepartment.js`
 - Modify: `force-app/main/default/lwc/pricingDepartment/pricingDepartment.html` (lines 106-165, the four checkbox inputs)
 - Modify: `force-app/main/default/lwc/pricingDepartment/pricingDepartment.js-meta.xml`
 - Create: `force-app/main/default/lwc/pricingDepartment/__tests__/pricingDepartment.test.js`
 
 **Interfaces:**
+
 - Consumes: `c/quoteStats` (Task 3), mocked Apex modules.
 - Produces: checkbox inputs carry `data-filter="marketTest" | "hazmat" | "declined" | "accepted"`; the component exposes no new public API.
 
@@ -1136,110 +1462,145 @@ git checkout -b phase-0/bug-fixes
 `force-app/main/default/lwc/pricingDepartment/__tests__/pricingDepartment.test.js`:
 
 ```javascript
-import { createElement } from 'lwc';
-import PricingDepartment from 'c/pricingDepartment';
-import getCarrierQuotes from '@salesforce/apex/PricingDepartmentController.getCarrierQuotes';
+import { createElement } from "lwc";
+import PricingDepartment from "c/pricingDepartment";
+import getCarrierQuotes from "@salesforce/apex/PricingDepartmentController.getCarrierQuotes";
 
 jest.mock(
-    '@salesforce/apex/PricingDepartmentController.getCarrierQuotes',
-    () => ({ default: jest.fn() }),
-    { virtual: true }
+  "@salesforce/apex/PricingDepartmentController.getCarrierQuotes",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
 );
 jest.mock(
-    '@salesforce/apex/PricingDepartmentController.getUniqueModeOptions',
-    () => ({ default: jest.fn() }),
-    { virtual: true }
+  "@salesforce/apex/PricingDepartmentController.getUniqueModeOptions",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
 );
 
 const QUOTES = [
-    { Id: 'a', CAD_Quote_Total__c: 100, Mode__c: 'LTL', Origin__c: 'Montreal, Quebec' },
-    { Id: 'b', CAD_Quote_Total__c: 300, Mode__c: 'Truckload', Origin__c: 'Toronto, Ontario' },
-    { Id: 'c', CAD_Quote_Total__c: 0, Mode__c: 'Truckload', Origin__c: 'Laval, Quebec' }
+  {
+    Id: "a",
+    CAD_Quote_Total__c: 100,
+    Mode__c: "LTL",
+    Origin__c: "Montreal, Quebec"
+  },
+  {
+    Id: "b",
+    CAD_Quote_Total__c: 300,
+    Mode__c: "Truckload",
+    Origin__c: "Toronto, Ontario"
+  },
+  {
+    Id: "c",
+    CAD_Quote_Total__c: 0,
+    Mode__c: "Truckload",
+    Origin__c: "Laval, Quebec"
+  }
 ];
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 async function mount() {
-    const element = createElement('c-pricing-department', { is: PricingDepartment });
-    document.body.appendChild(element);
-    await flush();
-    return element;
+  const element = createElement("c-pricing-department", {
+    is: PricingDepartment
+  });
+  document.body.appendChild(element);
+  await flush();
+  return element;
 }
 
 function checkbox(element, name) {
-    return element.shadowRoot.querySelector(`input[type="checkbox"][data-filter="${name}"]`);
+  return element.shadowRoot.querySelector(
+    `input[type="checkbox"][data-filter="${name}"]`
+  );
 }
 
-describe('c-pricing-department', () => {
-    beforeEach(() => {
-        getCarrierQuotes.mockResolvedValue(QUOTES);
-    });
-    afterEach(() => {
-        while (document.body.firstChild) document.body.removeChild(document.body.firstChild);
-        jest.clearAllMocks();
-    });
+describe("c-pricing-department", () => {
+  beforeEach(() => {
+    getCarrierQuotes.mockResolvedValue(QUOTES);
+  });
+  afterEach(() => {
+    while (document.body.firstChild)
+      document.body.removeChild(document.body.firstChild);
+    jest.clearAllMocks();
+  });
 
-    it('loads quotes on connect with the default 5-day window', async () => {
-        await mount();
-        expect(getCarrierQuotes).toHaveBeenCalledTimes(1);
-        expect(getCarrierQuotes.mock.calls[0][0]).toMatchObject({ dateRangeFilter: '5', originFilter: '' });
+  it("loads quotes on connect with the default 5-day window", async () => {
+    await mount();
+    expect(getCarrierQuotes).toHaveBeenCalledTimes(1);
+    expect(getCarrierQuotes.mock.calls[0][0]).toMatchObject({
+      dateRangeFilter: "5",
+      originFilter: ""
     });
+  });
 
-    it('renders one row per quote and the computed statistics', async () => {
-        const element = await mount();
-        const rows = element.shadowRoot.querySelectorAll('tbody tr[data-index]');
-        expect(rows.length).toBe(3);
-        expect(element.shadowRoot.textContent).toContain('200.00 CAD');
-    });
+  it("renders one row per quote and the computed statistics", async () => {
+    const element = await mount();
+    const rows = element.shadowRoot.querySelectorAll("tbody tr[data-index]");
+    expect(rows.length).toBe(3);
+    expect(element.shadowRoot.textContent).toContain("200.00 CAD");
+  });
 
-    it('toggling the accepted-quotes checkbox sets the filter without throwing', async () => {
-        const element = await mount();
-        const box = checkbox(element, 'accepted');
-        box.checked = true;
-        expect(() => box.dispatchEvent(new CustomEvent('change'))).not.toThrow();
-        await flush();
-        element.shadowRoot.querySelector('lightning-button[label="Apply Filters"]').click();
-        await flush();
-        expect(getCarrierQuotes).toHaveBeenLastCalledWith(expect.objectContaining({ acceptedQuotesFilter: 'true' }));
-    });
+  it("toggling the accepted-quotes checkbox sets the filter without throwing", async () => {
+    const element = await mount();
+    const box = checkbox(element, "accepted");
+    box.checked = true;
+    expect(() => box.dispatchEvent(new CustomEvent("change"))).not.toThrow();
+    await flush();
+    element.shadowRoot
+      .querySelector('lightning-button[label="Apply Filters"]')
+      .click();
+    await flush();
+    expect(getCarrierQuotes).toHaveBeenLastCalledWith(
+      expect.objectContaining({ acceptedQuotesFilter: "true" })
+    );
+  });
 
-    it('each checkbox maps to its filter value', async () => {
-        const element = await mount();
-        const expectations = [
-            ['hazmat', 'hazmatFilter', 'Hazmat'],
-            ['marketTest', 'priceDepFilter', 'Market Test'],
-            ['declined', 'declinedQuotesFilter', 'true']
-        ];
-        for (const [name, param, value] of expectations) {
-            const box = checkbox(element, name);
-            box.checked = true;
-            box.dispatchEvent(new CustomEvent('change'));
-        }
-        await flush();
-        element.shadowRoot.querySelector('lightning-button[label="Apply Filters"]').click();
-        await flush();
-        const args = getCarrierQuotes.mock.calls.at(-1)[0];
-        expect(args.hazmatFilter).toBe('Hazmat');
-        expect(args.priceDepFilter).toBe('Market Test');
-        expect(args.declinedQuotesFilter).toBe('true');
-    });
+  it("each checkbox maps to its filter value", async () => {
+    const element = await mount();
+    const expectations = [
+      ["hazmat", "hazmatFilter", "Hazmat"],
+      ["marketTest", "priceDepFilter", "Market Test"],
+      ["declined", "declinedQuotesFilter", "true"]
+    ];
+    for (const [name, param, value] of expectations) {
+      const box = checkbox(element, name);
+      box.checked = true;
+      box.dispatchEvent(new CustomEvent("change"));
+    }
+    await flush();
+    element.shadowRoot
+      .querySelector('lightning-button[label="Apply Filters"]')
+      .click();
+    await flush();
+    const args = getCarrierQuotes.mock.calls.at(-1)[0];
+    expect(args.hazmatFilter).toBe("Hazmat");
+    expect(args.priceDepFilter).toBe("Market Test");
+    expect(args.declinedQuotesFilter).toBe("true");
+  });
 
-    it('reset restores defaults and reloads', async () => {
-        const element = await mount();
-        checkbox(element, 'hazmat').checked = true;
-        checkbox(element, 'hazmat').dispatchEvent(new CustomEvent('change'));
-        element.shadowRoot.querySelector('lightning-button[label="Reset"]').click();
-        await flush();
-        const args = getCarrierQuotes.mock.calls.at(-1)[0];
-        expect(args).toMatchObject({ hazmatFilter: '', dateRangeFilter: '5', acceptedQuotesFilter: '' });
+  it("reset restores defaults and reloads", async () => {
+    const element = await mount();
+    checkbox(element, "hazmat").checked = true;
+    checkbox(element, "hazmat").dispatchEvent(new CustomEvent("change"));
+    element.shadowRoot.querySelector('lightning-button[label="Reset"]').click();
+    await flush();
+    const args = getCarrierQuotes.mock.calls.at(-1)[0];
+    expect(args).toMatchObject({
+      hazmatFilter: "",
+      dateRangeFilter: "5",
+      acceptedQuotesFilter: ""
     });
+  });
 
-    it('shows the error block when Apex rejects', async () => {
-        getCarrierQuotes.mockRejectedValue(new Error('boom'));
-        const element = await mount();
-        expect(element.shadowRoot.querySelectorAll('tbody tr[data-index]').length).toBe(0);
-        expect(element.shadowRoot.textContent).toMatch(/error/i);
-    });
+  it("shows the error block when Apex rejects", async () => {
+    getCarrierQuotes.mockRejectedValue(new Error("boom"));
+    const element = await mount();
+    expect(
+      element.shadowRoot.querySelectorAll("tbody tr[data-index]").length
+    ).toBe(0);
+    expect(element.shadowRoot.textContent).toMatch(/error/i);
+  });
 });
 ```
 
@@ -1301,6 +1662,7 @@ git commit -m "Fix accepted-quotes checkbox ReferenceError, drop dead code, add 
 ### Task 9: Excluded contacts from custom metadata
 
 **Files:**
+
 - Create: `force-app/main/default/objects/Pricing_Department_Setting__mdt/Pricing_Department_Setting__mdt.object-meta.xml`
 - Create: `force-app/main/default/objects/Pricing_Department_Setting__mdt/fields/Excluded_Contact_Ids__c.field-meta.xml`
 - Create: `force-app/main/default/customMetadata/Pricing_Department_Setting.Default.md-meta.xml`
@@ -1309,6 +1671,7 @@ git commit -m "Fix accepted-quotes checkbox ReferenceError, drop dead code, add 
 - Modify: `manifest/package.xml`
 
 **Interfaces:**
+
 - Consumes: `excludedContactIdsOverride` from Task 5.
 - Produces: `Pricing_Department_Setting__mdt.Default.Excluded_Contact_Ids__c` = comma-separated Contact Ids (15 or 18 chars). `PricingDepartmentController.excludedContactIds()` returns both the 15- and 18-character form of each.
 
@@ -1317,7 +1680,7 @@ git commit -m "Fix accepted-quotes checkbox ReferenceError, drop dead code, add 
 `Pricing_Department_Setting__mdt.object-meta.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
     <label>Pricing Department Setting</label>
     <pluralLabel>Pricing Department Settings</pluralLabel>
@@ -1328,12 +1691,13 @@ git commit -m "Fix accepted-quotes checkbox ReferenceError, drop dead code, add 
 `fields/Excluded_Contact_Ids__c.field-meta.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Excluded_Contact_Ids__c</fullName>
     <externalId>false</externalId>
     <fieldManageability>DeveloperControlled</fieldManageability>
-    <inlineHelpText>Comma-separated Contact Ids whose carrier quotes are hidden from the Pricing Department page.</inlineHelpText>
+    <inlineHelpText
+  >Comma-separated Contact Ids whose carrier quotes are hidden from the Pricing Department page.</inlineHelpText>
     <label>Excluded Contact Ids</label>
     <length>255</length>
     <required>false</required>
@@ -1345,8 +1709,12 @@ git commit -m "Fix accepted-quotes checkbox ReferenceError, drop dead code, add 
 `customMetadata/Pricing_Department_Setting.Default.md-meta.xml`:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomMetadata
+  xmlns="http://soap.sforce.com/2006/04/metadata"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+>
     <label>Default</label>
     <protected>false</protected>
     <values>
@@ -1454,10 +1822,12 @@ git commit -m "Read excluded contact ids from Pricing_Department_Setting custom 
 ### Task 10: Permission set `Pricing_Department_User`
 
 **Files:**
+
 - Create: `force-app/main/default/permissionsets/Pricing_Department_User.permissionset-meta.xml`
 - Modify: `manifest/package.xml`, `README.md`
 
 **Interfaces:**
+
 - Produces: a permission set granting the tab, the controller, and read on every field the page queries. Nothing else assigns or depends on it in phase 0.
 
 - [ ] **Step 1: Generate the field list from the controller, not by hand**
@@ -1486,10 +1856,11 @@ Expected: 29 `fieldPermissions` blocks (formula fields included; Salesforce acce
 `Pricing_Department_User.permissionset-meta.xml`, pasting the generated blocks where marked:
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
     <label>Pricing Department User</label>
-    <description>Grants everything needed to use the Pricing Department page. Assign this instead of editing profiles.</description>
+    <description
+  >Grants everything needed to use the Pricing Department page. Assign this instead of editing profiles.</description>
     <hasActivationRequired>false</hasActivationRequired>
     <classAccesses>
         <apexClass>PricingDepartmentController</apexClass>
@@ -1548,9 +1919,11 @@ git commit -m "Add Pricing_Department_User permission set covering tab, Apex and
 ### Task 11: Bug-fix pull request through CI, deploy to DevPro
 
 **Files:**
+
 - Modify: `README.md` (final known-issues cleanup)
 
 **Interfaces:**
+
 - Consumes: everything from Tasks 8-10 on `phase-0/bug-fixes`.
 
 - [ ] **Step 1: Final README cleanup**
