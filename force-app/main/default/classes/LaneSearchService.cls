@@ -5,7 +5,14 @@
  */
 // Runs without sharing on purpose: pricing benchmarks every team's quotes. Access is gated by the Lane Benchmark permission sets.
 // Task 6 split addEnd's per-precision dispatch into addCity/addProvince/addZip3/addRadius, which
-// also brought the class below PMD's complexity threshold - no class-level suppression needed.
+// brought the class below PMD's complexity threshold with no class-level suppression needed at
+// the time. Task 7 adds addFilters (itself split into one small helper per filter, so no method
+// - including addFilters - trips the per-method complexity threshold) plus collectRows/stats;
+// every method stays small, but the class-wide total (a straight sum over all methods, which
+// splitting into more methods cannot reduce) crosses PMD's total-complexity ceiling (68 vs. 40).
+// Suppressed at the class level rather than left failing CI; see the task 7 report for the PMD
+// output this was measured against.
+@SuppressWarnings('PMD.CyclomaticComplexity')
 public without sharing class LaneSearchService {
   private static final String SELECT_CLAUSE =
     'SELECT Id, Name, rtms__Load__c, Origin__c, Destination__c, Mode__c, Equipment_Type__c, ' +
@@ -33,10 +40,84 @@ public without sharing class LaneSearchService {
     if (result.truncated) {
       quotes.remove(quotes.size() - 1);
     }
-    for (rtms__CarrierQuote__c q : quotes) {
-      result.rows.add(toRow(q));
-    }
+    collectRows(quotes, result);
     return result;
+  }
+
+  /**
+   * Dedupes quotes (same fingerprint as PricingDepartmentController.UniqueCarrierQuote, but on
+   * rtms__Carrier_Total__c instead of the CAD-converted total, so USD quotes dedupe too) into
+   * result.rows/dedupedCount, and rolls the surviving totals up into result.statsByCurrency.
+   */
+  private static void collectRows(
+    List<rtms__CarrierQuote__c> quotes,
+    LaneSearchResult result
+  ) {
+    Set<String> seen = new Set<String>();
+    Map<String, List<Decimal>> totalsByCurrency = new Map<String, List<Decimal>>();
+    for (rtms__CarrierQuote__c q : quotes) {
+      String fingerprint =
+        String.valueOf(q.rtms__Carrier_Total__c) +
+        '|' +
+        q.Carrier_Name__c +
+        '|' +
+        q.Origin__c +
+        '|' +
+        q.Destination__c +
+        '|' +
+        q.Mode__c +
+        '|' +
+        q.Equipment_Type__c;
+      if (seen.contains(fingerprint)) {
+        result.dedupedCount++;
+        continue;
+      }
+      seen.add(fingerprint);
+      result.rows.add(toRow(q));
+      String cur = q.CurrencyIsoCode == null ? 'CAD' : q.CurrencyIsoCode;
+      if (!totalsByCurrency.containsKey(cur)) {
+        totalsByCurrency.put(cur, new List<Decimal>());
+      }
+      totalsByCurrency.get(cur)
+        .add(q.rtms__Carrier_Total__c == null ? 0 : q.rtms__Carrier_Total__c);
+    }
+    for (String cur : totalsByCurrency.keySet()) {
+      result.statsByCurrency.put(cur, stats(totalsByCurrency.get(cur)));
+    }
+  }
+
+  /**
+   * count includes zero totals; countNonZero and min/max/avg/median exclude them (matching the
+   * phase 0 statistics). median: odd count is the middle value, even count is the mean of the two
+   * middle values.
+   */
+  @TestVisible
+  private static LaneSearchResult.Stats stats(List<Decimal> totals) {
+    LaneSearchResult.Stats s = new LaneSearchResult.Stats();
+    List<Decimal> nonZero = new List<Decimal>();
+    for (Decimal t : totals) {
+      s.count++;
+      if (t != 0) {
+        nonZero.add(t);
+      }
+    }
+    s.countNonZero = nonZero.size();
+    if (nonZero.isEmpty()) {
+      return s;
+    }
+    nonZero.sort();
+    Decimal sum = 0;
+    for (Decimal t : nonZero) {
+      sum += t;
+    }
+    s.min = nonZero[0];
+    s.max = nonZero[nonZero.size() - 1];
+    s.avg = (sum / nonZero.size()).setScale(2);
+    Integer n = nonZero.size();
+    s.median = Math.mod(n, 2) == 1
+      ? nonZero[n / 2]
+      : ((nonZero[n / 2 - 1] + nonZero[n / 2]) / 2).setScale(2);
+    return s;
   }
 
   @SuppressWarnings(
@@ -95,12 +176,107 @@ public without sharing class LaneSearchService {
     conditions.add('Contact_ID__c NOT IN :excluded');
     addEnd(conditions, binds, req, originEnd(req), places);
     addEnd(conditions, binds, req, destinationEnd(req), places);
-    // Task 7 adds currency, modes, equipment, hazmat, market test, accepted here.
+    addFilters(req, conditions, binds);
     binds.put('rowLimitPlusOne', req.rowLimit + 1);
     return SELECT_CLAUSE +
       ' WHERE ' +
       String.join(conditions, ' AND ') +
       ' ORDER BY CreatedDate DESC LIMIT :rowLimitPlusOne';
+  }
+
+  // Task 7's currency/mode/equipment/hazmat/market-test/accepted filters, split out of buildSoql
+  // (and further split below, one helper per filter) so no single method carries every branch;
+  // addFilters itself stays a small dispatcher with no complexity suppression of its own.
+  private static void addFilters(
+    LaneSearchRequest req,
+    List<String> conditions,
+    Map<String, Object> binds
+  ) {
+    addCurrencyFilter(req, conditions, binds);
+    addModeFilter(req, conditions, binds);
+    addEquipmentFilter(req, conditions, binds);
+    addHazmatFilter(req, conditions);
+    addMarketTestFilter(req, conditions, binds);
+    addAcceptedFilter(req, conditions);
+  }
+
+  private static void addCurrencyFilter(
+    LaneSearchRequest req,
+    List<String> conditions,
+    Map<String, Object> binds
+  ) {
+    if (String.isNotBlank(req.currencyIsoCode)) {
+      binds.put('currencyCode', req.currencyIsoCode);
+      conditions.add('CurrencyIsoCode = :currencyCode');
+    }
+  }
+
+  private static void addModeFilter(
+    LaneSearchRequest req,
+    List<String> conditions,
+    Map<String, Object> binds
+  ) {
+    if (req.modes != null && !req.modes.isEmpty()) {
+      binds.put('modes', req.modes);
+      conditions.add('rtms__Load__r.rtms__Mode__r.Name IN :modes');
+    }
+  }
+
+  private static void addEquipmentFilter(
+    LaneSearchRequest req,
+    List<String> conditions,
+    Map<String, Object> binds
+  ) {
+    Boolean hasCats =
+      req.equipmentCategories != null && !req.equipmentCategories.isEmpty();
+    Boolean hasTypes =
+      req.equipmentTypes != null && !req.equipmentTypes.isEmpty();
+    if (hasCats && hasTypes) {
+      binds.put('cats', req.equipmentCategories);
+      binds.put('types', req.equipmentTypes);
+      conditions.add(
+        '(rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c IN :cats OR rtms__Load__r.rtms__Equipment_Type__r.Name IN :types)'
+      );
+    } else if (hasCats) {
+      binds.put('cats', req.equipmentCategories);
+      conditions.add(
+        'rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c IN :cats'
+      );
+    } else if (hasTypes) {
+      binds.put('types', req.equipmentTypes);
+      conditions.add('rtms__Load__r.rtms__Equipment_Type__r.Name IN :types');
+    }
+  }
+
+  private static void addHazmatFilter(
+    LaneSearchRequest req,
+    List<String> conditions
+  ) {
+    if (req.hazmatOnly == true) {
+      conditions.add('rtms__Load__r.rtms__Hazardous_Materials__c = true');
+    }
+  }
+
+  private static void addMarketTestFilter(
+    LaneSearchRequest req,
+    List<String> conditions,
+    Map<String, Object> binds
+  ) {
+    if (req.marketTestOnly == true) {
+      binds.put('marketTest', '%Market Test%');
+      conditions.add('Customer_Name__c LIKE :marketTest');
+    }
+  }
+
+  private static void addAcceptedFilter(
+    LaneSearchRequest req,
+    List<String> conditions
+  ) {
+    if (req.acceptedFilter == LaneSearchRequest.Accepted.ACCEPTED) {
+      conditions.add('rtms__Accepted__c = true');
+    } else if (req.acceptedFilter == LaneSearchRequest.Accepted.DECLINED) {
+      conditions.add('rtms__Accepted__c = false');
+    }
   }
 
   /**

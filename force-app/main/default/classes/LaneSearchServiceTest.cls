@@ -294,4 +294,235 @@ private class LaneSearchServiceTest {
     );
     System.assertEquals(1000, accountsOnly.rows[0].carrierTotal);
   }
+
+  @IsTest
+  static void statsAreComputedPerCurrencyWithMedianAndZerosCounted() {
+    Fixture f = fixture();
+    Test.startTest();
+    f.mtlTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation
+    );
+    insert new List<rtms__CarrierQuote__c>{
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 1000, 'CAD'),
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 3000, 'CAD'),
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 2000, 'CAD'),
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 0, 'CAD'),
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 800, 'USD'),
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 1200, 'USD')
+    };
+    LaneSearchResult all = LaneSearchService.search(req(null, null));
+    LaneSearchRequest usdOnly = req(null, null);
+    usdOnly.currencyIsoCode = 'USD';
+    LaneSearchResult usd = LaneSearchService.search(usdOnly);
+    Test.stopTest();
+    LaneSearchResult.Stats cad = all.statsByCurrency.get('CAD');
+    System.assertEquals(4, cad.count);
+    System.assertEquals(3, cad.countNonZero);
+    System.assertEquals(1000, cad.min);
+    System.assertEquals(3000, cad.max);
+    System.assertEquals(2000, cad.avg);
+    System.assertEquals(2000, cad.median, 'odd count: middle value');
+    LaneSearchResult.Stats us = all.statsByCurrency.get('USD');
+    System.assertEquals(2, us.count);
+    System.assertEquals(
+      1000,
+      us.median,
+      'even count: mean of the two middle values'
+    );
+    System.assertEquals(2, usd.rows.size());
+    System.assertEquals(false, usd.statsByCurrency.containsKey('CAD'));
+  }
+
+  @IsTest
+  static void modeAndEquipmentFiltersCombine() {
+    Fixture f = fixture();
+    rtms__Mode__c ltl = PricingTestDataFactory.createMode('LTL');
+    rtms__EquipmentType__c reefer = PricingTestDataFactory.createEquipment(
+      'Reefer 53\'',
+      'Reefer'
+    );
+    Test.startTest();
+    rtms__Load__c van = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation
+    );
+    rtms__Load__c ltlLoad = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation,
+      ltl
+    );
+    ltlLoad.rtms__Equipment_Type__c = reefer.Id;
+    update ltlLoad;
+    insert new List<rtms__CarrierQuote__c>{
+      PricingTestDataFactory.buildQuote(f.g, van, 1000),
+      PricingTestDataFactory.buildQuote(f.g, ltlLoad, 500)
+    };
+    LaneSearchRequest byMode = req(null, null);
+    byMode.modes = new List<String>{ 'LTL' };
+    LaneSearchRequest byCategory = req(null, null);
+    byCategory.equipmentCategories = new List<String>{ 'Van' };
+    LaneSearchRequest byType = req(null, null);
+    byType.equipmentTypes = new List<String>{ 'Reefer 53\'' };
+    LaneSearchRequest catOrType = req(null, null);
+    catOrType.equipmentCategories = new List<String>{ 'Van' };
+    catOrType.equipmentTypes = new List<String>{ 'Reefer 53\'' };
+    LaneSearchResult m = LaneSearchService.search(byMode);
+    LaneSearchResult c = LaneSearchService.search(byCategory);
+    LaneSearchResult t = LaneSearchService.search(byType);
+    LaneSearchResult ct = LaneSearchService.search(catOrType);
+    Test.stopTest();
+    System.assertEquals(1, m.rows.size());
+    System.assertEquals(500, m.rows[0].carrierTotal);
+    System.assertEquals(1, c.rows.size());
+    System.assertEquals(1000, c.rows[0].carrierTotal);
+    System.assertEquals(1, t.rows.size());
+    System.assertEquals(500, t.rows[0].carrierTotal);
+    System.assertEquals(2, ct.rows.size(), 'categories OR types');
+  }
+
+  @IsTest
+  static void hazmatMarketTestAcceptedAndExcludedContactFilters() {
+    Fixture f = fixture();
+    Account marketTest = f.g.customer.clone(false, true, false, false);
+    marketTest.Name = 'Market Test';
+    insert marketTest;
+    // "plain" is created here, outside Test.startTest(), and haz/mt inside it: three
+    // non-bulkified createLoad() calls all inside one Test.startTest() block exceeded the
+    // 100-SOQL-query synchronous limit (hit 101) - see PricingTestDataFactory's class doc
+    // ("wraps the LATER createLoad() calls in Test.startTest()"), which only promises a fresh
+    // governor budget for calls after the first.
+    rtms__Load__c plain = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation
+    );
+    Test.startTest();
+    rtms__Load__c haz = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation,
+      true
+    );
+    rtms__Load__c mt = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation,
+      marketTest
+    );
+    rtms__CarrierQuote__c accepted = PricingTestDataFactory.buildQuote(
+      f.g,
+      plain,
+      1000
+    );
+    accepted.rtms__Accepted__c = true;
+    insert new List<rtms__CarrierQuote__c>{
+      accepted,
+      PricingTestDataFactory.buildQuote(f.g, haz, 2000),
+      PricingTestDataFactory.buildQuote(f.g, mt, 3000)
+    };
+    LaneSearchRequest h = req(null, null);
+    h.hazmatOnly = true;
+    LaneSearchRequest m = req(null, null);
+    m.marketTestOnly = true;
+    LaneSearchRequest a = req(null, null);
+    a.acceptedFilter = LaneSearchRequest.Accepted.ACCEPTED;
+    LaneSearchRequest d = req(null, null);
+    d.acceptedFilter = LaneSearchRequest.Accepted.DECLINED;
+    LaneSearchResult rh = LaneSearchService.search(h);
+    LaneSearchResult rm = LaneSearchService.search(m);
+    LaneSearchResult ra = LaneSearchService.search(a);
+    LaneSearchResult rd = LaneSearchService.search(d);
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>{
+      String.valueOf(f.g.quoteContact.Id).left(15)
+    };
+    LaneSearchResult none = LaneSearchService.search(req(null, null));
+    Test.stopTest();
+    System.assertEquals(2000, rh.rows[0].carrierTotal);
+    System.assertEquals(1, rh.rows.size());
+    System.assertEquals(3000, rm.rows[0].carrierTotal);
+    System.assertEquals(1, rm.rows.size());
+    System.assertEquals(1, ra.rows.size());
+    System.assertEquals(1000, ra.rows[0].carrierTotal);
+    System.assertEquals(2, rd.rows.size());
+    System.assertEquals(
+      0,
+      none.rows.size(),
+      'excluded contact hides every quote from that contact'
+    );
+  }
+
+  @IsTest
+  static void identicalQuotesAreDedupedAndCountedAndTruncationIsFlagged() {
+    Fixture f = fixture();
+    Test.startTest();
+    f.mtlTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation
+    );
+    List<rtms__CarrierQuote__c> qs = new List<rtms__CarrierQuote__c>();
+    for (Integer i = 0; i < 5; i++) {
+      qs.add(PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 1000)); // identical
+    }
+    qs.add(PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 1500));
+    insert qs;
+    LaneSearchResult r = LaneSearchService.search(req(null, null));
+    LaneSearchRequest small = req(null, null);
+    small.rowLimit = 2;
+    LaneSearchResult capped = LaneSearchService.search(small);
+    Test.stopTest();
+    System.assertEquals(
+      2,
+      r.rows.size(),
+      'five identical collapse to one, plus the 1500'
+    );
+    System.assertEquals(4, r.dedupedCount);
+    System.assertEquals(true, capped.truncated);
+    System.assertEquals(
+      2,
+      capped.rows.size() + capped.dedupedCount,
+      'cap applies before dedupe'
+    );
+  }
+
+  @IsTest
+  static void lookbackWindowIsRespected() {
+    Fixture f = fixture();
+    // Load/quote creation and Test.setCreatedDate() happen before Test.startTest(): the
+    // platform rejects Test.setCreatedDate() once the test context has started
+    // ("Use Test.setCreatedDate() only before Test.startTest()."), and a single createLoad()
+    // call fits comfortably in the un-reset governor budget without needing the fresh one
+    // Test.startTest() provides for the LATER calls (see PricingTestDataFactory's class doc).
+    f.mtlTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation
+    );
+    rtms__CarrierQuote__c recent = PricingTestDataFactory.buildQuote(
+      f.g,
+      f.mtlTor,
+      1000
+    );
+    rtms__CarrierQuote__c old = PricingTestDataFactory.buildQuote(
+      f.g,
+      f.mtlTor,
+      2000
+    );
+    insert new List<rtms__CarrierQuote__c>{ recent, old };
+    Test.setCreatedDate(recent.Id, Datetime.now().addDays(-2));
+    Test.setCreatedDate(old.Id, Datetime.now().addDays(-400));
+    Test.startTest();
+    LaneSearchRequest ninety = req(null, null);
+    LaneSearchRequest twoYears = req(null, null);
+    twoYears.lookbackDays = 730;
+    LaneSearchResult r90 = LaneSearchService.search(ninety);
+    LaneSearchResult r730 = LaneSearchService.search(twoYears);
+    Test.stopTest();
+    System.assertEquals(1, r90.rows.size());
+    System.assertEquals(2, r730.rows.size(), 'any lookback is accepted');
+  }
 }
