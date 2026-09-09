@@ -8,16 +8,16 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 
 ## What is in here
 
-| Layer            | Component                                                                                         | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ---------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Navigation       | `tabs/Pricing_Department`                                                                         | Custom tab pointing at the app page                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| Page             | `flexipages/Pricing_Department`                                                                   | App page, default home template, one region                                                                                                                                                                                                                                                                                                                                                                                                            |
-| UI               | `lwc/pricingDepartment`                                                                           | Filters, quote table, stats header, carrier detail modal                                                                                                                                                                                                                                                                                                                                                                                               |
-| Apex             | `classes/PricingDepartmentController`                                                             | One `@AuraEnabled(cacheable=true)` method: `getCarrierQuotes`                                                                                                                                                                                                                                                                                                                                                                                          |
-| Apex tests       | `PricingDepartmentControllerTest`, `PricingTestDataFactory`                                       | Behavior tests; the factory builds the minimum valid Revenova graph the managed triggers require, so tests do not depend on org data                                                                                                                                                                                                                                                                                                                   |
-| Data             | `objects/rtms__CarrierQuote__c/fields/*`                                                          | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas                                                                                                                                                                                                                                                                                                                                                                         |
-| Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups                                                                                                                                                                                                                                                                                                                                                                                                      |
-| Security         | `permissionsets/Pricing_Department_User`                                                          | The way to grant access from now on: tab, Apex class, read on every field the page uses except `rtms__Carrier_Service__c`, `rtms__Vendor__c`, and `rtms__Load__c` (required/master-detail fields; Salesforce rejects field permissions on them, they are always readable once the object is). Also grants object Read on `rtms__Load__c` because Carrier Quote is its master-detail child. `profiles/Pricing` is kept for reference and never deployed |
+| Layer            | Component                                                                                         | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Navigation       | `tabs/Pricing_Department`                                                                         | Custom tab pointing at the app page                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Page             | `flexipages/Pricing_Department`                                                                   | App page, default home template, one region                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| UI               | `lwc/pricingDepartment`                                                                           | Filters, quote table, stats header, carrier detail modal                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Apex             | `classes/PricingDepartmentController`                                                             | One `@AuraEnabled(cacheable=true)` method: `getCarrierQuotes`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Apex tests       | `PricingDepartmentControllerTest`, `PricingTestDataFactory`                                       | Behavior tests; the factory builds the minimum valid Revenova graph the managed triggers require, so tests do not depend on org data                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Data             | `objects/rtms__CarrierQuote__c/fields/*`                                                          | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Security         | `permissionsets/Pricing_Department_User`                                                          | The way to grant access from now on: tab, Apex class, read on every field the page uses except `rtms__Carrier_Service__c`, `rtms__Vendor__c`, and `rtms__Load__c` (required/master-detail fields; Salesforce rejects field permissions on them, they are always readable once the object is). Also grants object Read on `rtms__Load__c` because Carrier Quote is its master-detail child, and object Read/Edit + field read (Edit also on `Aliases__c`/`Active__c`) on `Pricing_Place__c` so the place dictionary is queryable outside of system-mode Apex. `profiles/Pricing` is kept for reference and never deployed |
 
 Not included on purpose:
 
@@ -82,6 +82,103 @@ sf project deploy start -x manifest/package.xml --post-destructive-changes manif
 ```
 
 Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
+
+### Place dictionary
+
+`Pricing_Place__c` was built once in PostProduc on 2026-09-09 by running:
+
+```apex
+Database.executeBatch(new PlaceBuilderBatch(), 2000);
+```
+
+(`sf apex run -o sandbox` with that one line; `PlaceBuilderBatch.finish()` chains
+`PlaceWriteBatch`, which upserts the built rows in governor-safe per-scope
+transactions, then chains `PlaceUsageBatch` to fill `Load_Count_365d__c`, which
+also writes through `PlaceWriteBatch`.) Rerun the same command any time; it never
+deletes a place and never overwrites `Aliases__c` or `Active__c`.
+
+Result: **10,496 places** (`SELECT COUNT() FROM Pricing_Place__c`), built from
+58,755 location accounts referenced by a stop, which carry 11,479 distinct raw
+`ShippingCity` spellings before normalization — so `PlaceNormalizer` collapses at
+least 983 spelling/case/accent variants into shared keys (places are also split by
+province and country, so the true collapse per city name is higher than that
+difference suggests).
+
+Rerun the top 20 with:
+
+```bash
+sf data query -q "SELECT Name, Key__c, Location_Count__c, Load_Count_365d__c, Postal_Prefix__c FROM Pricing_Place__c ORDER BY Load_Count_365d__c DESC NULLS LAST LIMIT 20" -o sandbox
+```
+
+Top 20 places by load count in the last 365 days (2026-09-09):
+
+| Name                      | Key                                | Locations | Loads (365d) | Postal prefix |
+| ------------------------- | ---------------------------------- | --------- | ------------ | ------------- |
+| Laredo, TX, US            | `laredo\|tx\|us`                   | 970       | 7196         | 780           |
+| Calgary, AB, CA           | `calgary\|ab\|ca`                  | 930       | 3219         | T2C           |
+| Mississauga, ON, CA       | `mississauga\|on\|ca`              | 1470      | 3203         | L5T           |
+| Lachine, QC, CA           | `lachine\|qc\|ca`                  | 177       | 2895         | H8T           |
+| Brampton, ON, CA          | `brampton\|on\|ca`                 | 691       | 2834         | L6T           |
+| Montréal, QC, CA          | `montreal\|qc\|ca`                 | 1152      | 2765         | H4S           |
+| Anjou, QC, CA             | `anjou\|qc\|ca`                    | 121       | 2580         | H1J           |
+| Toronto, ON, CA           | `toronto\|on\|ca`                  | 865       | 1359         | M9W           |
+| Knowlton, QC, CA          | `knowlton\|qc\|ca`                 | 16        | 1312         | J0E           |
+| GENERAL ESCOBEDO, Nue, MX | `general escobedo\|nuevo león\|mx` | 5         | 1285         | 660           |
+| Vaughan, ON, CA           | `vaughan\|on\|ca`                  | 293       | 1172         | L4K           |
+| Veracruz, Mex, MX         | `veracruz\|mexico state\|mx`       | 2         | 1165         | 916           |
+| Baie-d'Urfé, QC, CA       | `baie d urfe\|qc\|ca`              | 68        | 1122         | H9X           |
+| Laval, QC, CA             | `laval\|qc\|ca`                    | 403       | 1060         | H7L           |
+| Oshawa, ON, CA            | `oshawa\|on\|ca`                   | 57        | 978          | L1H           |
+| Rocky View County, AB, CA | `rocky view county\|ab\|ca`        | 47        | 927          | T4A           |
+| Edmonton, AB, CA          | `edmonton\|ab\|ca`                 | 658       | 916          | T5S           |
+| San Diego, CA, US         | `san diego\|ca\|us`                | 132       | 862          | 921           |
+| Burnaby, BC, CA           | `burnaby\|bc\|ca`                  | 175       | 853          | V5J           |
+| Boucherville, QC, CA      | `boucherville\|qc\|ca`             | 144       | 844          | J4B           |
+
+Montréal/Montreal spot check:
+
+```
+SELECT Name, Key__c, Spellings__c FROM Pricing_Place__c WHERE Key__c LIKE 'montreal|%'
+Montréal, QC, CA | montreal|qc|ca | Montreal / Montréal / MONTREAL / Montreal, / montreal / MONTRÉAL, / MONTRÉAL / Montréal, / MONTREAL,
+Montreal, , CA   | montreal||ca   | Montreal / MONTREAL
+```
+
+`montreal|qc|ca` is the intended collapse: `Spellings__c` shows "Montréal",
+"Montreal" and "MONTREAL" (plus accented/cased/punctuated variants) all merged
+into one place under `ShippingState = QC` (the raw location accounts have 577
+"Montréal", 573 "MONTREAL", and 18 more such rows — see the spec Outcome for the
+full breakdown — plus a few unrelated near-matches like "Montrose" and
+"Montréal-Nord", which correctly stay separate places). `montreal||ca` is a
+second, minor key from a handful of accounts where the full city/province/postal
+string was typed into `ShippingCity` with `ShippingState` left blank (e.g.
+"Montreal QC", "MONTREAL, QC H2P 1L5") — real, messy source data the normalizer
+correctly treats as a different (blank-province) key rather than silently
+guessing the province.
+
+### Lane search
+
+`LaneSearchService.search(LaneSearchRequest)` returns a `LaneSearchResult` (rows,
+`statsByCurrency` per currency, `truncated`, `elapsedMs`, `dedupedCount`). A worked
+example against real data lives at `scripts/apex/laneSearchExample.apex` (run with
+`sf apex run -f scripts/apex/laneSearchExample.apex -o sandbox`); measured timings
+are recorded in `docs/superpowers/specs/2026-09-09-phase-1-search-foundation-design.md`
+under Outcome. Sample request, city precision, last 90 days:
+
+```apex
+LaneSearchRequest r = new LaneSearchRequest();
+r.originKey = 'montreal|qc|ca';
+r.destinationKey = 'toronto|on|ca';
+r.originPrecision = LaneSearchRequest.Precision.CITY;
+r.destinationPrecision = LaneSearchRequest.Precision.CITY;
+r.lookbackDays = 90;
+LaneSearchResult res = LaneSearchService.search(r);
+```
+
+### Support case
+
+Custom-index request for `rtms__Load__c.rtms__City_Lane__c` /
+`rtms__State_Lane__c` / `rtms__Zip3_Lane__c`: case number ______ (filed by the
+user).
 
 ## Known issues worth fixing
 
