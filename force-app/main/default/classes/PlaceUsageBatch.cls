@@ -1,4 +1,9 @@
-/** Counts, per place key, the stops created in the last 365 days, and writes Load_Count_365d__c. */
+/**
+ * Counts, per place key, the stops created in the last 365 days, and writes Load_Count_365d__c.
+ * The changed rows are handed to PlaceWriteBatch (chainUsageBatch=false) rather than updated
+ * directly here, for the same governor-limit reason PlaceBuilderBatch does: a single update of
+ * every place in a large org can exceed the 10,000-DML-row-per-transaction limit.
+ */
 // Runs without sharing on purpose: pricing benchmarks every team's quotes. Access is gated by the Lane Benchmark permission sets.
 public without sharing class PlaceUsageBatch implements Database.Batchable<SObject>, Database.Stateful {
   private Map<String, Integer> counts = new Map<String, Integer>();
@@ -33,20 +38,33 @@ public without sharing class PlaceUsageBatch implements Database.Batchable<SObje
     }
   }
 
+  public void finish(Database.BatchableContext bc) {
+    // chainUsageBatch=false: nothing chains off this write, so there's no risk of re-entering
+    // PlaceUsageBatch in a loop.
+    Database.executeBatch(new PlaceWriteBatch(buildUpdates(), false), 2000);
+  }
+
+  @TestVisible
+  private List<Pricing_Place__c> buildUpdatesForTest() {
+    return buildUpdates();
+  }
+
   @SuppressWarnings(
     'PMD.ApexCRUDViolation'
   ) // system mode by design (see class comment)
-  public void finish(Database.BatchableContext bc) {
+  private List<Pricing_Place__c> buildUpdates() {
     List<Pricing_Place__c> updates = new List<Pricing_Place__c>();
     for (Pricing_Place__c p : [
-      SELECT Id, Key__c, Load_Count_365d__c
+      SELECT Key__c, Load_Count_365d__c
       FROM Pricing_Place__c
     ]) {
       Integer n = counts.containsKey(p.Key__c) ? counts.get(p.Key__c) : 0;
       if (p.Load_Count_365d__c != n) {
-        updates.add(new Pricing_Place__c(Id = p.Id, Load_Count_365d__c = n));
+        updates.add(
+          new Pricing_Place__c(Key__c = p.Key__c, Load_Count_365d__c = n)
+        );
       }
     }
-    update updates;
+    return updates;
   }
 }

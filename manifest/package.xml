@@ -25,6 +25,7 @@
         <members>PricingTestDataFactoryTest</members>
         <members>PlaceBuilderBatch</members>
         <members>PlaceUsageBatch</members>
+        <members>PlaceWriteBatch</members>
         <members>PlaceBuilderBatchTest</members>
         <members>LaneSearchException</members>
         <members>LaneSearchFilters</members>
