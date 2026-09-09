@@ -254,15 +254,18 @@ public class PricingTestDataFactory {
     return createLoad(g, origin, destination, false, g.customer, mode);
   }
 
-  private static rtms__Load__c createLoad(
+  /**
+   * Returns an uninserted Load with the fields every load in this factory shares (customer, mode,
+   * equipment, weight, division, currency, hazmat). Shared by createLoad() and
+   * createLoadWithAdHocOrigin() so that field list exists once.
+   */
+  private static rtms__Load__c newLoad(
     Graph g,
-    Account origin,
-    Account destination,
-    Boolean hazmat,
     Account customer,
-    rtms__Mode__c mode
+    rtms__Mode__c mode,
+    Boolean hazmat
   ) {
-    rtms__Load__c load = new rtms__Load__c(
+    return new rtms__Load__c(
       Name = 'Test Load',
       rtms__Customer__c = customer.Id,
       rtms__Mode__c = mode.Id,
@@ -273,6 +276,17 @@ public class PricingTestDataFactory {
       CurrencyIsoCode = 'CAD',
       rtms__Hazardous_Materials__c = hazmat
     );
+  }
+
+  private static rtms__Load__c createLoad(
+    Graph g,
+    Account origin,
+    Account destination,
+    Boolean hazmat,
+    Account customer,
+    rtms__Mode__c mode
+  ) {
+    rtms__Load__c load = newLoad(g, customer, mode, hazmat);
     applyLaneKeys(load, origin, destination);
     String expectedCityLane = load.rtms__City_Lane__c;
     String expectedStateLane = load.rtms__State_Lane__c;
@@ -311,28 +325,21 @@ public class PricingTestDataFactory {
     Decimal lng,
     Account destination
   ) {
-    rtms__Load__c load = new rtms__Load__c(
-      Name = 'Test Load',
-      rtms__Customer__c = g.customer.Id,
-      rtms__Mode__c = g.mode.Id,
-      rtms__Equipment_Type__c = g.equipment.Id,
-      rtms__Total_Weight__c = 1000,
-      Mode_For_Sharing__c = g.mode.Name,
-      TPRO_Division_Name__c = DIVISION,
-      CurrencyIsoCode = 'CAD',
-      rtms__Hazardous_Materials__c = false
-    );
+    rtms__Load__c load = newLoad(g, g.customer, g.mode, false);
     String oProv = PlaceNormalizer.provinceCode(province);
     String dProv = PlaceNormalizer.provinceCode(destination.ShippingState);
-    String expectedCityLane =
+    load.rtms__City_Lane__c =
       PlaceNormalizer.cityLaneSide(city, oProv) +
       ':' +
       PlaceNormalizer.cityLaneSide(destination.ShippingCity, dProv);
-    String expectedStateLane = oProv + ':' + dProv;
-    String expectedZip3Lane =
+    load.rtms__State_Lane__c = oProv + ':' + dProv;
+    load.rtms__Zip3_Lane__c =
       first3(postal) +
       ':' +
       first3(destination.ShippingPostalCode);
+    String expectedCityLane = load.rtms__City_Lane__c;
+    String expectedStateLane = load.rtms__State_Lane__c;
+    String expectedZip3Lane = load.rtms__Zip3_Lane__c;
     insert load;
 
     rtms__Stop__c pickup = new rtms__Stop__c(

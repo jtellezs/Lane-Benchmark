@@ -274,6 +274,11 @@ private class LaneSearchServiceTest {
       adHocOrigin.rtms__Geolocation__Latitude__s,
       'ad-hoc origin stop (no rtms__Location2__c) must keep its own geolocation for the fallback to work'
     );
+    System.assertNotEquals(
+      null,
+      adHocOrigin.rtms__Geolocation__Longitude__s,
+      'ad-hoc origin stop (no rtms__Location2__c) must keep its own geolocation for the fallback to work'
+    );
     LaneSearchRequest km = req('montreal|qc|ca', null);
     km.originPrecision = LaneSearchRequest.Precision.RADIUS;
     km.originRadius = 40;
