@@ -152,3 +152,95 @@ done by a developer after a green pull request — see the CI section above.)
    in PostProduc; Jest passes locally and in CI.
 5. Bug-fix PR merged through the pipeline and deployed to PostProduc only.
 6. README updated with the environment table, runbook, and CI notes.
+
+## Outcome (2026-09-09)
+
+Task 11 (bug-fix PR through CI, deploy to PostProduc) executed. Checked against the
+Definition of Done above, item by item:
+
+1. **PostProduc connected, repo deployed, diff resolved.** `sandbox` (PostProduc) was
+   already connected (`sf org list` showed it Connected before this task started) and
+   was the deploy target throughout. The deploy in item 5 below is the first real
+   deploy of the merged `main` (bug-fix PR content) to PostProduc; nothing in this
+   task found or left an unresolved diff.
+2. **Toolchain clean.** `npm test` (Jest, 2 suites / 12 tests) and `npm run lint`
+   (ESLint over `**/{aura,lwc}/**/*.js`) both passed clean on the merged
+   `phase-0/bug-fixes` branch before it was pushed. Husky's pre-commit hook
+   (`.husky/pre-commit` → `lint-staged`) ran and passed, without `--no-verify`, on
+   every commit in this task, including reformatting the merge-conflict-resolved
+   `README.md` via the Prettier step. `package-lock.json` is committed
+   (`8ce1d16 Install Node toolchain, format sources, exclude profiles from deploys`).
+3. **CI green on a real pull request, both repos; branch protection on.**
+   `phase-0/bug-fixes` → `main`, PR #3 in both repos:
+   - `IulianEnescu78/PricingDepartment#3`: `lwc` pass, `pmd` pass, `apex` pass
+     (green-by-skip — no org secret in that repo, confirmed from the job log:
+     "SFDX_AUTH_URL_POSTPRODUC is not set in this repository; Apex validation runs
+     in the TPLM repository against PostProduc."). Run
+     https://github.com/IulianEnescu78/PricingDepartment/actions/runs/34348122538.
+   - `TPLM/PricingDepartment#3`: `lwc` pass, `pmd` pass, `apex` pass for real in
+     3m43s (`sf project deploy validate` against PostProduc, `Status: Succeeded`,
+     `Passing: 12`). Run
+     https://github.com/TPLM/PricingDepartment/actions/runs/34348128873.
+   - Branch protection confirmed via the GitHub API on `main` in both repos:
+     `IulianEnescu78/PricingDepartment` requires `["lwc","pmd"]`,
+     `TPLM/PricingDepartment` requires `["lwc","apex","pmd"]`; both `strict: true`,
+     `allow_force_pushes: false`, `allow_deletions: false`.
+4. **Old test classes gone; new tests pass in PostProduc; Jest passes locally and
+   in CI.** The PostProduc deploy (deploy request `0AfbZ00000CnJYrSAN`, described in
+   item 5) deleted `PricingDepartmentControllerTest3` and
+   `PricingDepartmentController_TGN_TEST` (confirmed `deleted: true` in the deploy
+   report's component list) and ran `PricingDepartmentControllerTest` for real:
+   `Status: Succeeded`, `Passing: 12`, `Failing: 0`. Jest passed locally
+   (`npm test`, 12/12) and in CI (both PRs' `lwc` job, above).
+5. **Bug-fix PR merged through the pipeline; deployed to PostProduc only; `vscodeOrg`
+   untouched.** PR #3 merged on `IulianEnescu78/PricingDepartment` only (merge
+   commit `39f651c233cce17d92a0d5e7b849e0a7bf97178e`, `gh pr merge --merge
+--delete-branch`). `main` fast-forwarded locally and on `origin` to `39f651c`,
+   then pushed (fast-forward, not forced) to `tplm`; `TPLM/PricingDepartment#3`
+   shows `state: MERGED` automatically (its head commits are in `main`; it was never
+   merged directly). Deploy to PostProduc:
+   `sf project deploy start -x manifest/package.xml --post-destructive-changes
+manifest/destructiveChangesPost.xml -o sandbox -l RunSpecifiedTests -t
+PricingDepartmentControllerTest -w 30`, deploy request `0AfbZ00000CnJYrSAN`,
+   `Status: Succeeded`, 44/44 components, `Passing: 12`, `Failing: 0`. Verification:
+   `SELECT Name FROM ApexClass WHERE Name LIKE 'Pricing%'` on `sandbox` returns
+   `PricingDepartmentController`, `PricingDepartmentControllerTest`,
+   `PricingTestDataFactory` — plus a pre-existing, unrelated `PricingWorkbenchControllerExt`
+   that predates this project and is outside its manifest (see Adaptations).
+   `SELECT DeveloperName, Excluded_Contact_Ids__c FROM Pricing_Department_Setting__mdt`
+   returns exactly the `Default` record with `0033l00002px9ja`. `vscodeOrg`
+   (production) was never authenticated against, queried, or deployed to in this task.
+6. **README has the environment table, runbook, and CI section.** All present
+   (inherited from the foundation/ci-docs merge, confirmed unchanged in structure by
+   this task's own README edit, which only touched the "What is in here" Security
+   row and the "Known issues" bullets).
+
+### Adaptations from the original plan
+
+- **PostProduc-only pipeline.** DevPro and Full, as referenced throughout most of
+  this plan document, were dropped during execution; PostProduc (`sandbox`) is the
+  single pre-production environment (develop, test, CI, UAT), Production
+  (`vscodeOrg`) is the only stage after it. See the note under this document's H1
+  in the implementation plan and the README's Environments section.
+- **LWC lint fixes landed early.** The ReferenceError fix, the removal of the dead
+  `fetchModeOptions`, and the API version bump to 64.0 — nominally scoped to this
+  task's bug-fix PR by the original task brief — had already landed in the
+  foundation PR by the time this task ran; `phase-0/bug-fixes` only needed to merge
+  `main` to pick them up, not implement them.
+- **Stale destructive-changes manifest, fixed in a follow-up PR.**
+  `manifest/destructiveChangesPost.xml` listed the two classes retired by the
+  deploy in item 5. Once that deploy actually removed them from PostProduc, a
+  concurrent CI run on `main` in `TPLM/PricingDepartment` (triggered by the mirror
+  push, racing the manual deploy) hit its own `apex` job's
+  `--post-destructive-changes` step and failed:
+  `Warning in destructiveChanges.xml - No ApexClass named:
+PricingDepartmentController_TGN_TEST found` (and the same for `...Test3`) — not a
+  transient race but a permanent one, reproduced locally with a plain
+  `sf project deploy validate` against the unchanged manifest. Every future
+  validate/deploy against PostProduc would have failed the same way for as long as
+  the file kept naming already-deleted classes, which would have permanently broken
+  the required `apex` check in `TPLM/PricingDepartment`. Fixed in the small
+  `phase-0/outcome` PR (this section's own PR) by emptying
+  `manifest/destructiveChangesPost.xml` to an empty `<Package>` with a comment
+  explaining why, and re-verified locally with a clean `sf project deploy validate`
+  (`Status: Succeeded`, 12/12 tests, 0 component errors) before pushing.
