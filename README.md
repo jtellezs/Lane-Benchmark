@@ -115,12 +115,14 @@ TPLM repository. Regenerate the secret after every Full refresh:
 
 ```bash
 set -o pipefail
-sf org display -o Full --verbose --json \
-  | python3 -c "import json,sys; sys.stdout.write(json.loads(sys.stdin.read())['result']['sfdxAuthUrl'])" \
+sf org auth show-sfdx-auth-url -o Full --json 2>/dev/null \
+  | python3 -c "import json,sys; u=json.load(sys.stdin)['result']['sfdxAuthUrl']; assert u.startswith('force://'); sys.stdout.write(u)" \
   | GH_TOKEN=$(gh auth token -u IulianEnescu) gh secret set SFDX_AUTH_URL_FULL -R TPLM/PricingDepartment
 ```
 
-Never echo or print the auth URL; pipe it directly from `sf org display` into `gh secret set`.
+Never echo or print the auth URL; pipe it directly from `sf org auth show-sfdx-auth-url` into
+`gh secret set`. (`sf org display --verbose --json` no longer includes the real URL on current
+CLI versions; it returns a `[REDACTED]` placeholder.)
 
 ### Branch protection
 

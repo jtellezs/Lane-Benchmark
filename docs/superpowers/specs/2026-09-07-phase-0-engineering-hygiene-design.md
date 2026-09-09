@@ -67,9 +67,10 @@ One workflow file, `.github/workflows/ci.yml`, identical in both repositories
 
 Secret: `SFDX_AUTH_URL_FULL`, set in the TPLM repository only
 (`TPLM/PricingDepartment`). Obtained after the Full login with
-`sf org display -o Full --verbose --json`, piped straight into `gh secret set`
-(work token for TPLM). The value is never printed, echoed, or written to a
-file. Rotated after every Full refresh. The personal mirror
+`sf org auth show-sfdx-auth-url -o Full --json` (current CLI versions redact
+the URL from `sf org display`), piped straight into `gh secret set` (work
+token for TPLM). The value is never printed, echoed, or written to a file.
+Rotated after every Full refresh. The personal mirror
 (`IulianEnescu78/PricingDepartment`) has no org secret; its `apex` job detects
 that (`secrets.SFDX_AUTH_URL_FULL != ''` read into a job-level `env`) and
 skips its Salesforce steps instead of failing, so the job still succeeds
