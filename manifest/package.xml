@@ -26,6 +26,11 @@
         <members>PlaceBuilderBatch</members>
         <members>PlaceUsageBatch</members>
         <members>PlaceBuilderBatchTest</members>
+        <members>LaneSearchException</members>
+        <members>LaneSearchRequest</members>
+        <members>LaneSearchResult</members>
+        <members>LaneSearchService</members>
+        <members>LaneSearchServiceTest</members>
         <name>ApexClass</name>
     </types>
     <types>

@@ -61,6 +61,11 @@ public without sharing class PricingDepartmentController {
     );
   }
 
+  /** Shared with LaneSearchService so both read the same custom metadata and honor the test override. */
+  public static Set<String> excludedContactIdSet() {
+    return excludedContactIds();
+  }
+
   /**
    * Parses a comma-separated list of Contact Ids, tolerating admin data-entry mistakes:
    * malformed or wrong-length entries are logged and skipped rather than thrown.
