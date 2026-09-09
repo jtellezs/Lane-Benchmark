@@ -44,7 +44,7 @@ jobs:
         if: env.HAS_SECRET == 'true'
         env:
           SFDX_AUTH_URL: ${{ secrets.SFDX_AUTH_URL_FULL }}
-        run: echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin --alias Full --set-default
+        run: echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias Full --set-default
       - name: Validate deploy and run tests
         if: env.HAS_SECRET == 'true'
         run: >
