@@ -121,7 +121,9 @@ public without sharing class PricingDepartmentController {
     String equipmentFilterStr = createFilterString(equipmentFilter);
     String acceptedQuotesFilterStr = createFilterString(acceptedQuotesFilter);
     String declinedQuotesFilterStr = createFilterString(declinedQuotesFilter);
-    Date startDate = Date.today().addDays(-dateRangeFilter);
+    // A null day count means the default window rather than a NullPointerException.
+    Integer days = dateRangeFilter == null ? 30 : dateRangeFilter;
+    Date startDate = Date.today().addDays(-days);
 
     List<rtms__CarrierQuote__c> allCarrierQuotes = fetchCarrierQuotes(
       originFilterStr,
@@ -151,10 +153,17 @@ public without sharing class PricingDepartmentController {
     return uniqueCarrierQuotes;
   }
 
+  /**
+   * A null or blank filter means "no filter": LIKE '%%' matches every non-null value.
+   * Without the guard a null argument would build the literal string '%null%'.
+   */
   private static String createFilterString(String filter) {
-    return '%' + filter + '%';
+    return String.isBlank(filter) ? '%%' : '%' + filter + '%';
   }
 
+  // system mode by design: the page benchmarks every team's quotes; access is gated by the
+  // Pricing_Department_User permission set
+  @SuppressWarnings('PMD.ApexCRUDViolation')
   private static List<rtms__CarrierQuote__c> fetchCarrierQuotes(
     String originFilterStr,
     String destinationFilterStr,
@@ -215,32 +224,5 @@ public without sharing class PricingDepartmentController {
       ORDER BY Quote_Date__c DESC
       LIMIT 500
     ];
-  }
-
-  @AuraEnabled(cacheable=true)
-  public static List<String> getUniqueModeOptions(
-    String originFilter,
-    String destinationFilter
-  ) {
-    String originFilterStr = createFilterString(originFilter);
-    String destinationFilterStr = createFilterString(destinationFilter);
-    Set<String> excluded = excludedContactIds();
-
-    List<rtms__CarrierQuote__c> quotes = [
-      SELECT Mode__c
-      FROM rtms__CarrierQuote__c
-      WHERE
-        Origin__c LIKE :originFilterStr
-        AND Destination__c LIKE :destinationFilterStr
-        AND Origin_Destination_Country__c != ' / '
-        AND Contact_ID__c NOT IN :excluded
-    ];
-
-    Set<String> uniqueModeOptionsSet = new Set<String>();
-    for (rtms__CarrierQuote__c quote : quotes) {
-      uniqueModeOptionsSet.add(quote.Mode__c);
-    }
-
-    return new List<String>(uniqueModeOptionsSet);
   }
 }

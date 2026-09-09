@@ -1,34 +1,21 @@
 /**
- * Builds the minimum valid Revenova graph the Pricing Department tests need.
- * DevPro has no records, so every test creates its data through this class.
- * If a managed or custom trigger rejects an insert, fix it HERE, not in a test.
+ * Builds the minimum valid Revenova graph the Pricing Department tests need: customer and vendor
+ * Accounts, geocoded location Accounts, quote Contact, transportation profile, mode, equipment
+ * type, carrier service, loads with stops, and carrier quotes. Tests create their own data through
+ * this class instead of relying on org records. If a managed or custom trigger rejects an insert,
+ * fix it HERE, not in a test.
  *
- * Discovery loop findings (DevPro, 2026-09-08):
- * - rtms__TransportationProfile__c.rtms__Carrier_Remit_To__c (lookup to Account) is set to the
- *   vendor Account on the Carrier profile. This was added per the controller's hint about a
- *   TransportationProfile-to-Account lookup, not because any observed error required it — no
- *   insert in this class ever got far enough to exercise it (see blocker below).
- * - No other field was added to this class as a result of an observed validation/required-field
- *   error; the fields from the brief's known-requirements table were sufficient for every insert
- *   through rtms__CarrierService__c.
+ * Two PostProduc constraints shape the interface:
+ * - Load automation (LoadTrigger plus the "UAT - Load Updated" flow) is not bulkified, so a test
+ *   that creates two or more loads wraps the later createLoad() calls in Test.startTest() to get a
+ *   fresh governor-limit set; otherwise the 100 synchronous SOQL query limit is exceeded.
+ * - Hazmat, customer and mode are set at insert through the overloads below rather than by a
+ *   post-insert update: Mode_For_Sharing__c is re-derived from the rtms__Mode__c lookup on every
+ *   save, so writing it directly is silently overwritten, and the extra Load DML would trip the
+ *   same limit.
  *
- * KNOWN BLOCKER (unresolved, not fixable from this class): every rtms__Load__c insert in DevPro
- * fails with:
- *   System.DmlException: Insert failed. First exception on row 0; first error:
- *   CANNOT_INSERT_UPDATE_ACTIVATE_ENTITY, rtms.LoadUpsert: execution of BeforeInsert
- *   caused by: rtms.SecurityException: The user does not have access to the following record
- *   Id:Iulian Enescu:a161N0000041YHRQA2
- * Confirmed invariant to: Customer, Carrier, Mode, Equipment, Division on the Load; and to
- * Account.rtms__Transportation_Profile__c being populated on both the customer and vendor
- * accounts. The referenced Id (a16 = rtms__TransportationProfile__c) does not exist in DevPro
- * under any query, including ALL ROWS (not even in the Recycle Bin); its "1N" instance segment
- * shows it was minted in the source production org, not in DevPro's own "As" instance. It is not
- * stored on the running User's fields, in any rtms__-namespaced custom setting (there are none
- * visible to subscriber code in this org), or in Custom Labels. This points to a stale reference
- * inside managed rtms package code/config that a metadata-only sandbox refresh does not carry the
- * underlying data record for. createLoad() and buildQuote() are implemented per the interface
- * contract but are UNVERIFIED end to end in DevPro until this environment defect is fixed (full
- * diagnostic trail: see the Task 4 report in the project's SDD folder).
+ * The graph is verified end to end in PostProduc: deploy request 0AfbZ00000CnJYrSAN,
+ * PricingDepartmentControllerTest 12/12 passing.
  */
 @IsTest
 public class PricingTestDataFactory {
@@ -178,13 +165,7 @@ public class PricingTestDataFactory {
     return createLoad(g, origin, destination, false);
   }
 
-  /**
-   * Task 5 fix: setting rtms__Hazardous_Materials__c here (at insert) avoids a separate post-insert
-   * `update`. A second Load DML statement in the same test method routinely trips this org's Load
-   * automation (LoadTrigger plus the "UAT - Load Updated" flow, which together fire on every Load
-   * insert/update and are not bulkified) hard enough to exceed the 100 synchronous SOQL query limit,
-   * and/or a Load validation rule on update. The 3-argument overload delegates here with `false`.
-   */
+  /** Sets rtms__Hazardous_Materials__c at insert; the 3-argument overload delegates here with false. */
   public static rtms__Load__c createLoad(
     Graph g,
     Account origin,
@@ -194,11 +175,7 @@ public class PricingTestDataFactory {
     return createLoad(g, origin, destination, hazmat, g.customer, g.mode);
   }
 
-  /**
-   * Same governor-limit rationale as the hazmat overload above: set the customer on the load that
-   * should belong to it at creation instead of updating it afterward. Used by the market-test-filter
-   * scenario in place of `mt.rtms__Customer__c = marketTest.Id; update mt;`.
-   */
+  /** Sets a customer other than the graph's at insert, for the market-test filter scenario. */
   public static rtms__Load__c createLoad(
     Graph g,
     Account origin,
@@ -208,15 +185,7 @@ public class PricingTestDataFactory {
     return createLoad(g, origin, destination, false, customer, g.mode);
   }
 
-  /**
-   * Same governor-limit rationale again: assign a distinct rtms__Mode__c record at creation instead
-   * of updating Mode_For_Sharing__c afterward. Used by the unique-mode-options scenario in place of
-   * `b.Mode_For_Sharing__c = 'LTL'; update b;`. Note: Mode_For_Sharing__c is a plain Text field, but
-   * this org's Load automation re-derives it from the actual rtms__Mode__c lookup on save, so
-   * writing the text field directly (without also changing the lookup) gets silently overwritten
-   * back to match the shared graph Mode -- the lookup itself has to point at a different Mode
-   * record for the change to stick.
-   */
+  /** Points the load at a different rtms__Mode__c record, the only way a mode change sticks. */
   public static rtms__Load__c createLoad(
     Graph g,
     Account origin,

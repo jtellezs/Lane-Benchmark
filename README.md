@@ -13,7 +13,7 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 | Navigation       | `tabs/Pricing_Department`                                                                         | Custom tab pointing at the app page                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | Page             | `flexipages/Pricing_Department`                                                                   | App page, default home template, one region                                                                                                                                                                                                                                                                                                                                                                                                            |
 | UI               | `lwc/pricingDepartment`                                                                           | Filters, quote table, stats header, carrier detail modal                                                                                                                                                                                                                                                                                                                                                                                               |
-| Apex             | `classes/PricingDepartmentController`                                                             | Two `@AuraEnabled(cacheable=true)` methods: `getCarrierQuotes`, `getUniqueModeOptions`                                                                                                                                                                                                                                                                                                                                                                 |
+| Apex             | `classes/PricingDepartmentController`                                                             | One `@AuraEnabled(cacheable=true)` method: `getCarrierQuotes`                                                                                                                                                                                                                                                                                                                                                                                          |
 | Apex tests       | `PricingDepartmentControllerTest`, `PricingTestDataFactory`                                       | Behavior tests; the factory builds the minimum valid Revenova graph the managed triggers require, so tests do not depend on org data                                                                                                                                                                                                                                                                                                                   |
 | Data             | `objects/rtms__CarrierQuote__c/fields/*`                                                          | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas                                                                                                                                                                                                                                                                                                                                                                         |
 | Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -75,7 +75,9 @@ sf apex run test -n PricingDepartmentControllerTest -o sandbox -r human -w 10
 ```
 
 ```bash
-# Deploy to PostProduc (destructive changes remove retired classes; re-runnable)
+# Deploy to PostProduc. --post-destructive-changes is a two-step, not a re-runnable one:
+# add the members to manifest/destructiveChangesPost.xml, deploy once, then empty the
+# manifest again. A second deploy naming already-deleted components fails the whole run.
 sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o sandbox -l RunSpecifiedTests -t PricingDepartmentControllerTest
 ```
 
@@ -83,7 +85,7 @@ Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
 
 ## Known issues worth fixing
 
-- The excluded Contact Ids now live in `Pricing_Department_Setting__mdt` (record `Default`, field `Excluded_Contact_Ids__c`) instead of being hardcoded. `PricingDepartmentController` is still `without sharing`; that is intentional and documented in the class.
+- The excluded Contact Ids now live in `Pricing_Department_Setting__mdt` (record `Default`, field `Excluded_Contact_Ids__c`) instead of being hardcoded. `PricingDepartmentController` is still `without sharing`; that is intentional and documented in the class. The repo is the source of truth for `Pricing_Department_Setting.Default`; every deploy overwrites the org value, so admins request changes by pull request.
 - Every filter is a `LIKE '%x%'` on formula fields, which cannot use indexes; dedupe happens in Apex after the 500-row limit is applied.
 
 ## Continuous integration
@@ -95,7 +97,7 @@ in both repositories:
 | ------ | -------------------------------------------------------------------------------------- | ------------------------------------------ |
 | `lwc`  | `npm ci`, ESLint, Prettier check, Jest with coverage                                   | lint error, formatting drift, failing test |
 | `apex` | `sf project deploy validate` against PostProduc with `PricingDepartmentControllerTest` | compile error, test failure                |
-| `pmd`  | PMD 7 Apex quickstart, priority 1-2                                                    | any P1/P2 violation                        |
+| `pmd`  | PMD 7 Apex quickstart, priority 3 (all quickstart rules), text output in the job log   | any quickstart violation                   |
 
 CI never deploys. Deploys to PostProduc are run by a developer after merge (command
 above).

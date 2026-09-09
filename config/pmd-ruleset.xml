@@ -6,9 +6,13 @@
   xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd"
 >
     <description
-  >Apex quickstart rules. CI fails on priority 1 and 2 only.</description>
+  >Apex quickstart rules. CI fails on priority 3 (all quickstart rules).</description>
     <rule ref="rulesets/apex/quickstart.xml">
         <!-- Test classes deliberately create many records inline. -->
         <exclude name="ApexUnitTestClassShouldHaveRunAs" />
+        <!-- intent is documented in prose block comments, not @description tags -->
+        <exclude name="ApexDoc" />
+        <!-- phase 2 replaces the 9-argument search signature with one request object; remove this exclusion then -->
+        <exclude name="ExcessiveParameterList" />
     </rule>
 </ruleset>

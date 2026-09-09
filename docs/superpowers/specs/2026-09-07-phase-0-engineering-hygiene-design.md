@@ -20,11 +20,11 @@ Developer Pro sandbox (`devpro`) was also tried, but retired: it cannot insert
 `rtms__Load__c` because the Revenova managed triggers need configuration records that
 only a data-carrying sandbox provides.
 
-Refresh runbook (DevPro was refreshed 2026-09-08 from production, job
-`0GROG0000002Dqn4AE`; previous refresh took ~70 minutes) — kept here as a historical
-record from when DevPro was still evaluated as a candidate environment; it does not
-apply to PostProduc, which uses the standard sandbox refresh/resume commands in the
-README:
+Refresh runbook (historical, DevPro retired) — DevPro was refreshed 2026-09-08 from
+production, job `0GROG0000002Dqn4AE`; previous refresh took ~70 minutes. Kept here as a
+historical record from when DevPro was still evaluated as a candidate environment; it
+does not apply to PostProduc, which uses the standard sandbox refresh/resume commands
+in the README:
 
 1. `sf org refresh sandbox -n DevPro -o vscodeOrg --async --no-prompt`
 2. Check: `sf org resume sandbox --job-id <id> -o ienescu@trans-pro.com`
@@ -65,7 +65,7 @@ One workflow file, `.github/workflows/ci.yml`, identical in both repositories
 | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `lwc`  | `npm ci`, ESLint, Prettier check, `sfdx-lwc-jest --coverage`                                                                                                                                                                                                                    | any lint error, formatting drift, or failing Jest test |
 | `apex` | install `@salesforce/cli`, `sf org login sfdx-url` from secret, `sf project deploy validate -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml --test-level RunSpecifiedTests --tests PricingDepartmentControllerTest --target-org sandbox` | compile error, test failure, or deployment error       |
-| `pmd`  | PMD (latest 7.x) with the Apex quickstart ruleset on `force-app/**/*.cls`, results as PR annotations                                                                                                                                                                            | any Priority 1 or 2 violation                          |
+| `pmd`  | PMD 7 Apex quickstart, priority 3 (all quickstart rules), text output in the job log                                                                                                                                                                                            | any quickstart violation                               |
 
 Secret: `SFDX_AUTH_URL_POSTPRODUC`, set in the TPLM repository only
 (`TPLM/PricingDepartment`). Obtained after the PostProduc login with
@@ -80,12 +80,15 @@ there. The `apex` job only validates for real in the TPLM repository.
 
 Branch protection on `main`: `IulianEnescu78/PricingDepartment` requires
 `["lwc", "pmd"]` (no secret there, so `apex` cannot be a required context);
-`TPLM/PricingDepartment` requires `["lwc", "apex", "pmd"]`. Both require a
-pull request and no force pushes. The `tplm` mirror push after merge is done
+`TPLM/PricingDepartment` requires `["lwc", "apex", "pmd"]`. Both enforce
+required status checks (strict) and block force pushes and deletions; neither
+requires a pull-request review. The `tplm` mirror push after merge is done
 by the developer, not by CI.
 
-Concurrency: the `apex` job uses a concurrency group per branch so two pushes
-in a row do not run two validations against PostProduc at once.
+Concurrency: the workflow declares a concurrency group per ref
+(`ci-${{ github.ref }}`) with `cancel-in-progress: true`, so a second push to
+the same branch cancels the run still in flight rather than adding a second
+validation against PostProduc.
 
 ## Tests
 
@@ -214,6 +217,10 @@ PricingDepartmentControllerTest -w 30`, deploy request `0AfbZ00000CnJYrSAN`,
    (inherited from the foundation/ci-docs merge, confirmed unchanged in structure by
    this task's own README edit, which only touched the "What is in here" Security
    row and the "Known issues" bullets).
+
+2026-09-09 final review fix wave: PMD gate made real (priority 3), apex job fails in
+TPLM when the secret is missing, modal click handler added, getUniqueModeOptions
+removed, null guards added.
 
 ### Adaptations from the original plan
 

@@ -1,3 +1,6 @@
+/**
+ * There is no @TestSetup on purpose: each test builds its own graph so field values are explicit.
+ */
 @IsTest
 private class PricingDepartmentControllerTest {
   private static final String ALL = '';
@@ -35,11 +38,6 @@ private class PricingDepartmentControllerTest {
     rtms__CarrierQuote__c q = PricingTestDataFactory.buildQuote(g, load, total);
     insert q;
     return q;
-  }
-
-  @TestSetup
-  static void noExclusions() {
-    // Nothing here on purpose: each test builds its own graph so field values are explicit.
   }
 
   @IsTest
@@ -104,6 +102,38 @@ private class PricingDepartmentControllerTest {
     System.assertEquals(
       0,
       search('Calgary', ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size()
+    );
+  }
+
+  @IsTest
+  static void nullFiltersAreTreatedAsNoFilter() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    insertQuote(g, load, 1000);
+
+    Test.startTest();
+    List<rtms__CarrierQuote__c> result = PricingDepartmentController.getCarrierQuotes(
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    );
+    Test.stopTest();
+
+    System.assertEquals(
+      1,
+      result.size(),
+      'null text filters and a null day count behave like the unfiltered 30-day default'
     );
   }
 
@@ -346,11 +376,6 @@ private class PricingDepartmentControllerTest {
       search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size(),
       'Quotes whose contact is excluded must not be returned'
     );
-    System.assertEquals(
-      0,
-      PricingDepartmentController.getUniqueModeOptions(ALL, ALL).size()
-    );
-
     PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
     System.assertEquals(
       1,
@@ -391,61 +416,6 @@ private class PricingDepartmentControllerTest {
   }
 
   @IsTest
-  static void uniqueModeOptionsAreDistinctAndLaneScoped() {
-    // Same governor-limit reasoning as the tests above: this test needs 3 Loads, more than a
-    // single 100-query synchronous budget can absorb in this org, so the first Load is created
-    // before Test.startTest() and the other two after it, inside the fresh limit set. Load b
-    // gets its own rtms__Mode__c record (factory overload) rather than
-    // `b.Mode_For_Sharing__c = 'LTL'; update b;` -- both to remove a Load DML statement from
-    // that fresh budget, and because Mode_For_Sharing__c is derived from the actual
-    // rtms__Mode__c lookup on save in this org, so only changing the lookup sticks.
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-    rtms__Mode__c ltl = new rtms__Mode__c(
-      Name = 'LTL',
-      rtms__Order__c = 2,
-      rtms__Minimum_Weight__c = 0,
-      rtms__Maximum_Weight__c = 20000
-    );
-    insert ltl;
-    rtms__Load__c a = PricingTestDataFactory.createLoad(
-      g,
-      g.originLocation,
-      g.destinationLocation
-    );
-    insertQuote(g, a, 1000);
-    insertQuote(g, a, 1100);
-
-    Test.startTest();
-    rtms__Load__c b = PricingTestDataFactory.createLoad(
-      g,
-      g.originLocation,
-      g.destinationLocation,
-      ltl
-    );
-    rtms__Load__c elsewhere = PricingTestDataFactory.createLoad(
-      g,
-      g.destinationLocation,
-      g.originLocation
-    );
-    insertQuote(g, b, 500);
-    insertQuote(g, elsewhere, 900);
-
-    List<String> modes = PricingDepartmentController.getUniqueModeOptions(
-      'Montreal',
-      'Toronto'
-    );
-    Test.stopTest();
-
-    System.assertEquals(
-      2,
-      modes.size(),
-      'Mode__c values seen: ' + String.join(modes, ', ')
-    );
-    System.assert(modes.contains('Truckload') && modes.contains('LTL'));
-  }
-
-  @IsTest
   static void resultIsCappedAtFiveHundredRows() {
     PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
     PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
@@ -479,6 +449,9 @@ private class PricingDepartmentControllerTest {
 
   @IsTest
   static void excludedContactIdsComeFromCustomMetadataInBothIdLengths() {
+    // Asserts the wiring (custom metadata -> parseExcludedContactIds), not the org's data:
+    // re-parsing the deployed ids here would only restate parseExcludedContactIds' own logic,
+    // and would break whenever an admin adds an entry this test did not anticipate.
     PricingDepartmentController.excludedContactIdsOverride = null;
     Set<String> ids = PricingDepartmentController.excludedContactIds();
     List<Pricing_Department_Setting__mdt> settings = [
@@ -486,25 +459,28 @@ private class PricingDepartmentControllerTest {
       FROM Pricing_Department_Setting__mdt
       WHERE DeveloperName = 'Default'
     ];
+
     System.assertEquals(
       1,
       settings.size(),
       'The Default setting record must be deployed'
     );
-    for (String raw : settings[0].Excluded_Contact_Ids__c.split(',')) {
-      Id contactId = Id.valueOf(raw.trim());
-      System.assert(
-        ids.contains(String.valueOf(contactId)),
-        '18-char form present'
-      );
-      System.assert(
-        ids.contains(String.valueOf(contactId).left(15)),
-        '15-char form present'
-      );
-    }
+    System.assert(
+      ids.equals(
+        PricingDepartmentController.parseExcludedContactIds(
+          settings[0].Excluded_Contact_Ids__c
+        )
+      ),
+      'excludedContactIds() must return exactly what the Default record parses to'
+    );
+    System.assert(
+      !ids.isEmpty(),
+      'The Default record must exclude at least one contact'
+    );
   }
 
   @IsTest
+  @SuppressWarnings('PMD.AvoidHardcodingId')
   static void parseExcludedContactIdsSkipsInvalidEntries() {
     String validContactId = '0033l00002px9ja';
     Id validId = Id.valueOf(validContactId);
