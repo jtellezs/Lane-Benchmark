@@ -40,16 +40,30 @@ Rejected: extending the current formula-driven page in place (cannot be
 indexed, grouped, or searched by geography), and a nightly lane analytics
 object (delays the interactive features; possible later on top of B).
 
-## Phases
+## Phases (revised 2026-09-09 after phase 0 and the PostProduc measurements)
 
-| #   | Phase                 | Lands                                                                                                                                                 | Rough calendar |
-| --- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| 0   | Engineering hygiene   | Dev sandbox, CI on pull requests (deploy validate, Apex tests, Jest, PMD), real Apex tests with a test data factory, bug-fix PR for the known issues  | 1-2 weeks      |
-| 1   | Lane foundation       | Lane fields on Load, record-triggered flow on Stop/Load, 24-month backfill batch, Place object + normalizer + alias rules owned by pricing            | 3-4 weeks      |
-| 2   | Search rework         | New controller taking one search request and returning rows + stats; place picker with history autocomplete; precision selector                       | 3 weeks        |
-| 3   | Mode & equipment      | Selector driven by Mode and Equipment Type objects, category -> equipment, with counts                                                                | 1-2 weeks      |
-| 4   | Pricing suggestion    | Margin input (default 15 %, 20 % one click away, free entry); suggested sell from average and median cost; low/high band                              | 1 week         |
-| 5   | External autocomplete | Mapbox or Google Places fallback when history has no match; on-the-fly geocoding. Vendor chosen with the company; needs key, billing, security review | 2 weeks        |
+| #   | Phase                 | Lands                                                                                                                                                                                                                            | Status                                               |
+| --- | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| 0   | Engineering hygiene   | Toolchain, CI, real tests, bug-fix PR                                                                                                                                                                                            | Done 2026-09-09                                      |
+| 1   | Search foundation     | Place dictionary + builder batch, PlaceNormalizer, LaneSearchService with typed request/result and per-currency stats, any lookback (default 90 days), index support case                                                        | Spec: 2026-09-09-phase-1-search-foundation-design.md |
+| 2   | Search UI             | New page on the service: place picker with history autocomplete and aliases, precision selector, lookback input, mode and equipment (by category) selectors with counts, per-currency statistics shown (retires the "TBD" cells) | 3-4 weeks                                            |
+| 3   | (folded into 2)       |                                                                                                                                                                                                                                  |                                                      |
+| 4   | Pricing suggestion    | Margin input (default 15 %, 20 % one click away, free entry); suggested sell per currency from average and median cost; low/high band                                                                                            | 1 week                                               |
+| 5   | External autocomplete | Mapbox or Google Places fallback when the dictionary has no match; vendor chosen with the company                                                                                                                                | 2 weeks, after vendor approval                       |
+
+What the measurements removed: no lane fields on Load, no record-triggered
+flow, no 24-month backfill. Revenova's own lane keys and the geocoded
+location accounts, queried through relationships, cover every precision.
+
+## Product name (decided 2026-09-09)
+
+The tool is rebranded **Lane Benchmark**. Phase 2 creates the new page under
+that name and retires the "Pricing Department" tab once users have switched
+(a Lightning component cannot be renamed in place). API names from phase 2
+onward: LWC `laneBenchmark*`, FlexiPage and CustomTab `Lane_Benchmark`,
+Apex `LaneBenchmark*` for UI-facing classes, permission set
+`Lane_Benchmark_User` replacing `Pricing_Department_User`. Phase 1's
+`LaneSearchService` and `Pricing_Place__c` keep their names.
 
 ## Standing constraints
 
@@ -58,9 +72,8 @@ object (delays the interactive features; possible later on top of B).
 - `PricingDepartmentController` stays `without sharing` on purpose (pricing
   must see every team's quotes). State it in code; move the hardcoded
   excluded Contact Id to custom metadata.
-- Radius search is always paired with a selective filter (date range, mode).
-  Do not promise "all quotes ever within N miles" in one query.
-- Backfill only the last 24 months of loads.
+- Lookback is a free number of days (default 90, no cap). Radius searches over long windows are slower (about 13 s for a year); the fix is custom indexes requested from Salesforce, not new fields.
+- No backfill: lane data is read through relationships from Revenova's lane keys and the location accounts.
 - Alias rules for places are a business asset curated by the pricing team.
 - No AI attribution trailers in commits.
 
