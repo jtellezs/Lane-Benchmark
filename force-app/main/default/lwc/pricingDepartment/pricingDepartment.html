@@ -1,306 +1,408 @@
 <template>
-    <div class="slds-brand-band slds-brand-band_small">
-        <div class="slds-grid slds-gutters slds-wrap">
-            <!--start the filter area-->
-            <div class="slds-col  slds-small-size_1-of-1 slds-medium-size_4-of-8 slds-large-size_4-of-8 slds-order_1">
-                <lightning-card title="Filters" icon-name="standard:filter" size="6">
-                    <!--START FIRST ROW OF FILTERS-->
-                    <div class="slds-grid slds-gutters"> 
-                        <!--START FIRST COLUMN FOR ORIGIN AND DESTINATION-->
-                        <div class="slds-col slds-size_1-of-2">
-                            <div class="slds-grid slds-gutters slds-grid_vertical" >
-                                <div class="slds-col">
-                                    <div class="slds-form-element">
-                                        <label class="slds-form-element__label" 
-                                                for="Origin_01">
-                                            Origin
-                                        </label>
-                                        <div class="slds-form-element__control">
-                                            <input type="text" 
-                                                    id="Origin_01" 
-                                                    value={originFilter} 
-                                                    onchange={handleOriginFilterChange}
-                                                    placeholder="Please enter a city or a state..." 
-                                                    class="slds-input" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="slds-col">
-                                    <div class="slds-form-element">
-                                        <label class="slds-form-element__label" 
-                                                for="Destination_01">
-                                            Destination
-                                        </label>
-                                        <div class="slds-form-element__control">
-                                            <input type="text" 
-                                                    id="Destination_01" 
-                                                    value={destinationFilter} 
-                                                    onchange={handleDestinationFilterChange}
-                                                    placeholder="Please enter a city or a state..." 
-                                                    class="slds-input" />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <!--END FIRST COLUMN FOR ORIGIN AND DESTINATION-->
-
-                        <!-- START SECOND COLUMN FOR EQUIPMENT AND MODE-->
-                        <div class="slds-col slds-size_1-of-2">
-                            <div class="slds-grid slds-gutters slds-grid_vertical" >
-                                <div class="slds-col">
-                                    <div class="slds-form-element">
-                                        <label class="slds-form-element__label" 
-                                                for="Origin_01">
-                                            Equipment type
-                                        </label>
-                                        <div class="slds-form-element__control">
-                                            <input type="text" 
-                                                    id="Equipment_01" 
-                                                    value={equipmentFilter} 
-                                                    onchange={handleEquipmentFilterChange}
-                                                    placeholder="Please enter the equipment type..." 
-                                                    class="slds-input" />
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="slds-col">
-                                    <!--I need to do more research to see how i can pas dinamicly the combobox in inside of a <div> -->
-                                    <lightning-layout-item size="3">
-                                        <lightning-combobox label="Mode" value={modeFilter} options={modeOptions} onchange={handleModeFilterChange}></lightning-combobox>
-                                    </lightning-layout-item>
-                                </div>
-                            </div>
-                        </div>
-                        <!--END SECOND COLUMN FOR EQUIPMENT AND MODE-->
+  <div class="slds-brand-band slds-brand-band_small">
+    <div class="slds-grid slds-gutters slds-wrap">
+      <!--start the filter area-->
+      <div
+        class="slds-col slds-small-size_1-of-1 slds-medium-size_4-of-8 slds-large-size_4-of-8 slds-order_1"
+      >
+        <lightning-card title="Filters" icon-name="standard:filter" size="6">
+          <!--START FIRST ROW OF FILTERS-->
+          <div class="slds-grid slds-gutters">
+            <!--START FIRST COLUMN FOR ORIGIN AND DESTINATION-->
+            <div class="slds-col slds-size_1-of-2">
+              <div class="slds-grid slds-gutters slds-grid_vertical">
+                <div class="slds-col">
+                  <div class="slds-form-element">
+                    <label class="slds-form-element__label" for="Origin_01">
+                      Origin
+                    </label>
+                    <div class="slds-form-element__control">
+                      <input
+                        type="text"
+                        id="Origin_01"
+                        value={originFilter}
+                        onchange={handleOriginFilterChange}
+                        placeholder="Please enter a city or a state..."
+                        class="slds-input"
+                      />
                     </div>
-                    <!--END FIRST ROW OF FILTERS-->
-
-                    <!--STAT THE SECOND ROW-->
-                    <div class="slds-grid slds-gutters">
-                        <!--NUMBER OF DAYS-->
-                        <div class="slds-col slds-size_1-of-2">
-                            <div class="slds-form-element">
-                                <label class="slds-form-element__label" 
-                                        for="DAYS_01">
-                                # of Days
-                                </label>
-                                <div class="slds-form-element__control">
-                                    <input type="text" 
-                                            id="DAYS_01" 
-                                            value={dateRangeFilter} 
-                                            onchange={handleDateRangeFilterChange}
-                                            class="slds-input" />
-                                </div>
-                            </div>
-                        </div>
-                        <!--END OF NB OF DAUYS-->
-                        <!-- START OF CHECKBOXES -->
-                    <div class="slds-col slds-size_1-of-2">
-                        <div class="slds-grid slds-gutters">
-                            <!-- Created by Pricing Team Checkbox -->
-                            <div class="slds-col">
-                                <div class="slds-form-element">
-                                    <label class="slds-form-element__label">Created by<br> Pricing Team</label>
-                                    <label class="slds-checkbox_toggle slds-grid">
-                                        <input type="checkbox" 
-                                            name="priceTeam_01" 
-                                            value="priceTeam_01" 
-                                            aria-describedby="priceTeam_01"
-                                            checked={isPriceDepChecked}
-                                            onchange={handlePriceDepFilterChange} />
-                                        <span id="priceTeam_01" class="slds-checkbox_faux_container" aria-live="assertive">
-                                            <span id="priceTeam_02" class="slds-checkbox_faux"></span>
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Hazmat Checkbox -->
-                            <div class="slds-col">
-                                <div class="slds-form-element">
-                                    <label class="slds-form-element__label">Hazmat <br>Load</label>
-                                    <label class="slds-checkbox_toggle slds-grid">
-                                        <input type="checkbox" 
-                                            name="hazMat_01" 
-                                            value="hazMat_01" 
-                                            aria-describedby="hazMat_01"
-                                            checked={isHazmatChecked}
-                                            onchange={handleHazmatFilterChange} />
-                                        <span id="hazMat_01" class="slds-checkbox_faux_container" aria-live="assertive">
-                                            <span id="hazMat_02" class="slds-checkbox_faux"></span>
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Declined Quotes Checkbox -->
-                            <div class="slds-col">
-                                <div class="slds-form-element">
-                                    <label class="slds-form-element__label">Declined <br>Quotes</label>
-                                    <label class="slds-checkbox_toggle slds-grid">
-                                        <input type="checkbox" 
-                                            name="declinedQuotes_01" 
-                                            value="declinedQuotes_01" 
-                                            aria-describedby="declinedQuotes_01"
-                                            checked={isDeclinedQuotesChecked}
-                                            onchange={handleDeclinedQuotesFilterChange} />
-                                        <span id="declinedQuotes_01" class="slds-checkbox_faux_container" aria-live="assertive">
-                                            <span id="declinedQuotes_02" class="slds-checkbox_faux"></span>
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Accepted Quotes Checkbox -->
-                            <div class="slds-col">
-                                <div class="slds-form-element">
-                                    <label class="slds-form-element__label">Accepted <br>Quotes</label>
-                                    <label class="slds-checkbox_toggle slds-grid">
-                                        <input type="checkbox" 
-                                            name="quoteAccepted_01" 
-                                            value="quoteAccepted_01" 
-                                            aria-describedby="quoteAccepted_01"
-                                            checked={isAcceptedQuotesChecked}
-                                            onchange={handleAcceptedQuotesFilterChange} />
-                                        <span id="quoteAccepted_01" class="slds-checkbox_faux_container" aria-live="assertive">
-                                            <span id="quoteAccepted_02" class="slds-checkbox_faux"></span>
-                                        </span>
-                                    </label>
-                                </div>
-                            </div>
-                        </div>
+                  </div>
+                </div>
+                <div class="slds-col">
+                  <div class="slds-form-element">
+                    <label
+                      class="slds-form-element__label"
+                      for="Destination_01"
+                    >
+                      Destination
+                    </label>
+                    <div class="slds-form-element__control">
+                      <input
+                        type="text"
+                        id="Destination_01"
+                        value={destinationFilter}
+                        onchange={handleDestinationFilterChange}
+                        placeholder="Please enter a city or a state..."
+                        class="slds-input"
+                      />
                     </div>
-                    <!-- END OF CHECKBOXES -->
-                    </div>
-                    <!--END OF THE SECOND ROW-->
-                    <div><br></div>
-                    <!--Start for the buttons-->
-                    <div class="slds-grid slds-grid_align-center">
-                        <div class="slds-col">
-                            <button class="slds-button slds-button_brand" 
-                                    onclick={applyFilters}>
-                                Apply
-                            </button>
-                            <button class="slds-button slds-p-horizontal_medium slds-button_destructive" 
-                                    onclick={resetFilters}>
-                                Reset
-                            </button>
-                        </div>            
-                    </div>
-                </lightning-card>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div><br></div>
-            <!--Start the stats & legend area-->
-            <div class="slds-col slds-small-size_1-of-1 slds-medium-size_4-of-8 slds-large-size_4-of-8 slds-order_3">
-                <div class="slds-grid slds-grid_vertical">
-                    <div class="slds-col" >
-                        <lightning-card title={pageTitle} icon-name="standard:feed" size="6">
-                            <!-- add your content here -->
-                            <div class="slds-grid slds-gutters">
-                                <div class="slds-col">
-                                    <table class="slds-table slds-table_cell-buffer slds-table_header-hidden slds-table_fixed-layout slds-table_bordered">
-                                        <thead class="slds-assistive-text">
-                                            <tr class="slds-line-height_reset">
-                                                <th class="" scope="col">
-                                                    <div class="slds-truncate" title="Stats Name">
-                                                        Stats Name
-                                                    </div>
-                                                </th>
-                                                <th class="" scope="col">
-                                                    <div class="slds-truncate" title="Stats Value">
-                                                        Stats Value
-                                                    </div>
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr class="slds-hint-parent">
-                                                <th data-label="Stats Name" scope="row" class="slds-cell-wrap" >
-                                                    <div class="slds-text-heading_small">
-                                                        Min Value
-                                                    </div>
-                                                </th>
-                                                <td data-label="Stats Value" class="slds-text-heading_small">
-                                                    <div>
-                                                    <!--
+            <!--END FIRST COLUMN FOR ORIGIN AND DESTINATION-->
+
+            <!-- START SECOND COLUMN FOR EQUIPMENT AND MODE-->
+            <div class="slds-col slds-size_1-of-2">
+              <div class="slds-grid slds-gutters slds-grid_vertical">
+                <div class="slds-col">
+                  <div class="slds-form-element">
+                    <label class="slds-form-element__label" for="Origin_01">
+                      Equipment type
+                    </label>
+                    <div class="slds-form-element__control">
+                      <input
+                        type="text"
+                        id="Equipment_01"
+                        value={equipmentFilter}
+                        onchange={handleEquipmentFilterChange}
+                        placeholder="Please enter the equipment type..."
+                        class="slds-input"
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="slds-col">
+                  <!--I need to do more research to see how i can pas dinamicly the combobox in inside of a <div> -->
+                  <lightning-layout-item size="3">
+                    <lightning-combobox
+                      label="Mode"
+                      value={modeFilter}
+                      options={modeOptions}
+                      onchange={handleModeFilterChange}
+                    ></lightning-combobox>
+                  </lightning-layout-item>
+                </div>
+              </div>
+            </div>
+            <!--END SECOND COLUMN FOR EQUIPMENT AND MODE-->
+          </div>
+          <!--END FIRST ROW OF FILTERS-->
+
+          <!--STAT THE SECOND ROW-->
+          <div class="slds-grid slds-gutters">
+            <!--NUMBER OF DAYS-->
+            <div class="slds-col slds-size_1-of-2">
+              <div class="slds-form-element">
+                <label class="slds-form-element__label" for="DAYS_01">
+                  # of Days
+                </label>
+                <div class="slds-form-element__control">
+                  <input
+                    type="text"
+                    id="DAYS_01"
+                    value={dateRangeFilter}
+                    onchange={handleDateRangeFilterChange}
+                    class="slds-input"
+                  />
+                </div>
+              </div>
+            </div>
+            <!--END OF NB OF DAUYS-->
+            <!-- START OF CHECKBOXES -->
+            <div class="slds-col slds-size_1-of-2">
+              <div class="slds-grid slds-gutters">
+                <!-- Created by Pricing Team Checkbox -->
+                <div class="slds-col">
+                  <div class="slds-form-element">
+                    <label class="slds-form-element__label"
+                      >Created by<br />
+                      Pricing Team</label
+                    >
+                    <label class="slds-checkbox_toggle slds-grid">
+                      <input
+                        type="checkbox"
+                        name="priceTeam_01"
+                        value="priceTeam_01"
+                        aria-describedby="priceTeam_01"
+                        checked={isPriceDepChecked}
+                        onchange={handlePriceDepFilterChange}
+                      />
+                      <span
+                        id="priceTeam_01"
+                        class="slds-checkbox_faux_container"
+                        aria-live="assertive"
+                      >
+                        <span
+                          id="priceTeam_02"
+                          class="slds-checkbox_faux"
+                        ></span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Hazmat Checkbox -->
+                <div class="slds-col">
+                  <div class="slds-form-element">
+                    <label class="slds-form-element__label"
+                      >Hazmat <br />Load</label
+                    >
+                    <label class="slds-checkbox_toggle slds-grid">
+                      <input
+                        type="checkbox"
+                        name="hazMat_01"
+                        value="hazMat_01"
+                        aria-describedby="hazMat_01"
+                        checked={isHazmatChecked}
+                        onchange={handleHazmatFilterChange}
+                      />
+                      <span
+                        id="hazMat_01"
+                        class="slds-checkbox_faux_container"
+                        aria-live="assertive"
+                      >
+                        <span id="hazMat_02" class="slds-checkbox_faux"></span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Declined Quotes Checkbox -->
+                <div class="slds-col">
+                  <div class="slds-form-element">
+                    <label class="slds-form-element__label"
+                      >Declined <br />Quotes</label
+                    >
+                    <label class="slds-checkbox_toggle slds-grid">
+                      <input
+                        type="checkbox"
+                        name="declinedQuotes_01"
+                        value="declinedQuotes_01"
+                        aria-describedby="declinedQuotes_01"
+                        checked={isDeclinedQuotesChecked}
+                        onchange={handleDeclinedQuotesFilterChange}
+                      />
+                      <span
+                        id="declinedQuotes_01"
+                        class="slds-checkbox_faux_container"
+                        aria-live="assertive"
+                      >
+                        <span
+                          id="declinedQuotes_02"
+                          class="slds-checkbox_faux"
+                        ></span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
+                <!-- Accepted Quotes Checkbox -->
+                <div class="slds-col">
+                  <div class="slds-form-element">
+                    <label class="slds-form-element__label"
+                      >Accepted <br />Quotes</label
+                    >
+                    <label class="slds-checkbox_toggle slds-grid">
+                      <input
+                        type="checkbox"
+                        name="quoteAccepted_01"
+                        value="quoteAccepted_01"
+                        aria-describedby="quoteAccepted_01"
+                        checked={isAcceptedQuotesChecked}
+                        onchange={handleAcceptedQuotesFilterChange}
+                      />
+                      <span
+                        id="quoteAccepted_01"
+                        class="slds-checkbox_faux_container"
+                        aria-live="assertive"
+                      >
+                        <span
+                          id="quoteAccepted_02"
+                          class="slds-checkbox_faux"
+                        ></span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <!-- END OF CHECKBOXES -->
+          </div>
+          <!--END OF THE SECOND ROW-->
+          <div><br /></div>
+          <!--Start for the buttons-->
+          <div class="slds-grid slds-grid_align-center">
+            <div class="slds-col">
+              <button
+                class="slds-button slds-button_brand"
+                onclick={applyFilters}
+              >
+                Apply
+              </button>
+              <button
+                class="slds-button slds-p-horizontal_medium slds-button_destructive"
+                onclick={resetFilters}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </lightning-card>
+      </div>
+      <div><br /></div>
+      <!--Start the stats & legend area-->
+      <div
+        class="slds-col slds-small-size_1-of-1 slds-medium-size_4-of-8 slds-large-size_4-of-8 slds-order_3"
+      >
+        <div class="slds-grid slds-grid_vertical">
+          <div class="slds-col">
+            <lightning-card
+              title={pageTitle}
+              icon-name="standard:feed"
+              size="6"
+            >
+              <!-- add your content here -->
+              <div class="slds-grid slds-gutters">
+                <div class="slds-col">
+                  <table
+                    class="slds-table slds-table_cell-buffer slds-table_header-hidden slds-table_fixed-layout slds-table_bordered"
+                  >
+                    <thead class="slds-assistive-text">
+                      <tr class="slds-line-height_reset">
+                        <th class="" scope="col">
+                          <div class="slds-truncate" title="Stats Name">
+                            Stats Name
+                          </div>
+                        </th>
+                        <th class="" scope="col">
+                          <div class="slds-truncate" title="Stats Value">
+                            Stats Value
+                          </div>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr class="slds-hint-parent">
+                        <th
+                          data-label="Stats Name"
+                          scope="row"
+                          class="slds-cell-wrap"
+                        >
+                          <div class="slds-text-heading_small">Min Value</div>
+                        </th>
+                        <td
+                          data-label="Stats Value"
+                          class="slds-text-heading_small"
+                        >
+                          <div>
+                            <!--
                                                         {minQuoteTotal} CAD
                                                     -->TBD
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            <tr class="slds-hint-parent">
-                                                <th data-label="Stats Name" scope="row" class="slds-cell-wrap" >
-                                                    <div class="slds-text-heading_small">
-                                                        Max Value
-                                                    </div>
-                                                </th>
-                                                <td data-label="Stats Value" class="slds-text-heading_small">
-                                                    <div>
-                                                    <!--
+                          </div>
+                        </td>
+                      </tr>
+                      <tr class="slds-hint-parent">
+                        <th
+                          data-label="Stats Name"
+                          scope="row"
+                          class="slds-cell-wrap"
+                        >
+                          <div class="slds-text-heading_small">Max Value</div>
+                        </th>
+                        <td
+                          data-label="Stats Value"
+                          class="slds-text-heading_small"
+                        >
+                          <div>
+                            <!--
                                                         {maxQuoteTotal} CAD
                                                     -->
-                                                        TBD
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            <tr class="slds-hint-parent">
-                                                <th data-label="Stats Name" scope="row" class="slds-cell-wrap" >
-                                                    <div class="slds-text-heading_small">
-                                                        Avg Value
-                                                    </div>
-                                                </th>
-                                                <td data-label="Stats Value" class="slds-text-heading_small">
-                                                    <div>
-                                                        <!--
+                            TBD
+                          </div>
+                        </td>
+                      </tr>
+                      <tr class="slds-hint-parent">
+                        <th
+                          data-label="Stats Name"
+                          scope="row"
+                          class="slds-cell-wrap"
+                        >
+                          <div class="slds-text-heading_small">Avg Value</div>
+                        </th>
+                        <td
+                          data-label="Stats Value"
+                          class="slds-text-heading_small"
+                        >
+                          <div>
+                            <!--
                                                         {roundedAVG} CAD
                                                         -->
-                                                        TBD
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            <tr class="slds-hint-parent">
-                                                <th data-label="Stats Name" scope="row" class="slds-cell-wrap" >
-                                                    <div class="slds-text-heading_small">
-                                                        Quotes with no zero
-                                                    </div>
-                                                </th>
-                                                <td data-label="Stats Value" class="slds-text-heading_small" >
-                                                    <div>
-                                                        {nbOfQuotesNotZero} 
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            <tr class="slds-hint-parent">
-                                                <th data-label="Stats Name" scope="row" class="slds-cell-wrap" >
-                                                    <div class="slds-text-heading_small">
-                                                        Total quotes
-                                                    </div>
-                                                </th>
-                                                <td data-label="Stats Value" class="slds-text-heading_small">
-                                                    <div>
-                                                        {nbOfQuotes}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div> 
-                            </div>
-                        </lightning-card>
-                    </div>
-                    <div class="slds-col">
-                        <lightning-card title="Legend" icon-name="standard:service_territory" size="6">
-                            <!-- add your content here -->
-                            <div>As the legend goes, if you put in the effort and work hard towards your goals, you'll eventually reap the rewards of your labor, and achieve a great sense of satisfaction and accomplishment.</div>
-                        </lightning-card>
-                    </div>
+                            TBD
+                          </div>
+                        </td>
+                      </tr>
+                      <tr class="slds-hint-parent">
+                        <th
+                          data-label="Stats Name"
+                          scope="row"
+                          class="slds-cell-wrap"
+                        >
+                          <div class="slds-text-heading_small">
+                            Quotes with no zero
+                          </div>
+                        </th>
+                        <td
+                          data-label="Stats Value"
+                          class="slds-text-heading_small"
+                        >
+                          <div>{nbOfQuotesNotZero}</div>
+                        </td>
+                      </tr>
+                      <tr class="slds-hint-parent">
+                        <th
+                          data-label="Stats Name"
+                          scope="row"
+                          class="slds-cell-wrap"
+                        >
+                          <div class="slds-text-heading_small">
+                            Total quotes
+                          </div>
+                        </th>
+                        <td
+                          data-label="Stats Value"
+                          class="slds-text-heading_small"
+                        >
+                          <div>{nbOfQuotes}</div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
-            </div>
-            <div><br></div>
-            
-            <!--Start the CHART AREA-->
-            <!--
+              </div>
+            </lightning-card>
+          </div>
+          <div class="slds-col">
+            <lightning-card
+              title="Legend"
+              icon-name="standard:service_territory"
+              size="6"
+            >
+              <!-- add your content here -->
+              <div>
+                As the legend goes, if you put in the effort and work hard
+                towards your goals, you'll eventually reap the rewards of your
+                labor, and achieve a great sense of satisfaction and
+                accomplishment.
+              </div>
+            </lightning-card>
+          </div>
+        </div>
+      </div>
+      <div><br /></div>
+
+      <!--Start the CHART AREA-->
+      <!--
             <div class="slds-col slds-small-size_1-of-1 slds-medium-size_2-of-8 slds-large-size_2-of-8 slds-order_2">
                 
                 <lightning-card title="Charts" icon-name="standard:chart" size="6">
@@ -308,154 +410,258 @@
                 </lightning-card>
             </div>
         -->
-            <!--Start the CHART AREA-->
-       
-        </div>
-        <div><br></div>
-        <!--Data presentation-->
-        <div class="slds-grid slds-gutters">
-            <div class="slds-col">
-                <lightning-card title="Results" icon-name="standard:timesheet" size="12">
-                    <div if:true={isLoading} class="slds-align_absolute-center" style="height: 100%;">
-                        <lightning-spinner alternative-text="Loading" size="medium"></lightning-spinner>
-                    </div>
-                    
-                    <div class="slds-table slds-table_bordered slds-table_cell-buffer slds-table-layout">
-                        <lightning-layout>
-                            <lightning-layout-item size="12">
-                                <table>
-                                    <thead>
-                                        <tr class="slds-line-height_reset">
-                                            <!-- Add table header cells for each column -->
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#">#</div>
-                                            </th>
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#">Carrier Name</div>
-                                            </th>
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#">Origin</div>
-                                            </th>
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#">Destination</div>
-                                            </th>
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#">Equipment</div>
-                                            </th>
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#"># Pallets</div>
-                                            </th>
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#">Mode</div>
-                                            </th>
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#">Date</div>
-                                            </th>
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#">Rate </div>
-                                            </th>
-                                            <th class="" scope="col">
-                                                <div class="slds-truncate" title="#">Load Status</div>
-                                            </th>
-                                            <!-- Add more table header cells for other columns -->
-                                        </tr>
-                                    </thead>
-                                    
-                                    <tbody>
-                                        <template for:each={carrierQuotesData} for:item="carrierQuote" for:index="index">
-                                            <tr key={carrierQuote.Id} class={carrierQuote.rowClass} data-index={index} onclick={handleRowClick}>
-                                                <td class="slds-text-align_right">
-                                                    <div class="slds-truncate" title={carrierQuote.rowNumber}>{carrierQuote.rowNumber}</div>
-                                                </td>
-                                                <td class="slds-text-align_right">
-                                                    <div data-id={carrierQuote.Id} onclick={handleCarrierClick} class="slds-text-link">
-                                                        <div class="slds-truncate" title={carrierQuote.Carrier_Name__c}>{carrierQuote.Carrier_Name__c}</div>
-                                                    </div>                                        
-                                                </td>
-                                                <td class="slds-text-align_right">
-                                                    <div class="slds-truncate" title={carrierQuote.Origin__c}>{carrierQuote.Origin__c}</div>
-                                                </td>
-                                                <td class="slds-text-align_right">
-                                                    <div class="slds-truncate" title={carrierQuote.Destination__c}>{carrierQuote.Destination__c}</div>
-                                                </td>
-                                                <td class="slds-text-align_right">
-                                                    <div class="slds-truncate" title={carrierQuote.Equipment_Type__c}>{carrierQuote.Equipment_Type__c}</div>
-                                                </td>
-                                                <td class="slds-text-align_right">
-                                                    <div class="slds-truncate" title={carrierQuote.Nb_Of_Pallets__c}>{carrierQuote.Nb_Of_Pallets__c}</div>
-                                                </td>
-                                                <td class="slds-text-align_right">
-                                                    <div class={carrierQuote.cellModeClass}  title={carrierQuote.Mode__c}>{carrierQuote.Mode__c}</div>
-                                                </td>
-                                                <td class="slds-text-align_right">
-                                                    <div class="slds-truncate" title={carrierQuote.Quote_Date__c}>{carrierQuote.Quote_Date__c}</div>
-                                                </td>
-                                                <td class="slds-text-align_right">
-                                                    <div class="slds-truncate" title={carrierQuote.CAD_Quote_Total__c}>{carrierQuote.rtms__Carrier_Total__c} {carrierQuote.CurrencyIsoCode}</div>
-                                                </td>
-                                                <td class="slds-text-align_right">
-                                                    <div class="slds-truncate" title={carrierQuote.Load_Status__c}>{carrierQuote.Load_Status__c}: LD: {carrierQuote.rtms__Load__c} iso: {carrierQuote.CurrencyIsoCode}</div>
-                                                </td>
-                                                <!-- Add more table cells for other columns -->
-                                            </tr>
-                                            <!--Expandable zone-->
-                                            <template if:true={carrierQuote.showAdditionalContent}>
-                                                <tr key={carrierQuote.Id} class={carrierQuote.rowClass} data-index={index} onclick={handleRowClick}>
-                                                    <td colspan="100%">
-                                                        <!-- Add the additional content here -->
-                                                        
-                                                                    <p>Email: </p> <p>{carrierQuote.Contact_Email__c}</p>
-                                                               
-                                                                    <p>Phone:</p><p> {carrierQuote.Contact_Phone__c}</p>
-                                                              
-                                                                    Ops Comments:  {carrierQuote.Ops_Comments__c}
-                    
-                                                    </td>
-                                                </tr>
-                                            </template>
-                                        </template>
-                                    </tbody>
-                                </table>
-                            </lightning-layout-item>
-                        </lightning-layout>
-
-                        <!-- modal dialog -->
-                        <template if:true={isDialogOpen}>
-                            <div class="modal-wrapper" onclick={closeDialog}>
-                                <section role="dialog" tabindex="-1" class="slds-modal slds-fade-in-open" onclick={handleModalClick}>
-                                    <div class="slds-modal__container">
-                                        <header class="slds-modal__header">
-                                            <h2 id="modal-heading-01" class="slds-text-heading_medium slds-hyphenate">Carrier Contact Information</h2>
-                                        </header>
-                                        <div class="slds-modal__content slds-p-around_medium">
-                                            <template if:true={selectedCarrier}>
-                                                <p><strong>Number of loads:</strong> {selectedCarrier.Nb_of_loads__c}</p>
-                                                <p><strong>Carrier Risk:</strong> {selectedCarrier.Carrier_Risk__c}</p>
-                                                <p><strong>Carrier Att:</strong> {selectedCarrier.Carrier_Att__c}</p>
-                                            </template>
-                                        </div>
-                                        <footer class="slds-modal__footer">
-                                            <lightning-button
-                                                label="Close"
-                                                title="Close"
-                                                onclick={closeDialog}>
-                                            </lightning-button>
-                                        </footer>
-                                    </div>
-                                </section>
-                                <div class="slds-backdrop slds-backdrop_open"></div>
-                            </div>
-                        </template>
-                    </div>
-
-                    <template if:true={errors}>
-                        <div class="slds-text-color_error">
-                            <p>Error loading data</p>
-                            <pre>{errors}</pre>
-                        </div>
-                    </template>
-                </lightning-card>
-            </div>
-        </div>
+      <!--Start the CHART AREA-->
     </div>
+    <div><br /></div>
+    <!--Data presentation-->
+    <div class="slds-grid slds-gutters">
+      <div class="slds-col">
+        <lightning-card
+          title="Results"
+          icon-name="standard:timesheet"
+          size="12"
+        >
+          <div
+            if:true={isLoading}
+            class="slds-align_absolute-center"
+            style="height: 100%"
+          >
+            <lightning-spinner
+              alternative-text="Loading"
+              size="medium"
+            ></lightning-spinner>
+          </div>
+
+          <div
+            class="slds-table slds-table_bordered slds-table_cell-buffer slds-table-layout"
+          >
+            <lightning-layout>
+              <lightning-layout-item size="12">
+                <table>
+                  <thead>
+                    <tr class="slds-line-height_reset">
+                      <!-- Add table header cells for each column -->
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#">#</div>
+                      </th>
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#">Carrier Name</div>
+                      </th>
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#">Origin</div>
+                      </th>
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#">Destination</div>
+                      </th>
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#">Equipment</div>
+                      </th>
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#"># Pallets</div>
+                      </th>
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#">Mode</div>
+                      </th>
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#">Date</div>
+                      </th>
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#">Rate</div>
+                      </th>
+                      <th class="" scope="col">
+                        <div class="slds-truncate" title="#">Load Status</div>
+                      </th>
+                      <!-- Add more table header cells for other columns -->
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    <template
+                      for:each={carrierQuotesData}
+                      for:item="carrierQuote"
+                      for:index="index"
+                    >
+                      <tr
+                        key={carrierQuote.Id}
+                        class={carrierQuote.rowClass}
+                        data-index={index}
+                        onclick={handleRowClick}
+                      >
+                        <td class="slds-text-align_right">
+                          <div
+                            class="slds-truncate"
+                            title={carrierQuote.rowNumber}
+                          >
+                            {carrierQuote.rowNumber}
+                          </div>
+                        </td>
+                        <td class="slds-text-align_right">
+                          <div
+                            data-id={carrierQuote.Id}
+                            onclick={handleCarrierClick}
+                            class="slds-text-link"
+                          >
+                            <div
+                              class="slds-truncate"
+                              title={carrierQuote.Carrier_Name__c}
+                            >
+                              {carrierQuote.Carrier_Name__c}
+                            </div>
+                          </div>
+                        </td>
+                        <td class="slds-text-align_right">
+                          <div
+                            class="slds-truncate"
+                            title={carrierQuote.Origin__c}
+                          >
+                            {carrierQuote.Origin__c}
+                          </div>
+                        </td>
+                        <td class="slds-text-align_right">
+                          <div
+                            class="slds-truncate"
+                            title={carrierQuote.Destination__c}
+                          >
+                            {carrierQuote.Destination__c}
+                          </div>
+                        </td>
+                        <td class="slds-text-align_right">
+                          <div
+                            class="slds-truncate"
+                            title={carrierQuote.Equipment_Type__c}
+                          >
+                            {carrierQuote.Equipment_Type__c}
+                          </div>
+                        </td>
+                        <td class="slds-text-align_right">
+                          <div
+                            class="slds-truncate"
+                            title={carrierQuote.Nb_Of_Pallets__c}
+                          >
+                            {carrierQuote.Nb_Of_Pallets__c}
+                          </div>
+                        </td>
+                        <td class="slds-text-align_right">
+                          <div
+                            class={carrierQuote.cellModeClass}
+                            title={carrierQuote.Mode__c}
+                          >
+                            {carrierQuote.Mode__c}
+                          </div>
+                        </td>
+                        <td class="slds-text-align_right">
+                          <div
+                            class="slds-truncate"
+                            title={carrierQuote.Quote_Date__c}
+                          >
+                            {carrierQuote.Quote_Date__c}
+                          </div>
+                        </td>
+                        <td class="slds-text-align_right">
+                          <div
+                            class="slds-truncate"
+                            title={carrierQuote.CAD_Quote_Total__c}
+                          >
+                            {carrierQuote.rtms__Carrier_Total__c}
+                            {carrierQuote.CurrencyIsoCode}
+                          </div>
+                        </td>
+                        <td class="slds-text-align_right">
+                          <div
+                            class="slds-truncate"
+                            title={carrierQuote.Load_Status__c}
+                          >
+                            {carrierQuote.Load_Status__c}: LD:
+                            {carrierQuote.rtms__Load__c} iso:
+                            {carrierQuote.CurrencyIsoCode}
+                          </div>
+                        </td>
+                        <!-- Add more table cells for other columns -->
+                      </tr>
+                      <!--Expandable zone-->
+                      <template if:true={carrierQuote.showAdditionalContent}>
+                        <tr
+                          key={carrierQuote.Id}
+                          class={carrierQuote.rowClass}
+                          data-index={index}
+                          onclick={handleRowClick}
+                        >
+                          <td colspan="100%">
+                            <!-- Add the additional content here -->
+
+                            <p>Email:</p>
+                            <p>{carrierQuote.Contact_Email__c}</p>
+
+                            <p>Phone:</p>
+                            <p>{carrierQuote.Contact_Phone__c}</p>
+
+                            Ops Comments: {carrierQuote.Ops_Comments__c}
+                          </td>
+                        </tr>
+                      </template>
+                    </template>
+                  </tbody>
+                </table>
+              </lightning-layout-item>
+            </lightning-layout>
+
+            <!-- modal dialog -->
+            <template if:true={isDialogOpen}>
+              <div class="modal-wrapper" onclick={closeDialog}>
+                <section
+                  role="dialog"
+                  tabindex="-1"
+                  class="slds-modal slds-fade-in-open"
+                  onclick={handleModalClick}
+                >
+                  <div class="slds-modal__container">
+                    <header class="slds-modal__header">
+                      <h2
+                        id="modal-heading-01"
+                        class="slds-text-heading_medium slds-hyphenate"
+                      >
+                        Carrier Contact Information
+                      </h2>
+                    </header>
+                    <div class="slds-modal__content slds-p-around_medium">
+                      <template if:true={selectedCarrier}>
+                        <p>
+                          <strong>Number of loads:</strong>
+                          {selectedCarrier.Nb_of_loads__c}
+                        </p>
+                        <p>
+                          <strong>Carrier Risk:</strong>
+                          {selectedCarrier.Carrier_Risk__c}
+                        </p>
+                        <p>
+                          <strong>Carrier Att:</strong>
+                          {selectedCarrier.Carrier_Att__c}
+                        </p>
+                      </template>
+                    </div>
+                    <footer class="slds-modal__footer">
+                      <lightning-button
+                        label="Close"
+                        title="Close"
+                        onclick={closeDialog}
+                      >
+                      </lightning-button>
+                    </footer>
+                  </div>
+                </section>
+                <div class="slds-backdrop slds-backdrop_open"></div>
+              </div>
+            </template>
+          </div>
+
+          <template if:true={errors}>
+            <div class="slds-text-color_error">
+              <p>Error loading data</p>
+              <pre>{errors}</pre>
+            </div>
+          </template>
+        </lightning-card>
+      </div>
+    </div>
+  </div>
 </template>

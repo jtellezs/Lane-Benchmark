@@ -1,8 +1,9 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8" ?>
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Carrier_Contact__c</fullName>
     <externalId>false</externalId>
-    <formula>rtms__Carrier_Service__r.rtms__Quote_Contact__r.LastName +&apos; &apos;+ rtms__Carrier_Service__r.rtms__Quote_Contact__r.FirstName</formula>
+    <formula
+  >rtms__Carrier_Service__r.rtms__Quote_Contact__r.LastName +&apos; &apos;+ rtms__Carrier_Service__r.rtms__Quote_Contact__r.FirstName</formula>
     <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
     <label>Carrier Contact</label>
     <required>false</required>
