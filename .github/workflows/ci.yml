@@ -28,23 +28,23 @@ jobs:
     name: apex
     runs-on: ubuntu-latest
     env:
-      HAS_SECRET: ${{ secrets.SFDX_AUTH_URL_FULL != '' }}
+      HAS_SECRET: ${{ secrets.SFDX_AUTH_URL_POSTPRODUC != '' }}
     steps:
       - uses: actions/checkout@v4
       - name: Skip when no org secret (personal mirror)
         if: env.HAS_SECRET != 'true'
-        run: echo "SFDX_AUTH_URL_FULL is not set in this repository; Apex validation runs in the TPLM repository."
+        run: echo "SFDX_AUTH_URL_POSTPRODUC is not set in this repository; Apex validation runs in the TPLM repository against PostProduc."
       - uses: actions/setup-node@v4
         if: env.HAS_SECRET == 'true'
         with: { node-version: 22 }
       - name: Install Salesforce CLI
         if: env.HAS_SECRET == 'true'
         run: npm install -g @salesforce/cli
-      - name: Authenticate to Full
+      - name: Authenticate to PostProduc
         if: env.HAS_SECRET == 'true'
         env:
-          SFDX_AUTH_URL: ${{ secrets.SFDX_AUTH_URL_FULL }}
-        run: echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias Full --set-default
+          SFDX_AUTH_URL: ${{ secrets.SFDX_AUTH_URL_POSTPRODUC }}
+        run: echo "$SFDX_AUTH_URL" | sf org login sfdx-url --sfdx-url-stdin=- --alias sandbox --set-default
       - name: Validate deploy and run tests
         if: env.HAS_SECRET == 'true'
         run: >
@@ -53,7 +53,7 @@ jobs:
           --post-destructive-changes manifest/destructiveChangesPost.xml
           --test-level RunSpecifiedTests
           --tests PricingDepartmentControllerTest
-          --target-org Full
+          --target-org sandbox
           --wait 30
 
   pmd:
