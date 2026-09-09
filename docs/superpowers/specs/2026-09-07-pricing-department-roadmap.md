@@ -53,10 +53,8 @@ object (delays the interactive features; possible later on top of B).
 
 ## Standing constraints
 
-- Develop only in DevPro (metadata-only sandbox, no records). Work that needs
-  real loads, stops or quotes (flow behavior, backfill dry runs, alias
-  discovery) is validated in postproduction, never built there. Nothing is
-  developed directly in postproduction or production.
+- Develop and test in PostProduc; production is the only org after it. Nothing
+  is developed directly in production.
 - `PricingDepartmentController` stays `without sharing` on purpose (pricing
   must see every team's quotes). State it in code; move the hardcoded
   excluded Contact Id to custom metadata.

@@ -14,7 +14,7 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 | Page             | `flexipages/Pricing_Department`                                                                   | App page, default home template, one region                                                                                                                                                                                                                                                                                                                                                                                                            |
 | UI               | `lwc/pricingDepartment`                                                                           | Filters, quote table, stats header, carrier detail modal                                                                                                                                                                                                                                                                                                                                                                                               |
 | Apex             | `classes/PricingDepartmentController`                                                             | Two `@AuraEnabled(cacheable=true)` methods: `getCarrierQuotes`, `getUniqueModeOptions`                                                                                                                                                                                                                                                                                                                                                                 |
-| Apex tests       | `PricingDepartmentControllerTest`, `PricingTestDataFactory`                                       | Behavior tests; the factory builds the minimum valid Revenova graph because DevPro has no records                                                                                                                                                                                                                                                                                                                                                      |
+| Apex tests       | `PricingDepartmentControllerTest`, `PricingTestDataFactory`                                       | Behavior tests; the factory builds the minimum valid Revenova graph the managed triggers require, so tests do not depend on org data                                                                                                                                                                                                                                                                                                                   |
 | Data             | `objects/rtms__CarrierQuote__c/fields/*`                                                          | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas                                                                                                                                                                                                                                                                                                                                                                         |
 | Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups                                                                                                                                                                                                                                                                                                                                                                                                      |
 | Security         | `permissionsets/Pricing_Department_User`                                                          | The way to grant access from now on: tab, Apex class, read on every field the page uses except `rtms__Carrier_Service__c`, `rtms__Vendor__c`, and `rtms__Load__c` (required/master-detail fields; Salesforce rejects field permissions on them, they are always readable once the object is). Also grants object Read on `rtms__Load__c` because Carrier Quote is its master-detail child. `profiles/Pricing` is kept for reference and never deployed |
@@ -41,25 +41,26 @@ returns at most 500 records ordered by `Quote_Date__c` desc.
 
 ### Environments
 
-| Org                    | Alias       | Role                                                    | Data                      |
-| ---------------------- | ----------- | ------------------------------------------------------- | ------------------------- |
-| Production             | `vscodeOrg` | Source of truth, last stop. Never deploy from a laptop. | Real                      |
-| PostProduc (Full)      | `sandbox`   | UAT and anything that needs real loads, stops, quotes   | Real, copied at refresh   |
-| DevPro (Developer Pro) | `devpro`    | All development and CI validation                       | Metadata only, no records |
+| Org        | Alias       | Role                                            | Data                    |
+| ---------- | ----------- | ----------------------------------------------- | ----------------------- |
+| PostProduc | `sandbox`   | Develop, test, CI, UAT. Real deploys land here. | Real, copied at refresh |
+| Production | `vscodeOrg` | Live. Deployed after sign-off in PostProduc     | Real                    |
 
-After a DevPro refresh, authorize the refreshed org with:
+Full is other teams' active development sandbox and is not used for this project.
+A Developer Pro sandbox (`devpro`) was also tried, but it cannot insert `rtms__Load__c`:
+the Revenova managed triggers need configuration records that only a data-carrying
+sandbox has.
+
+### After a PostProduc refresh
+
+Re-authorize the refreshed org:
 
 ```bash
-sf org resume sandbox --job-id <id> -o ienescu@trans-pro.com
+sf org login web -a sandbox -r https://test.salesforce.com
 ```
 
-If the job id isn't available, fall back to a browser login:
-
-```bash
-sf org login web -a devpro -r https://test.salesforce.com
-```
-
-Then regenerate the CI secret (see CI section). A refresh changes the org id and appends `.invalid` to every user email.
+Then regenerate the CI secret in the TPLM repository (see CI section). A refresh changes
+the org id and appends `.invalid` to every user email.
 
 ```bash
 # Re-pull everything in the manifest
@@ -70,15 +71,15 @@ sf project deploy validate -x manifest/package.xml -o sandbox
 sf project deploy start    -x manifest/package.xml -o sandbox
 
 # Run the tests
-sf apex run test -n PricingDepartmentControllerTest -o devpro -r human -w 10
+sf apex run test -n PricingDepartmentControllerTest -o sandbox -r human -w 10
 ```
 
 ```bash
-# Deploy to DevPro (destructive changes remove retired classes; re-runnable)
-sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o devpro -l RunSpecifiedTests -t PricingDepartmentControllerTest
+# Deploy to PostProduc (destructive changes remove retired classes; re-runnable)
+sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o sandbox -l RunSpecifiedTests -t PricingDepartmentControllerTest
 ```
 
-Org aliases: `sandbox` = postproduction sandbox, `Full` = full sandbox, `vscodeOrg` = production.
+Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
 
 ## Known issues worth fixing
 
@@ -87,6 +88,44 @@ Org aliases: `sandbox` = postproduction sandbox, `Full` = full sandbox, `vscodeO
 - `handleAcceptedQuotesFilterChange` in the LWC logs `isAcceptedQuotesChecked.isPriceDepChecked`, which throws a ReferenceError.
 - `fetchModeOptions` (server-side mode options) is never called; modes are derived client-side from the result set instead.
 - The LWC API version is 57.0 while the project is on 64.0.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`, identically
+in both repositories:
+
+| Job    | What it does                                                                           | Fails on                                   |
+| ------ | -------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `lwc`  | `npm ci`, ESLint, Prettier check, Jest with coverage                                   | lint error, formatting drift, failing test |
+| `apex` | `sf project deploy validate` against PostProduc with `PricingDepartmentControllerTest` | compile error, test failure                |
+| `pmd`  | PMD 7 Apex quickstart, priority 1-2                                                    | any P1/P2 violation                        |
+
+CI never deploys. Deploys to PostProduc are run by a developer after merge (command
+above).
+
+Secret `SFDX_AUTH_URL_POSTPRODUC` is set in the TPLM repository only. The personal
+mirror (`IulianEnescu78/PricingDepartment`) has no org secret, so its `apex` job detects
+that and skips its Salesforce steps instead of failing; the `apex` job only validates for
+real in the TPLM repository. Regenerate the secret after every PostProduc refresh:
+
+```bash
+set -o pipefail
+sf org auth show-sfdx-auth-url -o sandbox --json 2>/dev/null \
+  | python3 -c "import json,sys; u=json.load(sys.stdin)['result']['sfdxAuthUrl']; assert u.startswith('force://'); sys.stdout.write(u)" \
+  | GH_TOKEN=$(gh auth token -u IulianEnescu) gh secret set SFDX_AUTH_URL_POSTPRODUC -R TPLM/PricingDepartment
+```
+
+Never echo or print the auth URL; pipe it directly from `sf org auth show-sfdx-auth-url` into
+`gh secret set`. (`sf org display --verbose --json` no longer includes the real URL on current
+CLI versions; it returns a `[REDACTED]` placeholder.)
+
+### Branch protection
+
+Enabled on `main` in both repositories: required status checks (strict, i.e. branches
+must be up to date before merging), no force pushes, no deletions.
+`IulianEnescu78/PricingDepartment` requires `["lwc", "pmd"]` (it has no org secret, so
+`apex` cannot be a required context there); `TPLM/PricingDepartment` requires
+`["lwc", "apex", "pmd"]`.
 
 ## Git remotes
 
