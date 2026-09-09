@@ -36,7 +36,7 @@ jobs:
         run: echo "SFDX_AUTH_URL_FULL is not set in this repository; Apex validation runs in the TPLM repository."
       - uses: actions/setup-node@v4
         if: env.HAS_SECRET == 'true'
-        with: { node-version: 20 }
+        with: { node-version: 22 }
       - name: Install Salesforce CLI
         if: env.HAS_SECRET == 'true'
         run: npm install -g @salesforce/cli
