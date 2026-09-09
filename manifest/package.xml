@@ -27,6 +27,8 @@
         <members>PlaceUsageBatch</members>
         <members>PlaceBuilderBatchTest</members>
         <members>LaneSearchException</members>
+        <members>LaneSearchFilters</members>
+        <members>LaneSearchQueryBuilder</members>
         <members>LaneSearchRequest</members>
         <members>LaneSearchResult</members>
         <members>LaneSearchService</members>
