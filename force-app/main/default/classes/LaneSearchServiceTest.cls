@@ -209,4 +209,89 @@ private class LaneSearchServiceTest {
     LaneSearchResult.Stats s = new LaneSearchResult.Stats();
     System.assertEquals(0, s.count, 'Stats.count defaults to 0');
   }
+
+  @IsTest
+  static void radiusPrecisionFindsNearbyOriginsAndRespectsTheRadius() {
+    Fixture f = fixture();
+    Test.startTest();
+    createLoadsAndQuotes(f); // Montreal and Laval (about 10 mi apart) -> Toronto
+    LaneSearchRequest wide = req('montreal|qc|ca', 'toronto|on|ca');
+    wide.originPrecision = LaneSearchRequest.Precision.RADIUS;
+    wide.originRadius = 25;
+    LaneSearchResult both = LaneSearchService.search(wide);
+    LaneSearchRequest tight = req('montreal|qc|ca', 'toronto|on|ca');
+    tight.originPrecision = LaneSearchRequest.Precision.RADIUS;
+    tight.originRadius = 3;
+    LaneSearchResult onlyMtl = LaneSearchService.search(tight);
+    Test.stopTest();
+    System.assertEquals(
+      2,
+      both.rows.size(),
+      'Laval is within 25 mi of Montreal'
+    );
+    System.assertEquals(1, onlyMtl.rows.size(), 'Laval is not within 3 mi');
+    System.assertEquals(1000, onlyMtl.rows[0].carrierTotal);
+  }
+
+  /**
+   * Not in the brief as written: Revenova's managed rtms__StopUpsert trigger blanks
+   * rtms__City__c/rtms__Postal_Code__c/rtms__Geolocation__c on any stop that has
+   * rtms__Location2__c (see PricingTestDataFactory.buildStop()'s doc comment), so nulling an
+   * account's coordinates and expecting the stop's own geolocation to still be there (the brief's
+   * original approach) cannot work. Instead this uses
+   * PricingTestDataFactory.createLoadWithAdHocOrigin(), which builds a stop that never had
+   * rtms__Location2__c in the first place, so the trigger has nothing tied to an Account to blank.
+   */
+  @IsTest
+  static void radiusInKilometersAndStopGeolocationFallback() {
+    Fixture f = fixture();
+    Test.startTest();
+    f.mtlTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation
+    );
+    rtms__Load__c lavalAdHoc = PricingTestDataFactory.createLoadWithAdHocOrigin(
+      f.g,
+      'Laval',
+      'Quebec',
+      'H7P 1T2',
+      45.6066,
+      -73.7124,
+      f.g.destinationLocation
+    );
+    insert new List<rtms__CarrierQuote__c>{
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 1000),
+      PricingTestDataFactory.buildQuote(f.g, lavalAdHoc, 2000)
+    };
+    rtms__Stop__c adHocOrigin = [
+      SELECT rtms__Geolocation__Latitude__s, rtms__Geolocation__Longitude__s
+      FROM rtms__Stop__c
+      WHERE rtms__Load__c = :lavalAdHoc.Id AND rtms__Number__c = 1
+    ];
+    System.assertNotEquals(
+      null,
+      adHocOrigin.rtms__Geolocation__Latitude__s,
+      'ad-hoc origin stop (no rtms__Location2__c) must keep its own geolocation for the fallback to work'
+    );
+    LaneSearchRequest km = req('montreal|qc|ca', null);
+    km.originPrecision = LaneSearchRequest.Precision.RADIUS;
+    km.originRadius = 40;
+    km.radiusUnit = LaneSearchRequest.Unit.KM;
+    LaneSearchResult withStops = LaneSearchService.search(km);
+    km.includeStopGeolocation = false;
+    LaneSearchResult accountsOnly = LaneSearchService.search(km);
+    Test.stopTest();
+    System.assertEquals(
+      2,
+      withStops.rows.size(),
+      'ad-hoc Laval origin matched through its stop geolocation'
+    );
+    System.assertEquals(
+      1,
+      accountsOnly.rows.size(),
+      'without the fallback only Montreal (account-based) matches'
+    );
+    System.assertEquals(1000, accountsOnly.rows[0].carrierTotal);
+  }
 }

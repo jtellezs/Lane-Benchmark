@@ -14,10 +14,12 @@
  *   save, so writing it directly is silently overwritten, and the extra Load DML would trip the
  *   same limit.
  * - Load lane keys (rtms__City_Lane__c/State_Lane__c/Zip3_Lane__c) survive stop insertion
- *   unchanged, but the managed rtms__StopUpsert trigger unconditionally blanks a Stop's own
- *   rtms__City__c/rtms__Postal_Code__c/geolocation fields on every save - see buildStop()'s doc
- *   comment for the full discovery. Read city/postal/geolocation off rtms__Location2__r (the
- *   account), never off the stop directly.
+ *   unchanged, but the managed rtms__StopUpsert trigger blanks a Stop's own
+ *   rtms__City__c/rtms__Postal_Code__c/geolocation fields on every save WHEN that stop has
+ *   rtms__Location2__c - see buildStop()'s doc comment for the full discovery. Read
+ *   city/postal/geolocation off rtms__Location2__r (the account) for such stops, never off the
+ *   stop directly. A stop with no rtms__Location2__c (see createLoadWithAdHocOrigin()) is not
+ *   touched by that trigger and keeps its own city/postal/geolocation fields as written.
  *
  * The graph is verified end to end in PostProduc: deploy request 0AfbZ00000CnJYrSAN,
  * PricingDepartmentControllerTest 12/12 passing.
@@ -281,6 +283,92 @@ public class PricingTestDataFactory {
     rtms__Stop__c delivery = buildStop(load, 2, destination);
     insert new List<rtms__Stop__c>{ pickup, delivery };
 
+    return backfillFirstLastStopAndLaneKeys(
+      load,
+      pickup,
+      delivery,
+      expectedCityLane,
+      expectedStateLane,
+      expectedZip3Lane
+    );
+  }
+
+  /**
+   * Inserts a load like createLoad(), but the origin stop is ad hoc: no rtms__Location2__c, just
+   * city/postal/geolocation written directly onto the stop. Models a lane whose origin was
+   * captured by hand rather than tied to an Account, so the RADIUS search's stop-geolocation
+   * fallback (Task 6) has an account-less stop to match against. Revenova's managed
+   * rtms__StopUpsert trigger only blanks a stop's own City/Postal Code/geolocation fields when the
+   * stop HAS rtms__Location2__c (see buildStop()'s doc comment) - this stop deliberately has none,
+   * so those fields should survive.
+   */
+  public static rtms__Load__c createLoadWithAdHocOrigin(
+    Graph g,
+    String city,
+    String province,
+    String postal,
+    Decimal lat,
+    Decimal lng,
+    Account destination
+  ) {
+    rtms__Load__c load = new rtms__Load__c(
+      Name = 'Test Load',
+      rtms__Customer__c = g.customer.Id,
+      rtms__Mode__c = g.mode.Id,
+      rtms__Equipment_Type__c = g.equipment.Id,
+      rtms__Total_Weight__c = 1000,
+      Mode_For_Sharing__c = g.mode.Name,
+      TPRO_Division_Name__c = DIVISION,
+      CurrencyIsoCode = 'CAD',
+      rtms__Hazardous_Materials__c = false
+    );
+    String oProv = PlaceNormalizer.provinceCode(province);
+    String dProv = PlaceNormalizer.provinceCode(destination.ShippingState);
+    String expectedCityLane =
+      PlaceNormalizer.cityLaneSide(city, oProv) +
+      ':' +
+      PlaceNormalizer.cityLaneSide(destination.ShippingCity, dProv);
+    String expectedStateLane = oProv + ':' + dProv;
+    String expectedZip3Lane =
+      first3(postal) +
+      ':' +
+      first3(destination.ShippingPostalCode);
+    insert load;
+
+    rtms__Stop__c pickup = new rtms__Stop__c(
+      rtms__Load__c = load.Id,
+      rtms__Number__c = 1,
+      rtms__City__c = city,
+      rtms__Postal_Code__c = postal,
+      rtms__Geolocation__Latitude__s = lat,
+      rtms__Geolocation__Longitude__s = lng
+    );
+    rtms__Stop__c delivery = buildStop(load, 2, destination);
+    insert new List<rtms__Stop__c>{ pickup, delivery };
+
+    return backfillFirstLastStopAndLaneKeys(
+      load,
+      pickup,
+      delivery,
+      expectedCityLane,
+      expectedStateLane,
+      expectedZip3Lane
+    );
+  }
+
+  /**
+   * Re-queries the Load after its stops are inserted and fixes up rtms__First_Stop__c/
+   * rtms__Last_Stop__c and the three lane keys if Revenova's automation touched them. Shared by
+   * createLoad() and createLoadWithAdHocOrigin() so the backfill logic exists once.
+   */
+  private static rtms__Load__c backfillFirstLastStopAndLaneKeys(
+    rtms__Load__c load,
+    rtms__Stop__c pickup,
+    rtms__Stop__c delivery,
+    String expectedCityLane,
+    String expectedStateLane,
+    String expectedZip3Lane
+  ) {
     load = [
       SELECT
         Id,
@@ -300,14 +388,16 @@ public class PricingTestDataFactory {
     }
     // Discovery (2026-09-09, PostProduc sandbox): inserting the two stops does not disturb the
     // Load's own lane keys - rtms__City_Lane__c/State_Lane__c/Zip3_Lane__c still hold exactly what
-    // applyLaneKeys() wrote before insert. This re-check is kept anyway so the factory stays
-    // correct if that ever changes.
+    // was written before insert. This re-check is kept anyway so the factory stays correct if that
+    // ever changes.
     if (
       load.rtms__City_Lane__c != expectedCityLane ||
       load.rtms__State_Lane__c != expectedStateLane ||
       load.rtms__Zip3_Lane__c != expectedZip3Lane
     ) {
-      applyLaneKeys(load, origin, destination);
+      load.rtms__City_Lane__c = expectedCityLane;
+      load.rtms__State_Lane__c = expectedStateLane;
+      load.rtms__Zip3_Lane__c = expectedZip3Lane;
       needsUpdate = true;
     }
     if (needsUpdate) {
@@ -378,17 +468,19 @@ public class PricingTestDataFactory {
    * Discovery (2026-09-09, PostProduc sandbox): PostProduc has an org-local, non-namespaced
    * ApexTrigger "StopTrigger" (before insert/update) that only touches USD_Conversion_Rate__c and
    * is not the cause. The actual cause is the managed trigger "rtms__StopUpsert" (before
-   * insert/update, body hidden - namespaced/managed code can't be read from this org): it
-   * unconditionally blanks rtms__City__c, rtms__Postal_Code__c,
-   * rtms__Geolocation__Latitude__s/Longitude__s on every Stop save, regardless of what is assigned.
-   * Confirmed with anonymous Apex directly against rtms__Stop__c outside any test context and
-   * outside this factory, so it is not a test-only or factory-only artifact; re-updating the stop
-   * after the first null-out gets nulled again the same way. Setting additional candidate source
-   * fields on the Account (rtms__Posting_City__c, Geoloc__Latitude__s/Longitude__s) made no
-   * difference. The org's own formula fields on Stop (City_Stop__c = rtms__Location2__r.ShippingCity,
-   * State_Stop__c = rtms__Location2__r.ShippingState) DO resolve correctly in the same test, proving
+   * insert/update, body hidden - namespaced/managed code can't be read from this org): it blanks
+   * rtms__City__c, rtms__Postal_Code__c, rtms__Geolocation__Latitude__s/Longitude__s on every Stop
+   * save that has rtms__Location2__c set, regardless of what is assigned. Confirmed with anonymous
+   * Apex directly against rtms__Stop__c outside any test context and outside this factory, so it is
+   * not a test-only or factory-only artifact; re-updating the stop after the first null-out gets
+   * nulled again the same way. Setting additional candidate source fields on the Account
+   * (rtms__Posting_City__c, Geoloc__Latitude__s/Longitude__s) made no difference. The org's own
+   * formula fields on Stop (City_Stop__c = rtms__Location2__r.ShippingCity, State_Stop__c =
+   * rtms__Location2__r.ShippingState) DO resolve correctly in the same test, proving
    * rtms__Location2__c and the account's Shipping* fields are intact - only the four raw Stop fields
-   * are wiped. Per the task's fallback for this exact situation, those fields are dropped from this
+   * are wiped. Confirmed (Task 6) that a stop with NO rtms__Location2__c is untouched by this
+   * trigger and keeps those same four fields as written - see createLoadWithAdHocOrigin(). Per the
+   * task's fallback for this exact situation, those fields are dropped from this
    * method rather than written and silently lost.
    */
   private static rtms__Stop__c buildStop(

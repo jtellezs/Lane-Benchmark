@@ -4,9 +4,8 @@
  * the Load (CITY, PROVINCE, ZIP3) or DISTANCE() through the stops (RADIUS).
  */
 // Runs without sharing on purpose: pricing benchmarks every team's quotes. Access is gated by the Lane Benchmark permission sets.
-// Class-level complexity driven by addEnd's per-precision dispatch (see its own suppression below);
-// Task 6 adds the RADIUS branch there before any extraction into smaller helpers is worthwhile.
-@SuppressWarnings('PMD.StdCyclomaticComplexity')
+// Task 6 split addEnd's per-precision dispatch into addCity/addProvince/addZip3/addRadius, which
+// also brought the class below PMD's complexity threshold - no class-level suppression needed.
 public without sharing class LaneSearchService {
   private static final String SELECT_CLAUSE =
     'SELECT Id, Name, rtms__Load__c, Origin__c, Destination__c, Mode__c, Equipment_Type__c, ' +
@@ -94,8 +93,8 @@ public without sharing class LaneSearchService {
     ); // validated positive integer, not user text
     binds.put('excluded', PricingDepartmentController.excludedContactIdSet());
     conditions.add('Contact_ID__c NOT IN :excluded');
-    addEnd(conditions, binds, req, places, true);
-    addEnd(conditions, binds, req, places, false);
+    addEnd(conditions, binds, req, originEnd(req), places);
+    addEnd(conditions, binds, req, destinationEnd(req), places);
     // Task 7 adds currency, modes, equipment, hazmat, market test, accepted here.
     binds.put('rowLimitPlusOne', req.rowLimit + 1);
     return SELECT_CLAUSE +
@@ -104,77 +103,199 @@ public without sharing class LaneSearchService {
       ' ORDER BY CreatedDate DESC LIMIT :rowLimitPlusOne';
   }
 
-  // Brief-specified per-precision dispatch (explicit ZIP3, CITY, PROVINCE, ZIP3-by-place, RADIUS
-  // stub); Task 6 adds the real RADIUS branch here before extracting per-precision helpers is
-  // worthwhile.
-  @SuppressWarnings('PMD.CyclomaticComplexity, PMD.StdCyclomaticComplexity')
+  /**
+   * Every per-end value addEnd and its helpers need, resolved once for origin or destination by
+   * originEnd()/destinationEnd() below. Bundling these (rather than branching on an isOrigin flag
+   * inside each helper) means the origin/destination choice is decided exactly once per search,
+   * not re-decided in every helper - see those two builders' doc comment for why that matters for
+   * PMD's class-wide complexity total.
+   */
+  private class LaneEnd {
+    String key;
+    LaneSearchRequest.Precision precision;
+    String explicitZip3;
+    Decimal radius;
+    String bindPrefix; // 'o' or 'd' - the SOQL bind-variable name prefix for this end
+    String stopRel; // relationship path from rtms__CarrierQuote__c to this end's Stop
+    String likePrefix; // '' for an origin, '%:' for a destination
+    String likeSuffix; // ':%' for an origin, '' for a destination
+    String zip3FieldName; // 'originZip3' or 'destinationZip3', for the missing-prefix error
+  }
+
+  /**
+   * originEnd()/destinationEnd() are the only places that decide "which side": every value they
+   * set is a straight assignment, so neither method has a branch of its own. Task 5's single addEnd
+   * re-derived each of these per call with its own isOrigin ternary (cyclomatic 18-21, suppressed).
+   * Task 6 needed a real RADIUS branch on top of that, which would have pushed the class past PMD's
+   * total-complexity threshold; resolving origin vs. destination exactly once here, instead of once
+   * per helper, keeps every method below (addEnd, the largest, is at 7) with no suppression needed.
+   */
+  private static LaneEnd originEnd(LaneSearchRequest req) {
+    LaneEnd e = new LaneEnd();
+    e.key = req.originKey;
+    e.precision = req.originPrecision;
+    e.explicitZip3 = req.originZip3;
+    e.radius = req.originRadius;
+    e.bindPrefix = 'o';
+    e.stopRel = 'rtms__Load__r.rtms__First_Stop__r';
+    e.likePrefix = '';
+    e.likeSuffix = ':%';
+    e.zip3FieldName = 'originZip3';
+    return e;
+  }
+
+  private static LaneEnd destinationEnd(LaneSearchRequest req) {
+    LaneEnd e = new LaneEnd();
+    e.key = req.destinationKey;
+    e.precision = req.destinationPrecision;
+    e.explicitZip3 = req.destinationZip3;
+    e.radius = req.destinationRadius;
+    e.bindPrefix = 'd';
+    e.stopRel = 'rtms__Load__r.rtms__Last_Stop__r';
+    e.likePrefix = '%:';
+    e.likeSuffix = '';
+    e.zip3FieldName = 'destinationZip3';
+    return e;
+  }
+
+  private static void requirePostalPrefix(Pricing_Place__c place, LaneEnd e) {
+    if (String.isBlank(place.Postal_Prefix__c)) {
+      throw new LaneSearchException(
+        'Place ' + e.key + ' has no postal prefix; pass ' + e.zip3FieldName
+      );
+    }
+  }
+
+  // Per-precision dispatch. Task 5 had this as one large method (cyclomatic 18-21, suppressed);
+  // Task 6 splits each precision into its own helper below so addEnd stays a small dispatcher and
+  // needs no complexity suppression.
   private static void addEnd(
     List<String> conditions,
     Map<String, Object> binds,
     LaneSearchRequest req,
-    Map<String, Pricing_Place__c> places,
-    Boolean isOrigin
+    LaneEnd e,
+    Map<String, Pricing_Place__c> places
   ) {
-    String key = isOrigin ? req.originKey : req.destinationKey;
-    LaneSearchRequest.Precision precision = isOrigin
-      ? req.originPrecision
-      : req.destinationPrecision;
-    String explicitZip3 = isOrigin ? req.originZip3 : req.destinationZip3;
-    String side = isOrigin ? 'o' : 'd';
-    Pricing_Place__c place = String.isBlank(key) ? null : places.get(key);
     if (
-      precision == LaneSearchRequest.Precision.ZIP3 &&
-      String.isNotBlank(explicitZip3)
+      e.precision == LaneSearchRequest.Precision.ZIP3 &&
+      String.isNotBlank(e.explicitZip3)
     ) {
-      binds.put(
-        side + 'Zip3',
-        isOrigin
-          ? escapeLike(explicitZip3) + ':%'
-          : '%:' + escapeLike(explicitZip3)
-      );
-      conditions.add('rtms__Load__r.rtms__Zip3_Lane__c LIKE :' + side + 'Zip3');
+      addZip3(conditions, binds, e, e.explicitZip3);
       return;
     }
+    // places only ever holds non-blank keys (see loadPlaces), and Map.get(null) is a safe miss, so
+    // a blank e.key already falls through to null here without a separate blank check.
+    Pricing_Place__c place = places.get(e.key);
     if (place == null) {
       return; // no constraint on this end
     }
-    if (precision == LaneSearchRequest.Precision.CITY) {
-      List<String> patterns = new List<String>();
-      for (String v : PlaceNormalizer.cityLaneVariants(place)) {
-        patterns.add(isOrigin ? escapeLike(v) + ':%' : '%:' + escapeLike(v));
-      }
-      binds.put(side + 'City', patterns);
-      conditions.add('rtms__Load__r.rtms__City_Lane__c LIKE :' + side + 'City');
-    } else if (precision == LaneSearchRequest.Precision.PROVINCE) {
-      binds.put(
-        side + 'Prov',
-        isOrigin
-          ? escapeLike(place.Province__c) + ':%'
-          : '%:' + escapeLike(place.Province__c)
-      );
-      conditions.add(
-        'rtms__Load__r.rtms__State_Lane__c LIKE :' + side + 'Prov'
-      );
-    } else if (precision == LaneSearchRequest.Precision.ZIP3) {
-      if (String.isBlank(place.Postal_Prefix__c)) {
-        throw new LaneSearchException(
-          'Place ' +
-            key +
-            ' has no postal prefix; pass ' +
-            (isOrigin ? 'originZip3' : 'destinationZip3')
-        );
-      }
-      binds.put(
-        side + 'Zip3',
-        isOrigin
-          ? escapeLike(place.Postal_Prefix__c) + ':%'
-          : '%:' + escapeLike(place.Postal_Prefix__c)
-      );
-      conditions.add('rtms__Load__r.rtms__Zip3_Lane__c LIKE :' + side + 'Zip3');
+    if (e.precision == LaneSearchRequest.Precision.CITY) {
+      addCity(conditions, binds, e, place);
+    } else if (e.precision == LaneSearchRequest.Precision.PROVINCE) {
+      addProvince(conditions, binds, e, place);
+    } else if (e.precision == LaneSearchRequest.Precision.ZIP3) {
+      requirePostalPrefix(place, e);
+      addZip3(conditions, binds, e, place.Postal_Prefix__c);
     } else {
-      throw new LaneSearchException(
-        'RADIUS precision is implemented in Task 6'
-      );
+      addRadius(conditions, binds, req, e, place);
+    }
+  }
+
+  /** "value:%" for an origin, "%:value" for a destination - the shared shape of every lane LIKE pattern. */
+  private static String laneLikePattern(LaneEnd e, String rawValue) {
+    return e.likePrefix + escapeLike(rawValue) + e.likeSuffix;
+  }
+
+  private static void addCity(
+    List<String> conditions,
+    Map<String, Object> binds,
+    LaneEnd e,
+    Pricing_Place__c place
+  ) {
+    List<String> patterns = new List<String>();
+    for (String v : PlaceNormalizer.cityLaneVariants(place)) {
+      patterns.add(laneLikePattern(e, v));
+    }
+    binds.put(e.bindPrefix + 'City', patterns);
+    conditions.add(
+      'rtms__Load__r.rtms__City_Lane__c LIKE :' + e.bindPrefix + 'City'
+    );
+  }
+
+  private static void addProvince(
+    List<String> conditions,
+    Map<String, Object> binds,
+    LaneEnd e,
+    Pricing_Place__c place
+  ) {
+    binds.put(e.bindPrefix + 'Prov', laneLikePattern(e, place.Province__c));
+    conditions.add(
+      'rtms__Load__r.rtms__State_Lane__c LIKE :' + e.bindPrefix + 'Prov'
+    );
+  }
+
+  private static void addZip3(
+    List<String> conditions,
+    Map<String, Object> binds,
+    LaneEnd e,
+    String prefix
+  ) {
+    binds.put(e.bindPrefix + 'Zip3', laneLikePattern(e, prefix));
+    conditions.add(
+      'rtms__Load__r.rtms__Zip3_Lane__c LIKE :' + e.bindPrefix + 'Zip3'
+    );
+  }
+
+  // Bound decimals inside GEOLOCATION() work through Database.queryWithBinds in this org (API
+  // v64.0, PostProduc sandbox, deploy 0AfbZ00000CnnzxSAB); the brief's
+  // String.valueOf(decimal.setScale(6)) fallback was not needed.
+  private static void addRadius(
+    List<String> conditions,
+    Map<String, Object> binds,
+    LaneSearchRequest req,
+    LaneEnd e,
+    Pricing_Place__c place
+  ) {
+    if (
+      place.Geolocation__Latitude__s == null ||
+      place.Geolocation__Longitude__s == null
+    ) {
+      throw new LaneSearchException('Place ' + e.key + ' has no coordinates');
+    }
+    String unit = req.radiusUnit == LaneSearchRequest.Unit.KM ? 'km' : 'mi'; // enum-controlled literal, never user text
+    binds.put(e.bindPrefix + 'Lat', place.Geolocation__Latitude__s);
+    binds.put(e.bindPrefix + 'Lng', place.Geolocation__Longitude__s);
+    binds.put(e.bindPrefix + 'Radius', e.radius);
+    String geo =
+      'GEOLOCATION(:' +
+      e.bindPrefix +
+      'Lat, :' +
+      e.bindPrefix +
+      'Lng)';
+    String byAccount =
+      'DISTANCE(' +
+      e.stopRel +
+      '.rtms__Location2__r.ShippingAddress, ' +
+      geo +
+      ', \'' +
+      unit +
+      '\') < :' +
+      e.bindPrefix +
+      'Radius';
+    if (req.includeStopGeolocation) {
+      String byStop =
+        'DISTANCE(' +
+        e.stopRel +
+        '.rtms__Geolocation__c, ' +
+        geo +
+        ', \'' +
+        unit +
+        '\') < :' +
+        e.bindPrefix +
+        'Radius';
+      conditions.add('(' + byAccount + ' OR ' + byStop + ')');
+    } else {
+      conditions.add(byAccount);
     }
   }
 
