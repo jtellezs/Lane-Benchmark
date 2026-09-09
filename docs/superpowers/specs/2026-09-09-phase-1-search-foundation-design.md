@@ -153,11 +153,10 @@ precisions stay near one second at any window; radius grows roughly
 linearly with the window (about 13 s for a year at both ends, about half
 that when a mode or equipment category is also set). The service records
 `elapsedMs` so the phase 2 UI can show a progress state and so real usage
-can be measured. To make long radius windows fast, the user files a
-Salesforce support case early in phase 1 asking for custom indexes on
-`rtms__Load__c.rtms__City_Lane__c`, `rtms__State_Lane__c`,
-`rtms__Zip3_Lane__c` and on `rtms__CarrierQuote__c.CreatedDate` is already
-indexed; the case is tracked in the README until closed.
+can be measured. To make long radius windows fast, the user files a Salesforce support case
+early in phase 1 asking for custom indexes on `rtms__Load__c.rtms__City_Lane__c`,
+`rtms__State_Lane__c` and `rtms__Zip3_Lane__c` (`CreatedDate` is already
+indexed). The case number is tracked in the README until closed.
 
 Error handling: invalid request (negative lookback, radius missing for
 RADIUS, unknown place key) throws `LaneSearchException` with a message the
