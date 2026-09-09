@@ -20,9 +20,11 @@ Measured in PostProduc on 2026-09-09:
   ("AB:ON"), `rtms__Zip3_Lane__c` ("T4A:L1J"), `rtms__Postal_Code_Lane__c`.
   Populated on 51,392 of 55,432 loads created in the last 365 days (93 %).
 - SOQL `DISTANCE()` works across relationships in one query, from Carrier
-  Quote through Load and Stop to the location Account's `ShippingAddress`;
-  14,999 of 15,043 location accounts used in the last year are geocoded and
-  14,973 have a postal code.
+  Quote through Load and Stop to the location Account's `ShippingAddress`.
+  Over 24 months, 122,268 of 133,278 quotes have both ends geocoded through
+  their location accounts; most of the rest have Revenova's stop-level
+  geolocation instead. 58,631 of the 58,921 location accounts ever used by a
+  stop are geocoded; 14,973 of the 15,043 used last year have a postal code.
 - Timings (LIMIT 2000): radius 100 mi at both ends over 90 days 2.3 s; the
   same over 365 days 13.3 s; radius plus mode plus equipment category over
   365 days 5.3 s; exact city lane 0.7 s; province lane or ZIP3 lane about
@@ -124,8 +126,20 @@ Precision mapping, per end:
 - ZIP3 → `rtms__Load__r.rtms__Zip3_Lane__c` side matches the first three
   characters of the place's most common postal code prefix (from its
   locations); the request may also pass an explicit prefix.
-- RADIUS → `DISTANCE(rtms__Load__r.rtms__First_Stop__r.rtms__Location2__r.ShippingAddress, GEOLOCATION(lat, lng), unit) < radius`
-  for origin, `rtms__Last_Stop__r` for destination.
+- RADIUS → distance from the end's coordinates. Measured over the last 24
+  months: 223,062 of 238,616 stops have a geocoded location account, 14,908
+  more have no account but carry Revenova's own stop geolocation, and only
+  377 have neither. So the filter is an OR of the two sources, per end:
+  `DISTANCE(rtms__Load__r.rtms__First_Stop__r.rtms__Location2__r.ShippingAddress, GEOLOCATION(lat, lng), unit) < radius OR DISTANCE(rtms__Load__r.rtms__First_Stop__r.rtms__Geolocation__c, GEOLOCATION(lat, lng), unit) < radius`
+  (and `rtms__Last_Stop__r` for the destination). The service measures
+  whether the OR form is slower than the account-only form and records both
+  timings under Outcome; if the OR form is materially slower it becomes an
+  opt-in flag `includeStopGeolocation`, default true.
+
+The search CENTER (the place the user picks) always comes from the place
+dictionary in phase 1. Typing an address or a city that is not in the
+dictionary is phase 5's job (external geocoding of the center point only;
+historical data never needs it).
 
 Always applied: `CreatedDate = LAST_N_DAYS:<lookbackDays>` (bound; the
 service builds the literal from a validated integer), the excluded-contact
