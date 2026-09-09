@@ -106,6 +106,38 @@ private class PricingDepartmentControllerTest {
   }
 
   @IsTest
+  static void nullFiltersAreTreatedAsNoFilter() {
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    insertQuote(g, load, 1000);
+
+    Test.startTest();
+    List<rtms__CarrierQuote__c> result = PricingDepartmentController.getCarrierQuotes(
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    );
+    Test.stopTest();
+
+    System.assertEquals(
+      1,
+      result.size(),
+      'null text filters and a null day count behave like the unfiltered 30-day default'
+    );
+  }
+
+  @IsTest
   static void dateWindowExcludesOlderQuotes() {
     PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
     PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();

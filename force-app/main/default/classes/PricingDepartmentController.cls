@@ -121,7 +121,9 @@ public without sharing class PricingDepartmentController {
     String equipmentFilterStr = createFilterString(equipmentFilter);
     String acceptedQuotesFilterStr = createFilterString(acceptedQuotesFilter);
     String declinedQuotesFilterStr = createFilterString(declinedQuotesFilter);
-    Date startDate = Date.today().addDays(-dateRangeFilter);
+    // A null day count means the default window rather than a NullPointerException.
+    Integer days = dateRangeFilter == null ? 30 : dateRangeFilter;
+    Date startDate = Date.today().addDays(-days);
 
     List<rtms__CarrierQuote__c> allCarrierQuotes = fetchCarrierQuotes(
       originFilterStr,
@@ -151,8 +153,12 @@ public without sharing class PricingDepartmentController {
     return uniqueCarrierQuotes;
   }
 
+  /**
+   * A null or blank filter means "no filter": LIKE '%%' matches every non-null value.
+   * Without the guard a null argument would build the literal string '%null%'.
+   */
   private static String createFilterString(String filter) {
-    return '%' + filter + '%';
+    return String.isBlank(filter) ? '%%' : '%' + filter + '%';
   }
 
   // system mode by design: the page benchmarks every team's quotes; access is gated by the
