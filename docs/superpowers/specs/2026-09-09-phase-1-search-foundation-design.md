@@ -227,33 +227,24 @@ Checked against the Definition of done above, item by item:
    PostProduc across three deploys: `0AfbZ00000CndR7SAJ` (22 tests, Tasks
    1-4), `0AfbZ00000CnqWPSAZ` (35 tests, Tasks 5-7), and
    `0AfbZ00000CnrU5SAJ` (36 tests, the `PlaceWriteBatch` fix below).
-2. **Batch run, count and spot check recorded; top 20 pending an FLS
-   grant.** The batch ran once in PostProduc on 2026-09-09 (job chain
+2. **Batch run, count, top 20, and spot check all recorded — done.** The
+   batch ran once in PostProduc on 2026-09-09 (job chain
    `707bZ00000qwuH7QAI` → `707bZ00000qwtbMQAQ` → `707bZ00000qwmU2QAI` →
    `707bZ00000qwvMhQAI`, all `Completed`, 0 errors — see the write-batch fix
    below for why there's a chain of four jobs instead of two). Result:
    **10,496 `Pricing_Place__c` records**, from 58,755 qualifying location
-   accounts carrying 11,479 distinct raw `ShippingCity` spellings. Spot
+   accounts carrying 11,479 distinct raw `ShippingCity` spellings. The top
+   20 by load count is in the README "Place dictionary" section. Spot
    check: `Key__c LIKE 'montreal|%'` returns `montreal|qc|ca` ("Montréal,
-   QC, CA") and a minor second key `montreal||ca` from a few accounts with
-   the whole address typed into `ShippingCity` and `ShippingState` left
-   blank; grouping the raw `Account.ShippingCity` values feeding
-   `montreal|qc|ca` shows 577 "Montréal", 573 "MONTREAL", and 18 more
-   accented/cased/punctuated variants all collapsing into that one key, so
-   the intended Montréal/Montreal collapse is confirmed. **The "top 20
-   places by load count" table could not be produced**: no permission set
-   or profile grants field-level read on any `Pricing_Place__c` field except
-   the always-visible `Key__c`/`Name`/standard fields — not even to System
-   Administrator, which is the profile every `sf` command in this project
-   runs as. `SELECT Location_Count__c, Load_Count_365d__c, ... FROM
-Pricing_Place__c` fails with `No such column` from `sf data query`, from
-   static and dynamic SOQL in Execute Anonymous, and from the Tooling API
-   (`sObject type 'Pricing_Place__c' is not supported`); only Apex compiled
-   into a saved class (system mode, ignores FLS) can read these fields — see
-   README "Place dictionary" for the fix and the exact query to run once it
-   lands. `LaneSearchService.search()` itself is unaffected (proven by item
-   4 below): the FLS enforcement is scoped to the SOQL literally written
-   inside an anonymous block, not to SOQL inside classes it calls.
+   QC, CA") with `Spellings__c` = "Montreal / Montréal / MONTREAL /
+   Montreal, / montreal / MONTRÉAL, / MONTRÉAL / Montréal, / MONTREAL," —
+   confirming the intended collapse directly from the field — and a minor
+   second key `montreal||ca` from a few accounts with the whole address
+   typed into `ShippingCity` and `ShippingState` left blank; grouping the
+   raw `Account.ShippingCity` values feeding `montreal|qc|ca` shows 577
+   "Montréal", 573 "MONTREAL", and 18 more accented/cased/punctuated
+   variants all collapsing into that one key. Getting the top 20 required a
+   fix first — see "The `Pricing_Place__c` field-level-security gap" below.
 3. **Tests pass — done**, per the deploy IDs in item 1 (36/36 passing after
    the `PlaceWriteBatch` fix, reported alongside the fix's deploy).
 4. **Example script run against real data — done.**
@@ -270,25 +261,17 @@ Pricing_Place__c` fails with `No such column` from `sf data query`, from
    | RADIUS (100 mi both ends) | 377  | false     | 399 | CAD only                                                    |
 
    365-day radius comparison (100 mi both ends), accounts-only vs.
-   with-stop-geolocation:
-
-   - `includeStopGeolocation = false` (accounts only): **19,730 ms**
-   - `includeStopGeolocation = true` (with stop geolocation OR): **2,244 ms**
-
-   The with-stops form was **faster**, not slower, in this run — the
-   opposite of the "OR condition costs more" expectation. This is a single,
-   order-dependent measurement: the two requests reuse the same `r2`
+   with-stop-geolocation: **inconclusive in a single run (19.7 s
+   accounts-only vs 2.2 s with stops, order-dependent)**. The with-stops
+   form came out faster, not slower — the opposite of the "OR condition
+   costs more" expectation — but the two requests reuse the same `r2`
    object and run back-to-back in one transaction, so the second query
-   (`withStops`) benefits from whatever the platform cached (query plan,
-   buffer pool) while running the first. It is **not** reliable evidence
-   that adding the OR is free, only evidence that a single un-repeated,
-   un-randomized pair of runs in one session cannot separate the two
-   effects. Since the measured ratio is nowhere near "more than 1.5x
-   slower" for `includeStopGeolocation = true` (if anything it points the
-   other way), the phase 2 default stays **`includeStopGeolocation = true`**
-   per the spec's original rule; phase 2 should re-measure with the run
-   order alternated/repeated before trusting either number for UI latency
-   budgeting.
+   benefits from whatever the platform cached (query plan, buffer pool)
+   while running the first; a single un-repeated, un-randomized pair of
+   runs cannot separate the two effects. Default `includeStopGeolocation =
+true` stands (the measured ratio is nowhere near "more than 1.5x
+   slower" either direction); re-measure in phase 2 with alternating
+   order.
 
 5. **Support case — placeholder only.** README has the line; the case
    number is the user's action, not filed by this work.
@@ -348,12 +331,32 @@ false)`. Fixed and merged as origin #11 / TPLM #9, deployed as
   `0AfbZ00000CnrU5SAJ` (36 tests). The rerun after the fix produced the
   chain of four completed jobs recorded in item 2 above, with 0 errors
   throughout.
-- **The `Pricing_Place__c` field-level-security gap** (item 2 above): no
-  permission set or profile grants object or field read on
+- **The `Pricing_Place__c` field-level-security gap and its fix.** No
+  permission set or profile granted object or field read on
   `Pricing_Place__c`, discovered while trying to query the top 20 places
-  for this Outcome. Not a regression from this phase's work — the object
-  was never given a permission set because phase 1 has no UI touching it
-  directly (`LaneSearchService` reads it in system-mode Apex) — but it is a
-  hard blocker for phase 2's place picker and for any admin/report/API
-  access to this data, and needs to be in scope for phase 2's
-  `Lane_Benchmark_User` permission set, not deferred further.
+  for this Outcome — not even to System Administrator (the profile every
+  `sf` command in this project runs as). `SELECT Location_Count__c, ...
+FROM Pricing_Place__c` failed with `No such column` from `sf data
+query`, from static and dynamic SOQL in Execute Anonymous, and from the
+  Tooling API (`sObject type 'Pricing_Place__c' is not supported`); only
+  Apex compiled into a saved class (system mode, ignores FLS) could read
+  these fields, which is why `LaneSearchService.search()` itself was
+  unaffected (proven by item 4: the FLS enforcement is scoped to SOQL
+  literally written inside an anonymous block, not to SOQL inside classes
+  it calls). Not a regression from this phase's work — the object was
+  never given a permission set because phase 1 has no UI touching it
+  directly — but it was a real blocker for phase 2's place picker and for
+  any admin/report/API access to this data. Fixed in this same branch:
+  `Pricing_Department_User` gained `objectPermissions` for
+  `Pricing_Place__c` (read + edit, `viewAllRecords = true`, no create/
+  delete/modifyAllRecords) and `fieldPermissions` for every custom field
+  except `Key__c` (readable on all ten; editable only on `Aliases__c` and
+  `Active__c`, the two pricing curates by hand). `Key__c` was left out
+  because it is a universally-required field and Salesforce rejects
+  `fieldPermissions` entries for those (it deployed clean on the first
+  attempt once `Key__c` was excluded, confirming the brief's prediction).
+  Deployed alone as `0AfbZ00000CnsefSAB`, then assigned to the running
+  user (`sf org assign permset`), after which the top 20 query and the
+  full `Spellings__c` spot check both worked. Phase 2's
+  `Lane_Benchmark_User` should carry these same grants forward when it
+  replaces this permission set.
