@@ -22,6 +22,7 @@
         <members>PlaceNormalizer</members>
         <members>PlaceNormalizerTest</members>
         <members>PricingTestDataFactory</members>
+        <members>PricingTestDataFactoryTest</members>
         <name>ApexClass</name>
     </types>
     <types>
