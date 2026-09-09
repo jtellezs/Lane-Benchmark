@@ -23,6 +23,9 @@
         <members>PlaceNormalizerTest</members>
         <members>PricingTestDataFactory</members>
         <members>PricingTestDataFactoryTest</members>
+        <members>PlaceBuilderBatch</members>
+        <members>PlaceUsageBatch</members>
+        <members>PlaceBuilderBatchTest</members>
         <name>ApexClass</name>
     </types>
     <types>
