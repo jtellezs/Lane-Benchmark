@@ -71,11 +71,11 @@ jobs:
         run: |
           curl -sSL -o pmd.zip "https://github.com/pmd/pmd/releases/download/pmd_releases%2F${PMD_VERSION}/pmd-dist-${PMD_VERSION}-bin.zip"
           unzip -q pmd.zip
-      - name: Run PMD (fail on priority 1-2)
+      - name: Run PMD (quickstart, priority 3)
         run: >
           ./pmd-bin-${PMD_VERSION}/bin/pmd check
-          --dir force-app/main/default/classes
+          --dir force-app
           --rulesets config/pmd-ruleset.xml
-          --minimum-priority 2
+          --minimum-priority 3
           --format text
           --fail-on-violation

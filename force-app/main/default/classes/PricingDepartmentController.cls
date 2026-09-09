@@ -155,6 +155,9 @@ public without sharing class PricingDepartmentController {
     return '%' + filter + '%';
   }
 
+  // system mode by design: the page benchmarks every team's quotes; access is gated by the
+  // Pricing_Department_User permission set
+  @SuppressWarnings('PMD.ApexCRUDViolation')
   private static List<rtms__CarrierQuote__c> fetchCarrierQuotes(
     String originFilterStr,
     String destinationFilterStr,

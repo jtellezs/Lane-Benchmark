@@ -1,3 +1,6 @@
+/**
+ * There is no @TestSetup on purpose: each test builds its own graph so field values are explicit.
+ */
 @IsTest
 private class PricingDepartmentControllerTest {
   private static final String ALL = '';
@@ -35,11 +38,6 @@ private class PricingDepartmentControllerTest {
     rtms__CarrierQuote__c q = PricingTestDataFactory.buildQuote(g, load, total);
     insert q;
     return q;
-  }
-
-  @TestSetup
-  static void noExclusions() {
-    // Nothing here on purpose: each test builds its own graph so field values are explicit.
   }
 
   @IsTest
@@ -505,6 +503,7 @@ private class PricingDepartmentControllerTest {
   }
 
   @IsTest
+  @SuppressWarnings('PMD.AvoidHardcodingId')
   static void parseExcludedContactIdsSkipsInvalidEntries() {
     String validContactId = '0033l00002px9ja';
     Id validId = Id.valueOf(validContactId);
