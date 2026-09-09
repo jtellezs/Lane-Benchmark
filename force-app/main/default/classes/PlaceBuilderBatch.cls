@@ -1,8 +1,12 @@
 /**
  * Builds Pricing_Place__c from every location account referenced by a stop:
  * one place per normalized key, averaged coordinates, spellings, counts.
- * Upserts by Key__c; never deletes; never touches Aliases__c or Active__c.
- * finish() chains PlaceUsageBatch to fill Load_Count_365d__c.
+ * Upserts by Key__c (via PlaceWriteBatch); never deletes; never touches Aliases__c or Active__c.
+ * finish() hands the built rows to PlaceWriteBatch, which chains PlaceUsageBatch once every row
+ * is written, to fill Load_Count_365d__c. The rows are built here but never upserted directly:
+ * a single upsert (even chunked across several Database.upsert calls) still counts every row
+ * against this transaction's 10,000-DML-row limit, which a large org's distinct place count can
+ * exceed; PlaceWriteBatch spreads the upsert across its own per-scope transactions instead.
  */
 // Runs without sharing on purpose: pricing benchmarks every team's quotes. Access is gated by the Lane Benchmark permission sets.
 public without sharing class PlaceBuilderBatch implements Database.Batchable<SObject>, Database.Stateful {
@@ -85,19 +89,18 @@ public without sharing class PlaceBuilderBatch implements Database.Batchable<SOb
   }
 
   public void finish(Database.BatchableContext bc) {
-    upsertPlaces();
-    Database.executeBatch(new PlaceUsageBatch(), 2000);
+    Database.executeBatch(new PlaceWriteBatch(buildPlaces(), true), 2000);
   }
 
   @TestVisible
-  private void finishForTest() {
-    upsertPlaces();
+  private List<Pricing_Place__c> buildPlacesForTest() {
+    return buildPlaces();
   }
 
-  @SuppressWarnings(
-    'PMD.ApexCRUDViolation'
-  ) // system mode by design (see class comment)
-  private void upsertPlaces() {
+  // Builds the Pricing_Place__c rows in memory only - no DML here. PlaceWriteBatch does the
+  // upsert, in its own governor-safe, per-scope transactions; Aliases__c and Active__c are never
+  // set on these rows, so an upsert by external id updates only the fields set below.
+  private List<Pricing_Place__c> buildPlaces() {
     List<Pricing_Place__c> places = new List<Pricing_Place__c>();
     for (String key : aggs.keySet()) {
       Agg g = aggs.get(key);
@@ -123,14 +126,7 @@ public without sharing class PlaceBuilderBatch implements Database.Batchable<SOb
       }
       places.add(p);
     }
-    // Upsert by external id updates only the fields set above; Aliases__c and Active__c are untouched.
-    for (Integer i = 0; i < places.size(); i += 2000) {
-      List<Pricing_Place__c> chunk = new List<Pricing_Place__c>();
-      for (Integer j = i; j < Math.min(i + 2000, places.size()); j++) {
-        chunk.add(places[j]);
-      }
-      Database.upsert(chunk, Pricing_Place__c.Key__c, true); // NOPMD - chunked to 2000 rows, within governor limits
-    }
+    return places;
   }
 
   private static String mostCommon(Map<String, Integer> counts) {
