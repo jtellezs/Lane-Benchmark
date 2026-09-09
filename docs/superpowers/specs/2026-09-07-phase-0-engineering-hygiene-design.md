@@ -10,19 +10,16 @@ already-known bugs as the first change through that pipeline.
 
 ## Environments
 
-| Org                    | Alias       | Role                                               | Data                           |
-| ---------------------- | ----------- | -------------------------------------------------- | ------------------------------ |
-| Production             | `vscodeOrg` | Source of truth, last stop                         | Real                           |
-| PostProduc (Full)      | `sandbox`   | UAT; anything that needs real loads, stops, quotes | Real, copied at refresh        |
-| DevPro (Developer Pro) | `devpro`    | All development and CI validation                  | **Metadata only. No records.** |
+| Org        | Alias       | Role                                                                           | Data |
+| ---------- | ----------- | ------------------------------------------------------------------------------ | ---- |
+| Full       | `Full`      | Develop, test, CI. Real deploys land here.                                     | Real |
+| PostProduc | `sandbox`   | UAT after sign-off in Full                                                     | Real |
+| Production | `vscodeOrg` | Live. Deployed after UAT sign-off; never from a laptop without a validated run | Real |
 
-Consequences of DevPro having no data:
-
-- Apex tests must create everything they read. The test data factory below is
-  the only data DevPro has; it is foundation, not polish.
-- Work that depends on real records (phase 1 flow behavior on real Revenova
-  loads, the 24-month backfill dry run, alias-rule discovery from real origin
-  strings) runs in PostProduc, never in DevPro.
+DevPro (Developer Pro) was evaluated first for development and CI, but retired: a
+Developer Pro sandbox cannot insert `rtms__Load__c` because the Revenova managed triggers
+need configuration records that only a data-carrying sandbox provides, so the org's own
+tests fail there.
 
 Refresh runbook (DevPro was refreshed 2026-09-08 from production, job
 `0GROG0000002Dqn4AE`; previous refresh took ~70 minutes):
@@ -39,8 +36,8 @@ Refresh runbook (DevPro was refreshed 2026-09-08 from production, job
    DevPro. Any difference where production is newer than what we pulled from
    PostProduc is reviewed component by component before overwriting the repo.
 
-Promotion path: pull request → CI validates against DevPro → merge to `main`
-→ manual deploy to DevPro → manual deploy to PostProduc for UAT → production.
+Promotion path: pull request → CI validates against Full → merge to `main`
+→ manual deploy to Full → manual deploy to PostProduc for UAT → production.
 CI validates only; it never deploys in phase 0.
 
 ## Repository and tooling
@@ -62,27 +59,34 @@ One workflow file, `.github/workflows/ci.yml`, identical in both repositories
 (`IulianEnescu78/PricingDepartment` and `TPLM/PricingDepartment`), triggered on
 `pull_request` and on `push` to `main`. Three independent jobs:
 
-| Job    | Steps                                                                                                                                                                                       | Fails when                                             |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `lwc`  | `npm ci`, ESLint, Prettier check, `sfdx-lwc-jest --coverage`                                                                                                                                | any lint error, formatting drift, or failing Jest test |
-| `apex` | install `@salesforce/cli`, `sf org login sfdx-url` from secret, `sf project deploy validate -x manifest/package.xml --test-level RunSpecifiedTests --tests PricingDepartmentControllerTest` | compile error, test failure, or deployment error       |
-| `pmd`  | PMD (latest 7.x) with the Apex quickstart ruleset on `force-app/**/*.cls`, results as PR annotations                                                                                        | any Priority 1 or 2 violation                          |
+| Job    | Steps                                                                                                                                                                                                                                                                        | Fails when                                             |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `lwc`  | `npm ci`, ESLint, Prettier check, `sfdx-lwc-jest --coverage`                                                                                                                                                                                                                 | any lint error, formatting drift, or failing Jest test |
+| `apex` | install `@salesforce/cli`, `sf org login sfdx-url` from secret, `sf project deploy validate -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml --test-level RunSpecifiedTests --tests PricingDepartmentControllerTest --target-org Full` | compile error, test failure, or deployment error       |
+| `pmd`  | PMD (latest 7.x) with the Apex quickstart ruleset on `force-app/**/*.cls`, results as PR annotations                                                                                                                                                                         | any Priority 1 or 2 violation                          |
 
-Secret: `SFDX_AUTH_URL_DEVPRO`, set in both repos. Obtained after the DevPro
-login with `sf org display -o devpro --verbose --json`, piped straight into
-`gh secret set` for each repo (work token for TPLM). The value is never
-printed, echoed, or written to a file. Rotated after every DevPro refresh.
+Secret: `SFDX_AUTH_URL_FULL`, set in the TPLM repository only
+(`TPLM/PricingDepartment`). Obtained after the Full login with
+`sf org display -o Full --verbose --json`, piped straight into `gh secret set`
+(work token for TPLM). The value is never printed, echoed, or written to a
+file. Rotated after every Full refresh. The personal mirror
+(`IulianEnescu78/PricingDepartment`) has no org secret; its `apex` job detects
+that (`secrets.SFDX_AUTH_URL_FULL != ''` read into a job-level `env`) and
+skips its Salesforce steps instead of failing, so the job still succeeds
+there. The `apex` job only validates for real in the TPLM repository.
 
-Branch protection on `main` in both repos: require the three checks, require
-a pull request, no force pushes. The `tplm` mirror push after merge is done by
-the developer, not by CI.
+Branch protection on `main`: `IulianEnescu78/PricingDepartment` requires
+`["lwc", "pmd"]` (no secret there, so `apex` cannot be a required context);
+`TPLM/PricingDepartment` requires `["lwc", "apex", "pmd"]`. Both require a
+pull request and no force pushes. The `tplm` mirror push after merge is done
+by the developer, not by CI.
 
 Concurrency: the `apex` job uses a concurrency group per branch so two pushes
-in a row do not run two validations against DevPro at once.
+in a row do not run two validations against Full at once.
 
 ## Tests
 
-Apex, in DevPro:
+Apex, in Full:
 
 - Retire `PricingDepartmentControllerTest3` (calls the controller with a stale
   8-argument signature; does not compile) and
@@ -94,7 +98,7 @@ Apex, in DevPro:
   `rtms__Mode__c`, `rtms__EquipmentType__c` (with category), `rtms__Load__c`
   with first and last `rtms__Stop__c` on geocoded location Accounts, and
   `rtms__CarrierQuote__c` rows. Discovering the required fields is the first
-  task in DevPro; the result is captured once in the factory.
+  task in Full; the result is captured once in the factory.
 - `PricingDepartmentControllerTest` asserts behavior, one method per rule:
   origin filter, destination filter, date window boundary, hazmat, market
   test (customer name), accepted and declined flags, excluded contact,
@@ -135,11 +139,11 @@ deploy to PostProduc or production; touching profile assignments.
 
 ## Definition of done
 
-1. DevPro refreshed, logged in as `devpro`, repo deployed to it, diff against
+1. Full refreshed, logged in as `Full`, repo deployed to it, diff against
    the refreshed org reviewed and resolved.
 2. `npm ci` clean; Husky pre-commit active; lockfile committed.
 3. `ci.yml` green on a real pull request in both repos; branch protection on.
-4. Old test classes gone from DevPro; new factory and controller tests pass
-   in DevPro; Jest passes locally and in CI.
-5. Bug-fix PR merged through the pipeline and deployed to DevPro only.
+4. Old test classes gone from Full; new factory and controller tests pass
+   in Full; Jest passes locally and in CI.
+5. Bug-fix PR merged through the pipeline and deployed to Full only.
 6. README updated with the environment table, runbook, and CI notes.

@@ -14,7 +14,7 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 | Page             | `flexipages/Pricing_Department`                                                                   | App page, default home template, one region                                                                                                      |
 | UI               | `lwc/pricingDepartment`                                                                           | Filters, quote table, stats header, carrier detail modal                                                                                         |
 | Apex             | `classes/PricingDepartmentController`                                                             | Two `@AuraEnabled(cacheable=true)` methods: `getCarrierQuotes`, `getUniqueModeOptions`                                                           |
-| Apex tests       | `PricingDepartmentControllerTest`, `PricingTestDataFactory`                                       | Behavior tests; the factory builds the minimum valid Revenova graph because DevPro has no records                                                |
+| Apex tests       | `PricingDepartmentControllerTest`, `PricingTestDataFactory`                                       | Behavior tests; the factory builds the minimum valid Revenova graph the managed triggers require, so tests do not depend on org data             |
 | Data             | `objects/rtms__CarrierQuote__c/fields/*`                                                          | 24 custom fields on the Revenova TMS Carrier Quote object, almost all formulas                                                                   |
 | Data (2nd layer) | fields on `rtms__CarrierService__c`, `rtms__TransportationProfile__c`, `rtms__Load__c`, `Account` | Custom fields those formulas read through lookups                                                                                                |
 | Security         | `profiles/Pricing`                                                                                | Scoped copy of the Pricing profile (only entries for components in this project). Access is profile-based; no permission set exists for this app |
@@ -41,25 +41,32 @@ returns at most 500 records ordered by `Quote_Date__c` desc.
 
 ### Environments
 
-| Org                    | Alias       | Role                                                    | Data                      |
-| ---------------------- | ----------- | ------------------------------------------------------- | ------------------------- |
-| Production             | `vscodeOrg` | Source of truth, last stop. Never deploy from a laptop. | Real                      |
-| PostProduc (Full)      | `sandbox`   | UAT and anything that needs real loads, stops, quotes   | Real, copied at refresh   |
-| DevPro (Developer Pro) | `devpro`    | All development and CI validation                       | Metadata only, no records |
+| Org        | Alias       | Role                                                                           | Data |
+| ---------- | ----------- | ------------------------------------------------------------------------------ | ---- |
+| Full       | `Full`      | Develop, test, CI. Real deploys land here.                                     | Real |
+| PostProduc | `sandbox`   | UAT after sign-off in Full                                                     | Real |
+| Production | `vscodeOrg` | Live. Deployed after UAT sign-off; never from a laptop without a validated run | Real |
 
-After a DevPro refresh, authorize the refreshed org with:
+A Developer Pro sandbox (`devpro`) was tried for development and CI first, but it cannot
+insert `rtms__Load__c`: the Revenova managed triggers need configuration records that only
+a data-carrying sandbox like Full has.
+
+### After a Full refresh
+
+Re-authorize the refreshed org:
 
 ```bash
-sf org resume sandbox --job-id <id> -o ienescu@trans-pro.com
+sf org login web -a Full -r https://test.salesforce.com
 ```
 
-If the job id isn't available, fall back to a browser login:
+or, if the refresh job id is known:
 
 ```bash
-sf org login web -a devpro -r https://test.salesforce.com
+sf org resume sandbox --job-id <id> -o ienescu@trans-pro.com.full
 ```
 
-Then regenerate the CI secret (see CI section). A refresh changes the org id and appends `.invalid` to every user email.
+Then regenerate the CI secret in the TPLM repository (see CI section). A refresh changes
+the org id and appends `.invalid` to every user email.
 
 ```bash
 # Re-pull everything in the manifest
@@ -70,15 +77,15 @@ sf project deploy validate -x manifest/package.xml -o sandbox
 sf project deploy start    -x manifest/package.xml -o sandbox
 
 # Run the tests
-sf apex run test -n PricingDepartmentControllerTest -o devpro -r human -w 10
+sf apex run test -n PricingDepartmentControllerTest -o Full -r human -w 10
 ```
 
 ```bash
-# Deploy to DevPro (destructive changes remove retired classes; re-runnable)
-sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o devpro -l RunSpecifiedTests -t PricingDepartmentControllerTest
+# Deploy to Full (destructive changes remove retired classes; re-runnable)
+sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o Full -l RunSpecifiedTests -t PricingDepartmentControllerTest
 ```
 
-Org aliases: `sandbox` = postproduction sandbox, `Full` = full sandbox, `vscodeOrg` = production.
+Org aliases: `Full` = full sandbox, `sandbox` = postproduction sandbox, `vscodeOrg` = production.
 
 ## Known issues worth fixing
 
@@ -87,6 +94,37 @@ Org aliases: `sandbox` = postproduction sandbox, `Full` = full sandbox, `vscodeO
 - `handleAcceptedQuotesFilterChange` in the LWC logs `isAcceptedQuotesChecked.isPriceDepChecked`, which throws a ReferenceError.
 - `fetchModeOptions` (server-side mode options) is never called; modes are derived client-side from the result set instead.
 - The LWC API version is 57.0 while the project is on 64.0.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`, identically
+in both repositories:
+
+| Job    | What it does                                                                     | Fails on                                   |
+| ------ | -------------------------------------------------------------------------------- | ------------------------------------------ |
+| `lwc`  | `npm ci`, ESLint, Prettier check, Jest with coverage                             | lint error, formatting drift, failing test |
+| `apex` | `sf project deploy validate` against Full with `PricingDepartmentControllerTest` | compile error, test failure                |
+| `pmd`  | PMD 7 Apex quickstart, priority 1-2                                              | any P1/P2 violation                        |
+
+CI never deploys. Deploys to Full are run by a developer after merge (command above).
+
+Secret `SFDX_AUTH_URL_FULL` is set in the TPLM repository only. The personal mirror
+(`IulianEnescu78/PricingDepartment`) has no org secret, so its `apex` job detects that and
+skips its Salesforce steps instead of failing; the `apex` job only validates for real in the
+TPLM repository. Regenerate the secret after every Full refresh:
+
+```bash
+set -o pipefail
+sf org display -o Full --verbose --json \
+  | python3 -c "import json,sys; sys.stdout.write(json.loads(sys.stdin.read())['result']['sfdxAuthUrl'])" \
+  | GH_TOKEN=$(gh auth token -u IulianEnescu) gh secret set SFDX_AUTH_URL_FULL -R TPLM/PricingDepartment
+```
+
+Never echo or print the auth URL; pipe it directly from `sf org display` into `gh secret set`.
+
+### Branch protection
+
+<!-- BRANCH_PROTECTION_STATUS -->
 
 ## Git remotes
 
