@@ -344,11 +344,6 @@ private class PricingDepartmentControllerTest {
       search(ALL, ALL, ALL, ALL, ALL, ALL, DAYS, ALL, ALL).size(),
       'Quotes whose contact is excluded must not be returned'
     );
-    System.assertEquals(
-      0,
-      PricingDepartmentController.getUniqueModeOptions(ALL, ALL).size()
-    );
-
     PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
     System.assertEquals(
       1,
@@ -386,61 +381,6 @@ private class PricingDepartmentControllerTest {
       result.size(),
       'Same total, carrier, lane, mode and equipment collapse to one row'
     );
-  }
-
-  @IsTest
-  static void uniqueModeOptionsAreDistinctAndLaneScoped() {
-    // Same governor-limit reasoning as the tests above: this test needs 3 Loads, more than a
-    // single 100-query synchronous budget can absorb in this org, so the first Load is created
-    // before Test.startTest() and the other two after it, inside the fresh limit set. Load b
-    // gets its own rtms__Mode__c record (factory overload) rather than
-    // `b.Mode_For_Sharing__c = 'LTL'; update b;` -- both to remove a Load DML statement from
-    // that fresh budget, and because Mode_For_Sharing__c is derived from the actual
-    // rtms__Mode__c lookup on save in this org, so only changing the lookup sticks.
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
-    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-    rtms__Mode__c ltl = new rtms__Mode__c(
-      Name = 'LTL',
-      rtms__Order__c = 2,
-      rtms__Minimum_Weight__c = 0,
-      rtms__Maximum_Weight__c = 20000
-    );
-    insert ltl;
-    rtms__Load__c a = PricingTestDataFactory.createLoad(
-      g,
-      g.originLocation,
-      g.destinationLocation
-    );
-    insertQuote(g, a, 1000);
-    insertQuote(g, a, 1100);
-
-    Test.startTest();
-    rtms__Load__c b = PricingTestDataFactory.createLoad(
-      g,
-      g.originLocation,
-      g.destinationLocation,
-      ltl
-    );
-    rtms__Load__c elsewhere = PricingTestDataFactory.createLoad(
-      g,
-      g.destinationLocation,
-      g.originLocation
-    );
-    insertQuote(g, b, 500);
-    insertQuote(g, elsewhere, 900);
-
-    List<String> modes = PricingDepartmentController.getUniqueModeOptions(
-      'Montreal',
-      'Toronto'
-    );
-    Test.stopTest();
-
-    System.assertEquals(
-      2,
-      modes.size(),
-      'Mode__c values seen: ' + String.join(modes, ', ')
-    );
-    System.assert(modes.contains('Truckload') && modes.contains('LTL'));
   }
 
   @IsTest

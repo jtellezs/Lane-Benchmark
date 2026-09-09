@@ -219,31 +219,4 @@ public without sharing class PricingDepartmentController {
       LIMIT 500
     ];
   }
-
-  @AuraEnabled(cacheable=true)
-  public static List<String> getUniqueModeOptions(
-    String originFilter,
-    String destinationFilter
-  ) {
-    String originFilterStr = createFilterString(originFilter);
-    String destinationFilterStr = createFilterString(destinationFilter);
-    Set<String> excluded = excludedContactIds();
-
-    List<rtms__CarrierQuote__c> quotes = [
-      SELECT Mode__c
-      FROM rtms__CarrierQuote__c
-      WHERE
-        Origin__c LIKE :originFilterStr
-        AND Destination__c LIKE :destinationFilterStr
-        AND Origin_Destination_Country__c != ' / '
-        AND Contact_ID__c NOT IN :excluded
-    ];
-
-    Set<String> uniqueModeOptionsSet = new Set<String>();
-    for (rtms__CarrierQuote__c quote : quotes) {
-      uniqueModeOptionsSet.add(quote.Mode__c);
-    }
-
-    return new List<String>(uniqueModeOptionsSet);
-  }
 }
