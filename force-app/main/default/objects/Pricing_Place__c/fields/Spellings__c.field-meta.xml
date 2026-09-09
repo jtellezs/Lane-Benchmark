@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Spellings__c</fullName>
+    <label>Spellings</label>
+    <type>LongTextArea</type>
+    <length>4000</length>
+    <visibleLines>4</visibleLines>
+    <inlineHelpText
+  >Distinct raw city spellings among this place's locations, one per line. Maintained by PlaceBuilderBatch.</inlineHelpText>
+</CustomField>
