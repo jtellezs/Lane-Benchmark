@@ -19,6 +19,8 @@
     <types>
         <members>PricingDepartmentController</members>
         <members>PricingDepartmentControllerTest</members>
+        <members>PlaceNormalizer</members>
+        <members>PlaceNormalizerTest</members>
         <members>PricingTestDataFactory</members>
         <name>ApexClass</name>
     </types>
