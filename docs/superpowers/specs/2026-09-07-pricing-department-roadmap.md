@@ -55,6 +55,16 @@ What the measurements removed: no lane fields on Load, no record-triggered
 flow, no 24-month backfill. Revenova's own lane keys and the geocoded
 location accounts, queried through relationships, cover every precision.
 
+## Product name (decided 2026-09-09)
+
+The tool is rebranded **Lane Benchmark**. Phase 2 creates the new page under
+that name and retires the "Pricing Department" tab once users have switched
+(a Lightning component cannot be renamed in place). API names from phase 2
+onward: LWC `laneBenchmark*`, FlexiPage and CustomTab `Lane_Benchmark`,
+Apex `LaneBenchmark*` for UI-facing classes, permission set
+`Lane_Benchmark_User` replacing `Pricing_Department_User`. Phase 1's
+`LaneSearchService` and `Pricing_Place__c` keep their names.
+
 ## Standing constraints
 
 - Develop and test in PostProduc; production is the only org after it. Nothing
