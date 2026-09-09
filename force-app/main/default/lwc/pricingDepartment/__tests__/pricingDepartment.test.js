@@ -40,6 +40,12 @@ async function mount() {
   return element;
 }
 
+async function openCarrierModal(element) {
+  element.shadowRoot.querySelector("div[data-id]").click();
+  await flush();
+  return element.shadowRoot.querySelector('section[role="dialog"]');
+}
+
 function checkbox(element, name) {
   return element.shadowRoot.querySelector(
     `input[type="checkbox"][data-filter="${name}"]`
@@ -91,6 +97,8 @@ describe("c-pricing-department", () => {
     const element = await mount();
     const box = checkbox(element, "accepted");
     box.checked = true;
+    // Guards the historical ReferenceError; the toHaveBeenLastCalledWith below is the
+    // load-bearing assertion that the handler actually set the filter.
     expect(() => box.dispatchEvent(new CustomEvent("change"))).not.toThrow();
     await flush();
     element.shadowRoot.querySelector("button.slds-button_brand").click();
@@ -133,6 +141,33 @@ describe("c-pricing-department", () => {
       dateRangeFilter: "5",
       acceptedQuotesFilter: ""
     });
+  });
+
+  it("clicking inside the carrier modal keeps it open", async () => {
+    const element = await mount();
+    const dialog = await openCarrierModal(element);
+    expect(dialog).not.toBeNull();
+
+    dialog.dispatchEvent(new CustomEvent("click", { bubbles: true }));
+    await flush();
+
+    expect(
+      element.shadowRoot.querySelector('section[role="dialog"]')
+    ).not.toBeNull();
+  });
+
+  it("clicking the backdrop closes the carrier modal", async () => {
+    const element = await mount();
+    expect(await openCarrierModal(element)).not.toBeNull();
+
+    element.shadowRoot
+      .querySelector(".modal-wrapper")
+      .dispatchEvent(new CustomEvent("click", { bubbles: true }));
+    await flush();
+
+    expect(
+      element.shadowRoot.querySelector('section[role="dialog"]')
+    ).toBeNull();
   });
 
   it("shows the error block when Apex rejects", async () => {

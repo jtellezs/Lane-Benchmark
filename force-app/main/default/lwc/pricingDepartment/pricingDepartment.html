@@ -5,7 +5,7 @@
       <div
         class="slds-col slds-small-size_1-of-1 slds-medium-size_4-of-8 slds-large-size_4-of-8 slds-order_1"
       >
-        <lightning-card title="Filters" icon-name="standard:filter" size="6">
+        <lightning-card title="Filters" icon-name="standard:filter">
           <!--START FIRST ROW OF FILTERS-->
           <div class="slds-grid slds-gutters">
             <!--START FIRST COLUMN FOR ORIGIN AND DESTINATION-->
@@ -261,11 +261,7 @@
       >
         <div class="slds-grid slds-grid_vertical">
           <div class="slds-col">
-            <lightning-card
-              title={pageTitle}
-              icon-name="standard:feed"
-              size="6"
-            >
+            <lightning-card title={pageTitle} icon-name="standard:feed">
               <!-- add your content here -->
               <div class="slds-grid slds-gutters">
                 <div class="slds-col">
@@ -390,7 +386,6 @@
             <lightning-card
               title="Legend"
               icon-name="standard:service_territory"
-              size="6"
             >
               <!-- add your content here -->
               <div>
@@ -420,11 +415,7 @@
     <!--Data presentation-->
     <div class="slds-grid slds-gutters">
       <div class="slds-col">
-        <lightning-card
-          title="Results"
-          icon-name="standard:timesheet"
-          size="12"
-        >
+        <lightning-card title="Results" icon-name="standard:timesheet">
           <div
             if:true={isLoading}
             class="slds-align_absolute-center"
@@ -487,7 +478,6 @@
                     >
                       <tr
                         key={carrierQuote.Id}
-                        class={carrierQuote.rowClass}
                         data-index={index}
                         onclick={handleRowClick}
                       >
@@ -586,7 +576,6 @@
                       <template if:true={carrierQuote.showAdditionalContent}>
                         <tr
                           key={carrierQuote.Id}
-                          class={carrierQuote.rowClass}
                           data-index={index}
                           onclick={handleRowClick}
                         >

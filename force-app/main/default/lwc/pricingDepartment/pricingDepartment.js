@@ -98,7 +98,7 @@ export default class PricingDepartment extends LightningElement {
   @track modeOptions = [];
   @track isDialogOpen = false;
   @track selectedCarrier = {};
-  @track carrierQuotesData;
+  @track carrierQuotesData = [];
   @track errors;
   @track isLoading = true;
   // Add properties to track the checked state of checkboxes
@@ -169,6 +169,12 @@ export default class PricingDepartment extends LightningElement {
     this.isDialogOpen = false;
   }
 
+  // The backdrop wrapper closes the modal on click; the dialog itself must not
+  // bubble its clicks up to it, or clicking anything inside closes the modal.
+  handleModalClick(event) {
+    event.stopPropagation();
+  }
+
   handleRowClick(event) {
     const rowIndex = event.currentTarget.dataset.index;
     const carrierQuote = this.carrierQuotesData[rowIndex];
@@ -209,11 +215,11 @@ export default class PricingDepartment extends LightningElement {
         this.modeOptions = modeOptionsFrom(result);
       } else {
         this.errors = "No data found";
-        this.carrierQuotesData = undefined;
+        this.carrierQuotesData = [];
       }
     } catch (error) {
       this.errors = error;
-      this.carrierQuotesData = undefined;
+      this.carrierQuotesData = [];
     } finally {
       this.isLoading = false;
     }
