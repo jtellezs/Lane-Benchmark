@@ -1,5 +1,7 @@
 # Phase 0: Engineering Hygiene Implementation Plan
 
+> **Note (2026-09-09):** environment references to DevPro/Full in this plan are historical. The pipeline adopted during execution is PostProduc -> Production; see the phase 0 spec and README.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give the Pricing Department Salesforce project a dev sandbox, CI that validates every pull request, behavior-level tests, and ship the known bugs as the first change through that pipeline.

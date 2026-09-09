@@ -476,4 +476,66 @@ private class PricingDepartmentControllerTest {
 
     System.assertEquals(500, result.size());
   }
+
+  @IsTest
+  static void excludedContactIdsComeFromCustomMetadataInBothIdLengths() {
+    PricingDepartmentController.excludedContactIdsOverride = null;
+    Set<String> ids = PricingDepartmentController.excludedContactIds();
+    List<Pricing_Department_Setting__mdt> settings = [
+      SELECT Excluded_Contact_Ids__c
+      FROM Pricing_Department_Setting__mdt
+      WHERE DeveloperName = 'Default'
+    ];
+    System.assertEquals(
+      1,
+      settings.size(),
+      'The Default setting record must be deployed'
+    );
+    for (String raw : settings[0].Excluded_Contact_Ids__c.split(',')) {
+      Id contactId = Id.valueOf(raw.trim());
+      System.assert(
+        ids.contains(String.valueOf(contactId)),
+        '18-char form present'
+      );
+      System.assert(
+        ids.contains(String.valueOf(contactId).left(15)),
+        '15-char form present'
+      );
+    }
+  }
+
+  @IsTest
+  static void parseExcludedContactIdsSkipsInvalidEntries() {
+    String validContactId = '0033l00002px9ja';
+    Id validId = Id.valueOf(validContactId);
+
+    Test.startTest();
+    Set<String> ids = PricingDepartmentController.parseExcludedContactIds(
+      validContactId + ', not-an-id, 0033l00002px9j, 001000000000001AAA ,'
+    );
+    Set<String> fromNull = PricingDepartmentController.parseExcludedContactIds(
+      null
+    );
+    Set<String> fromBlank = PricingDepartmentController.parseExcludedContactIds(
+      '  '
+    );
+    Test.stopTest();
+
+    System.assertEquals(
+      2,
+      ids.size(),
+      'Only the valid Contact id (both forms) should survive: ' +
+      String.join(new List<String>(ids), ', ')
+    );
+    System.assert(
+      ids.contains(String.valueOf(validId)),
+      '18-char form present'
+    );
+    System.assert(
+      ids.contains(String.valueOf(validId).left(15)),
+      '15-char form present'
+    );
+    System.assertEquals(0, fromNull.size(), 'null input yields an empty set');
+    System.assertEquals(0, fromBlank.size(), 'blank input yields an empty set');
+  }
 }
