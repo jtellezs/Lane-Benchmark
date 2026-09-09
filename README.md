@@ -121,9 +121,11 @@ CLI versions; it returns a `[REDACTED]` placeholder.)
 
 ### Branch protection
 
-Not yet enabled in either repository. Branch protection is set up once CI is green on
-`phase-0/foundation` in both repositories, requiring `["lwc", "pmd"]` in
-`IulianEnescu78/PricingDepartment` and `["lwc", "apex", "pmd"]` in `TPLM/PricingDepartment`.
+Enabled on `main` in both repositories: required status checks (strict, i.e. branches
+must be up to date before merging), no force pushes, no deletions.
+`IulianEnescu78/PricingDepartment` requires `["lwc", "pmd"]` (it has no org secret, so
+`apex` cannot be a required context there); `TPLM/PricingDepartment` requires
+`["lwc", "apex", "pmd"]`.
 
 ## Git remotes
 
