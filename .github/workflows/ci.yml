@@ -32,14 +32,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Skip when no org secret (personal mirror)
-        if: env.HAS_SECRET != 'true'
+        if: env.HAS_SECRET != 'true' && github.repository != 'TPLM/PricingDepartment'
         run: echo "SFDX_AUTH_URL_POSTPRODUC is not set in this repository; Apex validation runs in the TPLM repository against PostProduc."
+      - name: Fail when the org secret is missing where apex is required
+        if: env.HAS_SECRET != 'true' && github.repository == 'TPLM/PricingDepartment'
+        run: echo "SFDX_AUTH_URL_POSTPRODUC is missing in the repository where apex is a required check" && exit 1
       - uses: actions/setup-node@v4
         if: env.HAS_SECRET == 'true'
         with: { node-version: 22 }
       - name: Install Salesforce CLI
         if: env.HAS_SECRET == 'true'
-        run: npm install -g @salesforce/cli
+        run: npm install -g @salesforce/cli@2
       - name: Authenticate to PostProduc
         if: env.HAS_SECRET == 'true'
         env:
