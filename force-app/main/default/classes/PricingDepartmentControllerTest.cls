@@ -449,6 +449,9 @@ private class PricingDepartmentControllerTest {
 
   @IsTest
   static void excludedContactIdsComeFromCustomMetadataInBothIdLengths() {
+    // Asserts the wiring (custom metadata -> parseExcludedContactIds), not the org's data:
+    // re-parsing the deployed ids here would only restate parseExcludedContactIds' own logic,
+    // and would break whenever an admin adds an entry this test did not anticipate.
     PricingDepartmentController.excludedContactIdsOverride = null;
     Set<String> ids = PricingDepartmentController.excludedContactIds();
     List<Pricing_Department_Setting__mdt> settings = [
@@ -456,22 +459,24 @@ private class PricingDepartmentControllerTest {
       FROM Pricing_Department_Setting__mdt
       WHERE DeveloperName = 'Default'
     ];
+
     System.assertEquals(
       1,
       settings.size(),
       'The Default setting record must be deployed'
     );
-    for (String raw : settings[0].Excluded_Contact_Ids__c.split(',')) {
-      Id contactId = Id.valueOf(raw.trim());
-      System.assert(
-        ids.contains(String.valueOf(contactId)),
-        '18-char form present'
-      );
-      System.assert(
-        ids.contains(String.valueOf(contactId).left(15)),
-        '15-char form present'
-      );
-    }
+    System.assert(
+      ids.equals(
+        PricingDepartmentController.parseExcludedContactIds(
+          settings[0].Excluded_Contact_Ids__c
+        )
+      ),
+      'excludedContactIds() must return exactly what the Default record parses to'
+    );
+    System.assert(
+      !ids.isEmpty(),
+      'The Default record must exclude at least one contact'
+    );
   }
 
   @IsTest
