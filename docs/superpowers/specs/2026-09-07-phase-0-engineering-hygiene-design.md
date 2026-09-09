@@ -222,11 +222,15 @@ PricingDepartmentControllerTest -w 30`, deploy request `0AfbZ00000CnJYrSAN`,
   single pre-production environment (develop, test, CI, UAT), Production
   (`vscodeOrg`) is the only stage after it. See the note under this document's H1
   in the implementation plan and the README's Environments section.
-- **LWC lint fixes landed early.** The ReferenceError fix, the removal of the dead
-  `fetchModeOptions`, and the API version bump to 64.0 — nominally scoped to this
-  task's bug-fix PR by the original task brief — had already landed in the
-  foundation PR by the time this task ran; `phase-0/bug-fixes` only needed to merge
-  `main` to pick them up, not implement them.
+- **LWC lint fixes landed early.** The ReferenceError fix and the removal of the
+  dead `fetchModeOptions` — nominally scoped to this task's bug-fix PR by the
+  original task brief — had already landed in the foundation PR (commit `25e8341`,
+  confirmed absent from `pricingDepartment.js` at foundation head `b565150`) by the
+  time this task ran; `phase-0/bug-fixes` only needed to merge `main` to pick them
+  up, not implement them. The API version bump to 64.0 is not part of this: it
+  landed on `phase-0/bug-fixes` itself, in Task 8's commit `c9f1157` (`main` was
+  still on API version 57.0 at `b565150`), and merged into `main` normally with the
+  rest of this task's PR.
 - **Stale destructive-changes manifest, fixed in a follow-up PR.**
   `manifest/destructiveChangesPost.xml` listed the two classes retired by the
   deploy in item 5. Once that deploy actually removed them from PostProduc, a
