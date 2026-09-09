@@ -83,11 +83,8 @@ Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
 
 ## Known issues worth fixing
 
-- `PricingDepartmentController` is `without sharing` and hardcodes an excluded Contact Id (`0033l00002px9ja`).
+- The excluded Contact Ids now live in `Pricing_Department_Setting__mdt` (record `Default`, field `Excluded_Contact_Ids__c`) instead of being hardcoded. `PricingDepartmentController` is still `without sharing`; that is intentional and documented in the class.
 - Every filter is a `LIKE '%x%'` on formula fields, which cannot use indexes; dedupe happens in Apex after the 500-row limit is applied.
-- `handleAcceptedQuotesFilterChange` in the LWC logs `isAcceptedQuotesChecked.isPriceDepChecked`, which throws a ReferenceError.
-- `fetchModeOptions` (server-side mode options) is never called; modes are derived client-side from the result set instead.
-- The LWC API version is 57.0 while the project is on 64.0.
 
 ## Continuous integration
 
