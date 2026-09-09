@@ -41,28 +41,22 @@ returns at most 500 records ordered by `Quote_Date__c` desc.
 
 ### Environments
 
-| Org        | Alias       | Role                                                                           | Data |
-| ---------- | ----------- | ------------------------------------------------------------------------------ | ---- |
-| Full       | `Full`      | Develop, test, CI. Real deploys land here.                                     | Real |
-| PostProduc | `sandbox`   | UAT after sign-off in Full                                                     | Real |
-| Production | `vscodeOrg` | Live. Deployed after UAT sign-off; never from a laptop without a validated run | Real |
+| Org        | Alias       | Role                                            | Data                    |
+| ---------- | ----------- | ----------------------------------------------- | ----------------------- |
+| PostProduc | `sandbox`   | Develop, test, CI, UAT. Real deploys land here. | Real, copied at refresh |
+| Production | `vscodeOrg` | Live. Deployed after sign-off in PostProduc     | Real                    |
 
-A Developer Pro sandbox (`devpro`) was tried for development and CI first, but it cannot
-insert `rtms__Load__c`: the Revenova managed triggers need configuration records that only
-a data-carrying sandbox like Full has.
+Full is other teams' active development sandbox and is not used for this project.
+A Developer Pro sandbox (`devpro`) was also tried, but it cannot insert `rtms__Load__c`:
+the Revenova managed triggers need configuration records that only a data-carrying
+sandbox has.
 
-### After a Full refresh
+### After a PostProduc refresh
 
 Re-authorize the refreshed org:
 
 ```bash
-sf org login web -a Full -r https://test.salesforce.com
-```
-
-or, if the refresh job id is known:
-
-```bash
-sf org resume sandbox --job-id <id> -o ienescu@trans-pro.com.full
+sf org login web -a sandbox -r https://test.salesforce.com
 ```
 
 Then regenerate the CI secret in the TPLM repository (see CI section). A refresh changes
@@ -77,15 +71,15 @@ sf project deploy validate -x manifest/package.xml -o sandbox
 sf project deploy start    -x manifest/package.xml -o sandbox
 
 # Run the tests
-sf apex run test -n PricingDepartmentControllerTest -o Full -r human -w 10
+sf apex run test -n PricingDepartmentControllerTest -o sandbox -r human -w 10
 ```
 
 ```bash
-# Deploy to Full (destructive changes remove retired classes; re-runnable)
-sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o Full -l RunSpecifiedTests -t PricingDepartmentControllerTest
+# Deploy to PostProduc (destructive changes remove retired classes; re-runnable)
+sf project deploy start -x manifest/package.xml --post-destructive-changes manifest/destructiveChangesPost.xml -o sandbox -l RunSpecifiedTests -t PricingDepartmentControllerTest
 ```
 
-Org aliases: `Full` = full sandbox, `sandbox` = postproduction sandbox, `vscodeOrg` = production.
+Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
 
 ## Known issues worth fixing
 
@@ -100,24 +94,25 @@ Org aliases: `Full` = full sandbox, `sandbox` = postproduction sandbox, `vscodeO
 `.github/workflows/ci.yml` runs on every pull request and on pushes to `main`, identically
 in both repositories:
 
-| Job    | What it does                                                                     | Fails on                                   |
-| ------ | -------------------------------------------------------------------------------- | ------------------------------------------ |
-| `lwc`  | `npm ci`, ESLint, Prettier check, Jest with coverage                             | lint error, formatting drift, failing test |
-| `apex` | `sf project deploy validate` against Full with `PricingDepartmentControllerTest` | compile error, test failure                |
-| `pmd`  | PMD 7 Apex quickstart, priority 1-2                                              | any P1/P2 violation                        |
+| Job    | What it does                                                                           | Fails on                                   |
+| ------ | -------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `lwc`  | `npm ci`, ESLint, Prettier check, Jest with coverage                                   | lint error, formatting drift, failing test |
+| `apex` | `sf project deploy validate` against PostProduc with `PricingDepartmentControllerTest` | compile error, test failure                |
+| `pmd`  | PMD 7 Apex quickstart, priority 1-2                                                    | any P1/P2 violation                        |
 
-CI never deploys. Deploys to Full are run by a developer after merge (command above).
+CI never deploys. Deploys to PostProduc are run by a developer after merge (command
+above).
 
-Secret `SFDX_AUTH_URL_FULL` is set in the TPLM repository only. The personal mirror
-(`IulianEnescu78/PricingDepartment`) has no org secret, so its `apex` job detects that and
-skips its Salesforce steps instead of failing; the `apex` job only validates for real in the
-TPLM repository. Regenerate the secret after every Full refresh:
+Secret `SFDX_AUTH_URL_POSTPRODUC` is set in the TPLM repository only. The personal
+mirror (`IulianEnescu78/PricingDepartment`) has no org secret, so its `apex` job detects
+that and skips its Salesforce steps instead of failing; the `apex` job only validates for
+real in the TPLM repository. Regenerate the secret after every PostProduc refresh:
 
 ```bash
 set -o pipefail
-sf org auth show-sfdx-auth-url -o Full --json 2>/dev/null \
+sf org auth show-sfdx-auth-url -o sandbox --json 2>/dev/null \
   | python3 -c "import json,sys; u=json.load(sys.stdin)['result']['sfdxAuthUrl']; assert u.startswith('force://'); sys.stdout.write(u)" \
-  | GH_TOKEN=$(gh auth token -u IulianEnescu) gh secret set SFDX_AUTH_URL_FULL -R TPLM/PricingDepartment
+  | GH_TOKEN=$(gh auth token -u IulianEnescu) gh secret set SFDX_AUTH_URL_POSTPRODUC -R TPLM/PricingDepartment
 ```
 
 Never echo or print the auth URL; pipe it directly from `sf org auth show-sfdx-auth-url` into
@@ -126,10 +121,8 @@ CLI versions; it returns a `[REDACTED]` placeholder.)
 
 ### Branch protection
 
-Not yet enabled in either repository: CI on `phase-0/foundation` is not green in
-`TPLM/PricingDepartment` (the `apex` job fails validating against Full; see
-`.superpowers/sdd/2026-09-07-phase-0-engineering-hygiene/task-7-report.md`). Branch
-protection is set up once that run is green, requiring `["lwc", "pmd"]` in
+Not yet enabled in either repository. Branch protection is set up once CI is green on
+`phase-0/foundation` in both repositories, requiring `["lwc", "pmd"]` in
 `IulianEnescu78/PricingDepartment` and `["lwc", "apex", "pmd"]` in `TPLM/PricingDepartment`.
 
 ## Git remotes
