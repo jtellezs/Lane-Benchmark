@@ -12,6 +12,7 @@
     <!-- UI -->
     <types>
         <members>pricingDepartment</members>
+        <members>quoteStats</members>
         <name>LightningComponentBundle</name>
     </types>
     <!-- Apex -->

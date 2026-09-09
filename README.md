@@ -126,7 +126,11 @@ CLI versions; it returns a `[REDACTED]` placeholder.)
 
 ### Branch protection
 
-<!-- BRANCH_PROTECTION_STATUS -->
+Not yet enabled in either repository: CI on `phase-0/foundation` is not green in
+`TPLM/PricingDepartment` (the `apex` job fails validating against Full; see
+`.superpowers/sdd/2026-09-07-phase-0-engineering-hygiene/task-7-report.md`). Branch
+protection is set up once that run is green, requiring `["lwc", "pmd"]` in
+`IulianEnescu78/PricingDepartment` and `["lwc", "apex", "pmd"]` in `TPLM/PricingDepartment`.
 
 ## Git remotes
 
