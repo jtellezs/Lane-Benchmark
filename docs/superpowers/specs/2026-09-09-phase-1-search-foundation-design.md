@@ -167,7 +167,10 @@ precisions stay near one second at any window; radius grows roughly
 linearly with the window (about 13 s for a year at both ends, about half
 that when a mode or equipment category is also set). The service records
 `elapsedMs` so the phase 2 UI can show a progress state and so real usage
-can be measured. To make long radius windows fast, the user files a Salesforce support case
+can be measured. (The "about 13 s" above is one pre-implementation
+measurement; the Outcome's own 365-day re-measurement came out anywhere
+between 2.2 s and 19.7 s in a single un-randomized run, so treat 13 s as an
+order of magnitude and not a number until phase 2 measures it properly.) To make long radius windows fast, the user files a Salesforce support case
 early in phase 1 asking for custom indexes on `rtms__Load__c.rtms__City_Lane__c`,
 `rtms__State_Lane__c` and `rtms__Zip3_Lane__c` (`CreatedDate` is already
 indexed). The case number is tracked in the README until closed.
@@ -331,6 +334,90 @@ false)`. Fixed and merged as origin #11 / TPLM #9, deployed as
   `0AfbZ00000CnrU5SAJ` (36 tests). The rerun after the fix produced the
   chain of four completed jobs recorded in item 2 above, with 0 errors
   throughout.
+
+### The final review fix wave (2026-09-09)
+
+A scoped review after the Outcome above was written found one data defect
+and a set of contract/hygiene gaps; all of them landed in one branch,
+`phase-1/final-review-fixes` (origin PR **#13**, mirror PR **#10**), and
+were redeployed to PostProduc as **DEPLOY_ID_PLACEHOLDER** (TEST_COUNT_PLACEHOLDER tests).
+
+- **The province defect (the one real bug).** `PlaceNormalizer` knew
+  Canadian provinces and US states only, so every Mexican location fell
+  through unmapped and `PlaceBuilderBatch` cut the full name to three
+  characters: `Province__c = 'Nue'`, `Name = "GENERAL ESCOBEDO, Nue, MX"`,
+  key `general escobedo|nuevo león|mx`. Nothing about that matches what
+  Revenova writes, so CITY and PROVINCE searches for any Mexican place
+  returned zero rows - and Mexico is not a rounding error here: `general
+escobedo|nuevo león|mx` was the 10th busiest place in the whole
+  dictionary (1,285 loads) and `veracruz|mexico state|mx` the 12th (1,165).
+  Discovery, in PostProduc over 730 days of loads: Revenova writes a
+  **2-letter code**, not the full name and not the 3-letter ISO 3166-2:MX
+  code - `rtms__City_Lane__c` "General Escobedo, NL:Laredo, TX",
+  `rtms__State_Lane__c` "NL:TX". Grouping `rtms__State_Lane__c` against the
+  first/last stop location account's `ShippingState` confirmed one code per
+  state across 26 distinct spellings: AG BC BS CH CO CL DF DG GR GT HG JA ME
+  MI MO MX NL PB QE SL SO TL TM VE YU ZA. So `PlaceNormalizer` gained an
+  `MX_STATES` map of all 32 states (accent-stripped keys, so "Nuevo León",
+  "Nuevo Leon" and "NUEVO LEON" are one entry), `key()` now normalizes the
+  province segment exactly like the city segment, and `Province__c` was
+  widened from Text(3) to **Text(80)** - as wide as `Account.ShippingState` -
+  so the builder can stop truncating it altogether. `Name` is now assembled
+  by shortening the city when the 80 characters run out, never the province.
+  Two details worth carrying into phase 2:
+  - **Ciudad de México and Federal District are one entity under two
+    Salesforce labels, and Revenova writes a different code for each** (MX
+    for the first, DF for the second, both measured). They are deliberately
+    kept apart: a place has to carry the code its own loads carry.
+  - **Puebla is measurably inconsistent in the source data.** Of 404
+    Puebla-origin loads, 246 carry `ME` in `rtms__State_Lane__c` and 157
+    carry `PB` (Baja California has 54 stray `ME` rows against 154 `BC`).
+    `PB` is the code Revenova writes for Puebla itself, so `PB` is what the
+    map uses; PROVINCE precision will not find those 246 stale rows.
+  - **Seven states carry no load in this org**, so their codes (Campeche CP,
+    Chiapas CS, Nayarit NA, Oaxaca OA, Quintana Roo QR, Sinaloa SI, Tabasco
+    TB) come from the same 2-letter series rather than from measurement.
+    They are marked "unverified" in the class and are worth a spot check the
+    first time a load touches one.
+- **The dictionary was rebuilt from scratch after the fix.** Every place key
+  containing a Mexican province changed, and `Load_Count_365d__c` changed
+  meaning at the same time (below), so the whole object was deleted and
+  rebuilt rather than upserted over: REBUILD_PLACEHOLDER
+- **`Load_Count_365d__c` counts loads, not stops.** `PlaceUsageBatch` used
+  to iterate `rtms__Stop__c`, so a place scored on loads that neither
+  started nor ended there (any intermediate stop counted) and the number
+  could not be stated in one sentence. It now iterates `rtms__Load__c` and
+  adds one per load END whose stop has a location account with a city: a
+  load that both picks up and delivers in the same place counts 2 there.
+  The field help and the README caption both say "loads touching this place
+  (last 365 days)".
+- **The result classes are Aura-ready.** Every public field of
+  `LaneSearchResult`, `Row` and `Stats` carries `@AuraEnabled`, `elapsedMs`
+  is an `Integer` rather than a `Long` (LWC renders a large Long as a
+  string), and `Row` gained `createdDate` - the field the rows are actually
+  ordered by, since `Quote_Date__c` is a formula that can be blank.
+  `LaneSearchRequest` carries a note that phase 2's controller should take
+  the search as JSON and `JSON.deserialize` it into the class: that keeps
+  the field defaults for anything the UI omits and accepts the enums by
+  name, neither of which an `@AuraEnabled` parameter of this type does.
+  `validate()` also normalizes now - a blank `currencyIsoCode` means "both
+  currencies" instead of throwing, and `originZip3`/`destinationZip3` must
+  be exactly three letters or digits and are uppercased in place - and it
+  was split into one helper per concern, which retired its
+  `PMD.CyclomaticComplexity` suppression. No complexity suppression is left
+  in the codebase.
+- **`PlaceWriteBatch` is no longer `Database.Stateful`.** Nothing
+  accumulates across its scopes; its constructor state comes back from the
+  job's original serialized copy in every transaction regardless, which is
+  what `finish()`'s chain flag relies on.
+- **Apex is case-insensitive about type names.** A private helper written as
+  `validateRadius(Precision precision, ...)` compiles locally and is
+  rejected by the org with "Static field cannot be referenced from a non
+  static context: RADIUS" (deploy `0AfbZ00000CntMDSAZ`): the parameter named
+  `precision` hides the `Precision` enum type. Renamed to `endPrecision`.
+  Worth knowing: `sf project deploy start --dry-run` did **not** surface it -
+  only a real deploy did.
+
 - **The `Pricing_Place__c` field-level-security gap and its fix.** No
   permission set or profile granted object or field read on
   `Pricing_Place__c`, discovered while trying to query the top 20 places
@@ -354,7 +441,7 @@ query`, from static and dynamic SOQL in Execute Anonymous, and from the
   `Active__c`, the two pricing curates by hand). `Key__c` was left out
   because it is a universally-required field and Salesforce rejects
   `fieldPermissions` entries for those (it deployed clean on the first
-  attempt once `Key__c` was excluded, confirming the brief's prediction).
+  attempt once `Key__c` was excluded, confirming the controller's ruling on that review point).
   Deployed alone as `0AfbZ00000CnsefSAB`, then assigned to the running
   user (`sf org assign permset`), after which the top 20 query and the
   full `Spellings__c` spot check both worked. Phase 2's

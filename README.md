@@ -110,7 +110,13 @@ Rerun the top 20 with:
 sf data query -q "SELECT Name, Key__c, Location_Count__c, Load_Count_365d__c, Postal_Prefix__c FROM Pricing_Place__c ORDER BY Load_Count_365d__c DESC NULLS LAST LIMIT 20" -o sandbox
 ```
 
-Top 20 places by load count in the last 365 days (2026-09-09):
+Top 20 places by loads touching this place (last 365 days), 2026-09-09.
+`Load_Count_365d__c` counts one per load END, so a load that both picks up
+and delivers in the same place counts 2 there.
+
+> The numbers below are from the first build, before the Mexican-province fix
+> and the load-count change. They are regenerated from the rebuilt dictionary
+> in the follow-up commit.
 
 | Name                      | Key                                | Locations | Loads (365d) | Postal prefix |
 | ------------------------- | ---------------------------------- | --------- | ------------ | ------------- |
@@ -135,7 +141,9 @@ Top 20 places by load count in the last 365 days (2026-09-09):
 | Burnaby, BC, CA           | `burnaby\|bc\|ca`                  | 175       | 853          | V5J           |
 | Boucherville, QC, CA      | `boucherville\|qc\|ca`             | 144       | 844          | J4B           |
 
-Montréal/Montreal spot check:
+Montréal/Montreal spot check. `Spellings__c` is a long text area with one
+spelling per line; the block below is reformatted onto single lines (`/`
+between spellings) so it fits here:
 
 ```
 SELECT Name, Key__c, Spellings__c FROM Pricing_Place__c WHERE Key__c LIKE 'montreal|%'
@@ -154,6 +162,12 @@ string was typed into `ShippingCity` with `ShippingState` left blank (e.g.
 "Montreal QC", "MONTREAL, QC H2P 1L5") — real, messy source data the normalizer
 correctly treats as a different (blank-province) key rather than silently
 guessing the province.
+
+`Name` has no field-level security of its own, so anyone who can edit
+`Pricing_Place__c` (the `Pricing_Department_User` permission set grants object
+Edit, for `Aliases__c` and `Active__c`) can also retype the place's name - and
+`PlaceBuilderBatch` overwrites it on the next run. Only `Aliases__c` and
+`Active__c` survive a rebuild.
 
 ### Lane search
 
