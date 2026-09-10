@@ -1,0 +1,86 @@
+<template>
+  <div class="slds-form slds-form_stacked">
+    <lightning-input
+      data-id="lookback"
+      type="number"
+      min="1"
+      step="1"
+      label="Lookback (days)"
+      value={lookbackDays}
+      onchange={handleLookback}
+      field-level-help="Default 90. Any number of days back; radius searches over a year are slower."
+    ></lightning-input>
+    <lightning-combobox
+      data-id="currency"
+      label="Currency"
+      value={currencyValue}
+      options={currencyOptions}
+      onchange={handleCurrency}
+    ></lightning-combobox>
+    <lightning-dual-listbox
+      data-id="modes"
+      label="Modes"
+      source-label="Available"
+      selected-label="Selected"
+      options={modeOptions}
+      value={value.modes}
+      onchange={handleModes}
+      size="4"
+    ></lightning-dual-listbox>
+    <lightning-checkbox-group
+      data-id="categories"
+      label="Equipment categories"
+      options={categoryOptions}
+      value={value.equipmentCategories}
+      onchange={handleCategories}
+    ></lightning-checkbox-group>
+    <lightning-dual-listbox
+      data-id="types"
+      label="Equipment types"
+      source-label="Available"
+      selected-label="Selected"
+      options={typeOptions}
+      value={value.equipmentTypes}
+      onchange={handleTypes}
+      size="5"
+    ></lightning-dual-listbox>
+    <lightning-checkbox-group
+      data-id="flags"
+      label="Only"
+      options={flagOptions}
+      value={flagValues}
+      onchange={handleFlags}
+    ></lightning-checkbox-group>
+    <lightning-radio-group
+      data-id="accepted"
+      label="Quote status"
+      type="button"
+      options={acceptedOptions}
+      value={value.acceptedFilter}
+      onchange={handleAccepted}
+    ></lightning-radio-group>
+    <div class="slds-m-top_small slds-grid slds-grid_align-spread">
+      <div>
+        <lightning-button
+          data-id="apply"
+          variant="brand"
+          label="Apply"
+          onclick={handleApply}
+        ></lightning-button>
+        <lightning-button
+          data-id="reset"
+          label="Reset"
+          class="slds-m-left_x-small"
+          onclick={handleReset}
+        ></lightning-button>
+      </div>
+      <button
+        data-id="clear-saved"
+        class="slds-button slds-button_reset slds-text-link"
+        onclick={handleClearSaved}
+      >
+        Clear saved filters
+      </button>
+    </div>
+  </div>
+</template>

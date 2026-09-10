@@ -1,0 +1,32 @@
+.ltl-cell {
+  background: rgb(242, 238, 164);
+}
+.ftl-cell {
+  background: rgb(177, 233, 177);
+}
+.freight-cell {
+  background: rgb(156, 171, 231);
+}
+.detail td {
+  background: #fafaf9;
+}
+.modal-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 9001;
+}
+.w-2 {
+  width: 2rem;
+}
+.w-4 {
+  width: 4rem;
+}
+.w-5 {
+  width: 5rem;
+}
+.w-6 {
+  width: 6rem;
+}
+.w-7 {
+  width: 7rem;
+}

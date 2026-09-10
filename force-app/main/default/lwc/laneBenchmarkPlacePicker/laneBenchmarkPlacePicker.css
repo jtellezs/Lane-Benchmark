@@ -1,0 +1,22 @@
+.picker {
+  position: relative;
+}
+.list {
+  position: absolute;
+  z-index: 9000;
+  background: white;
+}
+.option {
+  padding: 0.25rem 0.75rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+.option:hover {
+  background: #f3f3f3;
+}
+.clear {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.25rem;
+}

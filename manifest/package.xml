@@ -13,6 +13,15 @@
     <types>
         <members>pricingDepartment</members>
         <members>quoteStats</members>
+        <members>marginMath</members>
+        <members>laneBenchmarkCsv</members>
+        <members>laneBenchmarkStorage</members>
+        <members>laneBenchmarkPlacePicker</members>
+        <members>laneBenchmarkFilters</members>
+        <members>laneBenchmarkStats</members>
+        <members>laneBenchmarkResults</members>
+        <members>laneBenchmarkMap</members>
+        <members>laneBenchmark</members>
         <name>LightningComponentBundle</name>
     </types>
     <!-- Apex -->

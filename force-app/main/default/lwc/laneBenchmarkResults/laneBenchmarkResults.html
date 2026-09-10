@@ -1,0 +1,143 @@
+<template>
+  <lightning-card title="Results" icon-name="standard:quotes">
+    <template lwc:if={hasRows}>
+      <lightning-button
+        slot="actions"
+        data-id="export"
+        label="Export CSV"
+        icon-name="utility:download"
+        onclick={handleExport}
+      ></lightning-button>
+    </template>
+    <div class="slds-p-horizontal_small">
+      <template lwc:if={hasRows}>
+        <table
+          class="slds-table slds-table_bordered slds-table_fixed-layout results"
+        >
+          <thead>
+            <tr class="slds-line-height_reset">
+              <th scope="col" class="w-2"></th>
+              <th scope="col" class="w-2">#</th>
+              <th scope="col">Origin</th>
+              <th scope="col">Destination</th>
+              <th scope="col">Carrier</th>
+              <th scope="col">Equipment</th>
+              <th scope="col">Mode</th>
+              <th scope="col" class="w-4">Cur.</th>
+              <th scope="col" class="w-6">Total</th>
+              <th scope="col" class="w-7">Quote date</th>
+              <th scope="col">Status</th>
+              <th scope="col" class="w-5">Flags</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template for:each={viewRows} for:item="r">
+              <tr key={r.quoteId} data-index={r.index}>
+                <td>
+                  <button
+                    data-id="expand"
+                    class="slds-button slds-button_icon"
+                    title="Details"
+                    onclick={handleExpand}
+                  >
+                    <lightning-icon
+                      icon-name="utility:chevronright"
+                      size="xx-small"
+                      alternative-text="Details"
+                    ></lightning-icon>
+                  </button>
+                </td>
+                <td>{r.rowNumber}</td>
+                <td class="slds-cell-wrap">{r.origin}</td>
+                <td class="slds-cell-wrap">{r.destination}</td>
+                <td>
+                  <button
+                    data-id="carrier"
+                    class="slds-button slds-text-link"
+                    onclick={handleCarrier}
+                  >
+                    {r.carrierName}
+                  </button>
+                </td>
+                <td class="slds-cell-wrap">{r.equipment}</td>
+                <td data-id="mode" class={r.modeClass}>{r.mode}</td>
+                <td>{r.currencyIsoCode}</td>
+                <td class="slds-text-align_right">{r.total}</td>
+                <td>{r.quoteDate}</td>
+                <td class="slds-cell-wrap">{r.loadStatus}</td>
+                <td class="slds-cell-wrap">{r.hazmatText} {r.acceptedText}</td>
+              </tr>
+              <template lwc:if={r.isExpanded}>
+                <tr key={r.detailKey} data-detail={r.index} class="detail">
+                  <td colspan="12">
+                    <div class="slds-p-around_x-small">
+                      <strong>Quote {r.quoteName}</strong> · Contact:
+                      {r.contactName} · Comments: {r.opsComments}
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </template>
+          </tbody>
+        </table>
+      </template>
+      <template lwc:else
+        ><p class="slds-text-color_weak slds-p-around_small">
+          Run a search to see quotes.
+        </p></template
+      >
+    </div>
+  </lightning-card>
+  <template lwc:if={selected}>
+    <div class="modal-wrapper" onclick={handleClose}>
+      <section
+        role="dialog"
+        class="slds-modal slds-fade-in-open slds-modal_small"
+        onclick={handleDialogClick}
+      >
+        <div class="slds-modal__container">
+          <header class="slds-modal__header">
+            <h2 class="slds-modal__title">{selected.carrierName}</h2>
+          </header>
+          <div class="slds-modal__content slds-p-around_medium">
+            <dl class="slds-dl_horizontal">
+              <dt class="slds-dl_horizontal__label">Contact</dt>
+              <dd class="slds-dl_horizontal__detail">{selected.contactName}</dd>
+              <dt class="slds-dl_horizontal__label">Email</dt>
+              <dd class="slds-dl_horizontal__detail">
+                {selected.carrier.contactEmail}
+              </dd>
+              <dt class="slds-dl_horizontal__label">Phone</dt>
+              <dd class="slds-dl_horizontal__detail">
+                {selected.carrier.contactPhone}
+              </dd>
+              <dt class="slds-dl_horizontal__label">Risk</dt>
+              <dd class="slds-dl_horizontal__detail">
+                {selected.carrier.risk}
+              </dd>
+              <dt class="slds-dl_horizontal__label">Loads</dt>
+              <dd class="slds-dl_horizontal__detail">
+                {selected.carrier.loadCount}
+              </dd>
+            </dl>
+            <template lwc:if={selectedFlags}
+              ><div
+                class="slds-notify slds-notify_alert slds-alert_error slds-m-top_small"
+              >
+                {selectedFlags}
+              </div></template
+            >
+          </div>
+          <footer class="slds-modal__footer">
+            <lightning-button
+              data-id="close"
+              label="Close"
+              onclick={handleClose}
+            ></lightning-button>
+          </footer>
+        </div>
+      </section>
+      <div class="slds-backdrop slds-backdrop_open"></div>
+    </div>
+  </template>
+</template>
