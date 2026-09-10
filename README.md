@@ -104,42 +104,53 @@ least 983 spelling/case/accent variants into shared keys (places are also split 
 province and country, so the true collapse per city name is higher than that
 difference suggests).
 
+The dictionary was deleted and rebuilt from scratch on 2026-09-09 after the
+Mexican-province fix, because every key holding a Mexican province changed
+(`general escobedo|nuevo león|mx` → `general escobedo|nl|mx`) and an upsert by
+`Key__c` would have left the old keys behind. The count came back to the same
+10,496: the remapping is one-to-one, since no two Mexican state names share a code.
+428 of those places are Mexican and **none** of them now carries a province longer
+than the 2-letter code Revenova writes. 536 places worldwide (Guangdong, Istanbul,
+Shanghai, Baden-Württemberg…) keep a full province name that used to be cut to three
+characters.
+
 Rerun the top 20 with:
 
 ```bash
 sf data query -q "SELECT Name, Key__c, Location_Count__c, Load_Count_365d__c, Postal_Prefix__c FROM Pricing_Place__c ORDER BY Load_Count_365d__c DESC NULLS LAST LIMIT 20" -o sandbox
 ```
 
-Top 20 places by loads touching this place (last 365 days), 2026-09-09.
-`Load_Count_365d__c` counts one per load END, so a load that both picks up
-and delivers in the same place counts 2 there.
+Top 20 places by loads touching this place (last 365 days), from the rebuilt
+dictionary on 2026-09-09. `Load_Count_365d__c` counts one per load END, so a
+load that both picks up and delivers in the same place counts 2 there.
 
-> The numbers below are from the first build, before the Mexican-province fix
-> and the load-count change. They are regenerated from the rebuilt dictionary
-> in the follow-up commit.
+| Name                      | Key                         | Locations | Loads (365d) | Postal prefix |
+| ------------------------- | --------------------------- | --------- | ------------ | ------------- |
+| Laredo, TX, US            | `laredo\|tx\|us`            | 970       | 6173         | 780           |
+| Mississauga, ON, CA       | `mississauga\|on\|ca`       | 1470      | 2995         | L5T           |
+| Lachine, QC, CA           | `lachine\|qc\|ca`           | 177       | 2892         | H8T           |
+| Brampton, ON, CA          | `brampton\|on\|ca`          | 691       | 2754         | L6T           |
+| Montréal, QC, CA          | `montreal\|qc\|ca`          | 1152      | 2720         | H4S           |
+| Anjou, QC, CA             | `anjou\|qc\|ca`             | 121       | 2577         | H1J           |
+| Calgary, AB, CA           | `calgary\|ab\|ca`           | 930       | 1918         | T2C           |
+| Knowlton, QC, CA          | `knowlton\|qc\|ca`          | 16        | 1310         | J0E           |
+| GENERAL ESCOBEDO, NL, MX  | `general escobedo\|nl\|mx`  | 5         | 1277         | 660           |
+| Toronto, ON, CA           | `toronto\|on\|ca`           | 865       | 1179         | M9W           |
+| Veracruz, ME, MX          | `veracruz\|me\|mx`          | 2         | 1165         | 916           |
+| Baie-d'Urfé, QC, CA       | `baie d urfe\|qc\|ca`       | 68        | 1118         | H9X           |
+| Laval, QC, CA             | `laval\|qc\|ca`             | 403       | 1043         | H7L           |
+| Rocky View County, AB, CA | `rocky view county\|ab\|ca` | 47        | 921          | T4A           |
+| Vaughan, ON, CA           | `vaughan\|on\|ca`           | 293       | 876          | L4K           |
+| San Diego, CA, US         | `san diego\|ca\|us`         | 132       | 859          | 921           |
+| Burnaby, BC, CA           | `burnaby\|bc\|ca`           | 175       | 851          | V5J           |
+| Edmonton, AB, CA          | `edmonton\|ab\|ca`          | 658       | 845          | T5S           |
+| Boucherville, QC, CA      | `boucherville\|qc\|ca`      | 144       | 835          | J4B           |
+| Dorval, QC, CA            | `dorval\|qc\|ca`            | 223       | 732          | H9P           |
 
-| Name                      | Key                                | Locations | Loads (365d) | Postal prefix |
-| ------------------------- | ---------------------------------- | --------- | ------------ | ------------- |
-| Laredo, TX, US            | `laredo\|tx\|us`                   | 970       | 7196         | 780           |
-| Calgary, AB, CA           | `calgary\|ab\|ca`                  | 930       | 3219         | T2C           |
-| Mississauga, ON, CA       | `mississauga\|on\|ca`              | 1470      | 3203         | L5T           |
-| Lachine, QC, CA           | `lachine\|qc\|ca`                  | 177       | 2895         | H8T           |
-| Brampton, ON, CA          | `brampton\|on\|ca`                 | 691       | 2834         | L6T           |
-| Montréal, QC, CA          | `montreal\|qc\|ca`                 | 1152      | 2765         | H4S           |
-| Anjou, QC, CA             | `anjou\|qc\|ca`                    | 121       | 2580         | H1J           |
-| Toronto, ON, CA           | `toronto\|on\|ca`                  | 865       | 1359         | M9W           |
-| Knowlton, QC, CA          | `knowlton\|qc\|ca`                 | 16        | 1312         | J0E           |
-| GENERAL ESCOBEDO, Nue, MX | `general escobedo\|nuevo león\|mx` | 5         | 1285         | 660           |
-| Vaughan, ON, CA           | `vaughan\|on\|ca`                  | 293       | 1172         | L4K           |
-| Veracruz, Mex, MX         | `veracruz\|mexico state\|mx`       | 2         | 1165         | 916           |
-| Baie-d'Urfé, QC, CA       | `baie d urfe\|qc\|ca`              | 68        | 1122         | H9X           |
-| Laval, QC, CA             | `laval\|qc\|ca`                    | 403       | 1060         | H7L           |
-| Oshawa, ON, CA            | `oshawa\|on\|ca`                   | 57        | 978          | L1H           |
-| Rocky View County, AB, CA | `rocky view county\|ab\|ca`        | 47        | 927          | T4A           |
-| Edmonton, AB, CA          | `edmonton\|ab\|ca`                 | 658       | 916          | T5S           |
-| San Diego, CA, US         | `san diego\|ca\|us`                | 132       | 862          | 921           |
-| Burnaby, BC, CA           | `burnaby\|bc\|ca`                  | 175       | 853          | V5J           |
-| Boucherville, QC, CA      | `boucherville\|qc\|ca`             | 144       | 844          | J4B           |
+The two Mexican rows are the point of the fix: they read `Nue` and `Mex` before it,
+and no CITY or PROVINCE search could reach either place. Every count here is lower
+than the first build's, because the number now means loads (one per end) rather than
+every stop on every load.
 
 Montréal/Montreal spot check. `Spellings__c` is a long text area with one
 spelling per line; the block below is reformatted onto single lines (`/`
@@ -147,8 +158,8 @@ between spellings) so it fits here:
 
 ```
 SELECT Name, Key__c, Spellings__c FROM Pricing_Place__c WHERE Key__c LIKE 'montreal|%'
-Montréal, QC, CA | montreal|qc|ca | Montreal / Montréal / MONTREAL / Montreal, / montreal / MONTRÉAL, / MONTRÉAL / Montréal, / MONTREAL,
-Montreal, , CA   | montreal||ca   | Montreal / MONTREAL
+Montréal, QC, CA | montreal|qc|ca | MONTREAL / MONTREAL, / MONTRÉAL / MONTRÉAL, / Montreal / Montreal, / Montréal / Montréal, / montreal
+Montreal, , CA   | montreal||ca   | MONTREAL / Montreal
 ```
 
 `montreal|qc|ca` is the intended collapse: `Spellings__c` shows "Montréal",
