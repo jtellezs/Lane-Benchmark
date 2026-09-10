@@ -20,6 +20,8 @@
         <members>laneBenchmarkFilters</members>
         <members>laneBenchmarkStats</members>
         <members>laneBenchmarkResults</members>
+        <members>laneBenchmarkMap</members>
+        <members>laneBenchmark</members>
         <name>LightningComponentBundle</name>
     </types>
     <!-- Apex -->
