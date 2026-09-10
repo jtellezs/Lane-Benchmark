@@ -56,6 +56,7 @@
         <members>MapboxException</members>
         <members>MapboxGeocoder</members>
         <members>MapboxGeocoderTest</members>
+        <members>LaneBenchmarkPlaceServiceTest</members>
         <name>ApexClass</name>
     </types>
     <types>
@@ -76,6 +77,10 @@
     <types>
         <members>Mapbox_API</members>
         <name>CspTrustedSite</name>
+    </types>
+    <types>
+        <members>MapBox</members>
+        <name>RemoteSiteSetting</name>
     </types>
     <!-- Custom fields on the managed Carrier Quote object read by the controller -->
     <types>

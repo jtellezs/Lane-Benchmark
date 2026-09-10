@@ -73,16 +73,14 @@ public with sharing class MapboxGeocoder {
         'Mapbox token is not configured (TPRO_KPI__c.Mapbox_Api_Key__c)'
       );
     }
-    String countries = String.isBlank(countryHint)
-      ? 'ca,us,mx'
-      : countryHint.toLowerCase();
+    String countries = sanitizeCountryHint(countryHint);
     String url =
       BASE +
       '/geocoding/v5/mapbox.places/' +
       EncodingUtil.urlEncode(query.trim(), 'UTF-8') +
       '.json' +
-      '?limit=5&language=en&types=place,locality,postcode&country=' +
-      countries +
+      '?limit=5&language=en&types=place,locality,postcode' +
+      (countries != null ? '&country=' + countries : '') +
       '&access_token=' +
       t;
     HttpRequest req = new HttpRequest();
@@ -90,9 +88,14 @@ public with sharing class MapboxGeocoder {
     req.setMethod('GET');
     req.setTimeout(TIMEOUT_MS);
     Http http = new Http();
-    HttpResponse res = http.send(req);
-    if (res.getStatusCode() >= 500) {
-      res = http.send(req); // one retry
+    HttpResponse res;
+    try {
+      res = http.send(req);
+      if (res.getStatusCode() >= 500) {
+        res = http.send(req); // one retry
+      }
+    } catch (System.CalloutException e) {
+      throw new MapboxException('Mapbox is not reachable right now');
     }
     if (res.getStatusCode() != 200) {
       throw new MapboxException(
@@ -100,6 +103,18 @@ public with sharing class MapboxGeocoder {
       );
     }
     return parse(res.getBody());
+  }
+
+  /** Only 'xx' or 'xx,yy,...' (ISO-3166 alpha-2, lowercase) is forwarded to Mapbox; anything else is dropped. */
+  @TestVisible
+  private static String sanitizeCountryHint(String countryHint) {
+    if (String.isBlank(countryHint)) {
+      return 'ca,us,mx';
+    }
+    String normalized = countryHint.toLowerCase();
+    return Pattern.matches('^[a-z]{2}(,[a-z]{2})*$', normalized)
+      ? normalized
+      : null;
   }
 
   @TestVisible
@@ -117,9 +132,12 @@ public with sharing class MapboxGeocoder {
     }
     for (Object f : features) {
       Map<String, Object> feat = (Map<String, Object>) f;
+      List<Object> center = (List<Object>) feat.get('center');
+      if (!hasValidCenter(center)) {
+        continue;
+      }
       GeoResult g = new GeoResult();
       g.name = (String) feat.get('place_name');
-      List<Object> center = (List<Object>) feat.get('center');
       g.lng = Decimal.valueOf(String.valueOf(center[0]));
       g.lat = Decimal.valueOf(String.valueOf(center[1]));
       List<Object> types = (List<Object>) feat.get('place_type');
@@ -140,6 +158,10 @@ public with sharing class MapboxGeocoder {
     return out;
   }
 
+  private static Boolean hasValidCenter(List<Object> center) {
+    return center != null && center.size() == 2;
+  }
+
   private static void applyContext(GeoResult g, List<Object> ctx) {
     if (ctx == null) {
       return;
@@ -154,7 +176,7 @@ public with sharing class MapboxGeocoder {
         g.city = (String) item.get('text');
       } else if (id.startsWith('region.') && item.get('short_code') != null) {
         g.province = provinceFromShortCode((String) item.get('short_code'));
-      } else if (id.startsWith('country.')) {
+      } else if (id.startsWith('country.') && item.get('short_code') != null) {
         g.country = ((String) item.get('short_code')).toUpperCase();
       }
     }
