@@ -11,15 +11,14 @@
 // Runs without sharing on purpose: pricing benchmarks every team's quotes. Access is gated by the Lane Benchmark permission sets.
 public without sharing class PlaceBuilderBatch implements Database.Batchable<SObject>, Database.Stateful {
   private class Agg {
-    String city;
     String province;
     String country;
     Decimal latSum = 0;
     Decimal lngSum = 0;
     Integer geoCount = 0;
     Integer locationCount = 0;
-    Set<String> spellings = new Set<String>();
     Map<String, Integer> prefixCounts = new Map<String, Integer>();
+    // Every spelling seen for this key, with how often; the keys alone are the spelling set.
     Map<String, Integer> spellingCounts = new Map<String, Integer>();
   }
 
@@ -66,7 +65,6 @@ public without sharing class PlaceBuilderBatch implements Database.Batchable<SOb
       }
       g.locationCount++;
       String spelling = a.ShippingCity.trim();
-      g.spellings.add(spelling);
       g.spellingCounts.put(
         spelling,
         (g.spellingCounts.containsKey(spelling)
@@ -89,6 +87,12 @@ public without sharing class PlaceBuilderBatch implements Database.Batchable<SOb
   }
 
   public void finish(Database.BatchableContext bc) {
+    // Deliberate: every built row is held in this instance's heap until PlaceWriteBatch takes
+    // them, so a growing org's headroom against the 12 MB async cap is worth having in the log.
+    System.debug(
+      LoggingLevel.WARN,
+      'PlaceBuilderBatch heap ' + Limits.getHeapSize()
+    );
     Database.executeBatch(new PlaceWriteBatch(buildPlaces(), true), 2000);
   }
 
@@ -104,19 +108,16 @@ public without sharing class PlaceBuilderBatch implements Database.Batchable<SOb
     List<Pricing_Place__c> places = new List<Pricing_Place__c>();
     for (String key : aggs.keySet()) {
       Agg g = aggs.get(key);
-      Pricing_Place__c p = new Pricing_Place__c(Key__c = key);
+      // Key__c is Text(120); PlaceUsageBatch caps its own keys the same way so the two match.
+      Pricing_Place__c p = new Pricing_Place__c(Key__c = key.left(120));
       p.City__c = mostCommon(g.spellingCounts);
-      p.Province__c = g.province.left(3);
+      // No truncation: provinceCode() returns either a 2-letter code or the value as typed, and
+      // Province__c is Text(80) - as wide as Account.ShippingState - so every value fits whole.
+      p.Province__c = g.province;
       p.Country__c = g.country.left(2);
-      p.Name = (p.City__c +
-        ', ' +
-        p.Province__c +
-        ', ' +
-        p.Country__c)
-        .left(80);
+      p.Name = displayName(p.City__c, p.Province__c, p.Country__c);
       p.Location_Count__c = g.locationCount;
-      p.Spellings__c = String.join(new List<String>(g.spellings), '\n')
-        .left(4000);
+      p.Spellings__c = joinSpellings(g.spellingCounts.keySet());
       p.Postal_Prefix__c = g.prefixCounts.isEmpty()
         ? null
         : mostCommon(g.prefixCounts);
@@ -129,10 +130,55 @@ public without sharing class PlaceBuilderBatch implements Database.Batchable<SOb
     return places;
   }
 
+  /**
+   * "City, PROV, CC" within Name's 80 characters, shortening the CITY when it does not fit and
+   * never the province: a truncated province ("GENERAL ESCOBEDO, Nue, MX") reads as a different
+   * place entirely, which is the defect this replaced.
+   */
+  private static String displayName(
+    String city,
+    String province,
+    String country
+  ) {
+    String suffix = ', ' + province + ', ' + country;
+    Integer room = 80 - suffix.length();
+    String shownCity = room >= city.length()
+      ? city
+      : city.left(Math.max(room, 0));
+    return (shownCity + suffix).left(80);
+  }
+
+  /**
+   * Every spelling, sorted, one per line, cut at a line boundary so Spellings__c (LongTextArea,
+   * 4000) never ends mid-word: a partial city name reads as a real spelling that nothing produced.
+   */
+  private static String joinSpellings(Set<String> spellings) {
+    List<String> sorted = new List<String>(spellings);
+    sorted.sort();
+    List<String> kept = new List<String>();
+    Integer length = 0;
+    for (String spelling : sorted) {
+      Integer added = (kept.isEmpty() ? 0 : 1) + spelling.length();
+      if (length + added > 4000) {
+        break;
+      }
+      kept.add(spelling);
+      length += added;
+    }
+    return String.join(kept, '\n');
+  }
+
+  /**
+   * The most frequent value, ties broken by the lowest value: iterating a Map's keySet is not
+   * ordered, so without the sort a rerun over identical data could pick a different display
+   * spelling (or postal prefix) and rewrite every affected place for no reason.
+   */
   private static String mostCommon(Map<String, Integer> counts) {
+    List<String> keys = new List<String>(counts.keySet());
+    keys.sort();
     String best;
     Integer bestN = -1;
-    for (String k : counts.keySet()) {
+    for (String k : keys) {
       if (counts.get(k) > bestN) {
         best = k;
         bestN = counts.get(k);

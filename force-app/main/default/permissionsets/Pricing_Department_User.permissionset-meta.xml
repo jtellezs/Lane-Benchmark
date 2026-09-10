@@ -5,6 +5,10 @@
   >Grants everything needed to use the Pricing Department page. Assign this instead of editing profiles.</description>
     <hasActivationRequired>false</hasActivationRequired>
     <classAccesses>
+        <apexClass>LaneSearchService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>PricingDepartmentController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
@@ -26,6 +30,9 @@
         <object>rtms__Load__c</object>
         <viewAllRecords>false</viewAllRecords>
     </objectPermissions>
+    <!-- Edit here is for Aliases__c and Active__c, the two fields pricing curates. Name has no
+         field-level security of its own, so anyone with this object Edit can also retype it - and
+         PlaceBuilderBatch overwrites it on the next run. -->
     <objectPermissions>
         <allowCreate>false</allowCreate>
         <allowDelete>false</allowDelete>

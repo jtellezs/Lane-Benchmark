@@ -56,23 +56,7 @@ private class PlaceBuilderBatchTest {
       List<Pricing_Place__c> places = pbb.buildPlacesForTest();
       new PlaceWriteBatch(places, false).execute(null, places);
     }
-    PlaceUsageBatch pub = new PlaceUsageBatch();
-    pub.execute(
-      null,
-      [
-        SELECT
-          rtms__Location2__r.ShippingCity,
-          rtms__Location2__r.ShippingState,
-          rtms__Location2__r.ShippingCountry
-        FROM rtms__Stop__c
-        WHERE
-          CreatedDate = LAST_N_DAYS:365
-          AND rtms__Location2__c != NULL
-          AND rtms__Location2__r.ShippingCity != NULL
-      ]
-    );
-    List<Pricing_Place__c> updates = pub.buildUpdatesForTest();
-    new PlaceWriteBatch(updates, false).execute(null, updates);
+    runUsageBatch();
 
     Map<String, Pricing_Place__c> byKey = new Map<String, Pricing_Place__c>();
     for (Pricing_Place__c p : [
@@ -92,15 +76,18 @@ private class PlaceBuilderBatchTest {
     ]) {
       byKey.put(p.Key__c, p);
     }
-    // The graph's own two locations (Montreal/Toronto from createGraph) are also referenced by stops.
+    // Only the three locations created above are referenced by a stop in this test: both loads
+    // run a1/a2 -> a3, so createGraph()'s own origin/destination accounts never reach a stop and
+    // never become places here.
     System.assert(byKey.containsKey('montreal|qc|ca'), byKey.keySet());
     System.assert(byKey.containsKey('laval|qc|ca'), byKey.keySet());
     Pricing_Place__c mtl = byKey.get('montreal|qc|ca');
     System.assertEquals('QC', mtl.Province__c);
     System.assertEquals('CA', mtl.Country__c);
-    System.assert(
-      mtl.Location_Count__c >= 2,
-      'both spellings plus the graph location: ' + mtl.Location_Count__c
+    System.assertEquals(
+      2,
+      mtl.Location_Count__c,
+      'the two Montreal spellings collapsed into one place'
     );
     System.assert(
       mtl.Spellings__c.contains('MONTREAL') &&
@@ -117,9 +104,139 @@ private class PlaceBuilderBatchTest {
       mtl.Postal_Prefix__c
     );
     System.assertEquals(true, mtl.Active__c);
-    // Usage batch ran in finish(): Laval was a destination twice, Montreal an origin twice.
+    // The usage batch counts one per load END: Laval was a destination twice, Montreal an origin
+    // twice.
     System.assertEquals(2, byKey.get('laval|qc|ca').Load_Count_365d__c);
-    System.assert(byKey.get('montreal|qc|ca').Load_Count_365d__c >= 2);
+    System.assertEquals(2, byKey.get('montreal|qc|ca').Load_Count_365d__c);
+  }
+
+  /**
+   * The province defect end to end. Revenova writes Mexican states as 2-letter codes ("General
+   * Escobedo, NL:..."), which PlaceNormalizer did not know, so the builder truncated the full name
+   * to "Nue" and every CITY/PROVINCE search for a Mexican place matched nothing. This builds the
+   * place from a Mexican location account and then runs the search that used to come back empty.
+   */
+  @IsTest
+  static void mexicanProvinceKeepsRevenovasCodeAndCitySearchFindsIt() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Account escobedo = PricingTestDataFactory.createLocation(
+      'Escobedo Co',
+      'General Escobedo',
+      'Nuevo León',
+      'Mexico',
+      '66050',
+      25.7973,
+      -100.3183
+    );
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    PlaceBuilderBatch pbb = new PlaceBuilderBatch();
+    Test.startTest();
+    rtms__Load__c mxLoad = PricingTestDataFactory.createLoad(
+      g,
+      escobedo,
+      escobedo
+    );
+    insert PricingTestDataFactory.buildQuote(g, mxLoad, 1500);
+    Database.executeBatch(pbb, 200);
+    Test.stopTest();
+    // Same chain-depth caveat as the first test: drive the write explicitly if the chain did not.
+    if ([SELECT COUNT() FROM Pricing_Place__c] == 0) {
+      List<Pricing_Place__c> places = pbb.buildPlacesForTest();
+      new PlaceWriteBatch(places, false).execute(null, places);
+    }
+
+    runUsageBatch();
+
+    Pricing_Place__c place = [
+      SELECT Name, Key__c, Province__c, Country__c, Load_Count_365d__c
+      FROM Pricing_Place__c
+      WHERE Key__c = 'general escobedo|nl|mx'
+    ];
+    System.assertEquals(
+      'NL',
+      place.Province__c,
+      'Revenova writes NL for Nuevo León, so the place must too'
+    );
+    System.assertEquals('MX', place.Country__c);
+    System.assertEquals(
+      'General Escobedo, NL, MX',
+      place.Name,
+      'no truncated province in the display name'
+    );
+    System.assertEquals(
+      2,
+      place.Load_Count_365d__c,
+      'one load, both ends in this place: counted once per end'
+    );
+
+    LaneSearchRequest search = new LaneSearchRequest();
+    search.originKey = 'general escobedo|nl|mx';
+    LaneSearchResult result = LaneSearchService.search(search);
+    System.assertEquals(
+      1,
+      result.rows.size(),
+      'CITY precision matches "General Escobedo, NL" on the load'
+    );
+    System.assertEquals(1500, result.rows[0].carrierTotal);
+  }
+
+  /**
+   * A province PlaceNormalizer has no code for is stored whole, not cut to three characters.
+   * These accounts are never inserted - the batch's execute() takes the scope as a list, so the
+   * org's restricted State/Country picklists never come into it.
+   */
+  @IsTest
+  static void unmappedProvinceIsStoredWholeNotTruncated() {
+    PlaceBuilderBatch b = new PlaceBuilderBatch();
+    b.execute(
+      null,
+      new List<Account>{
+        new Account(
+          Name = 'Stuttgart Co',
+          ShippingCity = 'Stuttgart',
+          ShippingState = 'Baden-Württemberg',
+          ShippingCountry = 'Germany',
+          ShippingPostalCode = '70173',
+          ShippingLatitude = 48.7758,
+          ShippingLongitude = 9.1829
+        )
+      }
+    );
+    List<Pricing_Place__c> places = b.buildPlacesForTest();
+    new PlaceWriteBatch(places, false).execute(null, places);
+
+    Pricing_Place__c p = [
+      SELECT Name, Province__c
+      FROM Pricing_Place__c
+      WHERE Key__c = 'stuttgart|baden wurttemberg|ge'
+    ];
+    System.assertEquals('Baden-Württemberg', p.Province__c);
+    System.assertEquals('Stuttgart, Baden-Württemberg, GE', p.Name);
+  }
+
+  /**
+   * Drives PlaceUsageBatch by hand over the same loads its own start() would select. The batch
+   * chain that finish() kicks off is not reliably synchronous at this depth in test context, and
+   * this is idempotent, so running it either way is harmless.
+   */
+  private static void runUsageBatch() {
+    PlaceUsageBatch pub = new PlaceUsageBatch();
+    pub.execute(
+      null,
+      [
+        SELECT
+          rtms__First_Stop__r.rtms__Location2__r.ShippingCity,
+          rtms__First_Stop__r.rtms__Location2__r.ShippingState,
+          rtms__First_Stop__r.rtms__Location2__r.ShippingCountry,
+          rtms__Last_Stop__r.rtms__Location2__r.ShippingCity,
+          rtms__Last_Stop__r.rtms__Location2__r.ShippingState,
+          rtms__Last_Stop__r.rtms__Location2__r.ShippingCountry
+        FROM rtms__Load__c
+        WHERE CreatedDate = LAST_N_DAYS:365
+      ]
+    );
+    List<Pricing_Place__c> updates = pub.buildUpdatesForTest();
+    new PlaceWriteBatch(updates, false).execute(null, updates);
   }
 
   @IsTest

@@ -8,4 +8,6 @@
     <externalId>false</externalId>
     <required>false</required>
     <unique>false</unique>
+    <inlineHelpText
+  >Loads touching this place in the last 365 days: one count per load end, so a load that both picks up and delivers here counts 2. Maintained by PlaceUsageBatch.</inlineHelpText>
 </CustomField>

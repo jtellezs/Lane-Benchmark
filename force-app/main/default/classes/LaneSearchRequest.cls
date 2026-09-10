@@ -1,4 +1,13 @@
-/** Typed input for LaneSearchService. Null or empty means "no constraint". */
+/**
+ * Typed input for LaneSearchService. Null or empty means "no constraint".
+ *
+ * Phase 2's controller should take the search as a JSON String and
+ * `JSON.deserialize(payload, LaneSearchRequest.class)` into this class rather than declaring an
+ * @AuraEnabled parameter of this type: deserializing keeps the field defaults declared below
+ * (lookbackDays 90, CITY precision, MI, rowLimit 2000, includeStopGeolocation) for anything the UI
+ * leaves out, and it accepts the enum fields as their string names, which an @AuraEnabled
+ * parameter of an enum type does not.
+ */
 public class LaneSearchRequest {
   public enum Precision {
     RADIUS,
@@ -42,45 +51,85 @@ public class LaneSearchRequest {
   public Integer rowLimit = 2000;
   public Boolean includeStopGeolocation = true;
 
-  // Brief-specified validation dispatch across four independent concerns (lookbackDays, rowLimit,
-  // origin/destination radius, currency); a per-field refactor is a call for a later task, not a
-  // faithful implementation of this one.
-  @SuppressWarnings('PMD.CyclomaticComplexity')
+  /**
+   * Validates and normalizes in place: a blank currency becomes null, and a ZIP3 prefix is
+   * uppercased. One helper per concern, so no method (and not this class) needs a complexity
+   * suppression - the same ruling that split LaneSearchQueryBuilder.
+   */
   public void validate() {
+    validateLookback();
+    validateRowLimit();
+    validateRadius(originPrecision, originKey, originRadius, 'originRadius');
+    validateRadius(
+      destinationPrecision,
+      destinationKey,
+      destinationRadius,
+      'destinationRadius'
+    );
+    validateCurrency();
+    originZip3 = validatedZip3(originZip3, 'originZip3');
+    destinationZip3 = validatedZip3(destinationZip3, 'destinationZip3');
+  }
+
+  private void validateLookback() {
     if (lookbackDays == null || lookbackDays < 1) {
       throw new LaneSearchException(
         'lookbackDays must be a positive integer (default 90)'
       );
     }
+  }
+
+  private void validateRowLimit() {
     if (rowLimit == null || rowLimit < 1 || rowLimit > 2000) {
       throw new LaneSearchException('rowLimit must be between 1 and 2000');
     }
+  }
+
+  // The parameter is endPrecision, not precision: Apex is case-insensitive, so a local named
+  // "precision" hides the "Precision" enum type and Precision.RADIUS stops compiling.
+  private static void validateRadius(
+    Precision endPrecision,
+    String key,
+    Decimal radius,
+    String fieldName
+  ) {
     if (
-      originPrecision == Precision.RADIUS &&
-      String.isNotBlank(originKey) &&
-      (originRadius == null ||
-      originRadius <= 0)
+      endPrecision == Precision.RADIUS &&
+      String.isNotBlank(key) &&
+      (radius == null ||
+      radius <= 0)
     ) {
       throw new LaneSearchException(
-        'originRadius is required and must be positive for RADIUS precision'
+        fieldName + ' is required and must be positive for RADIUS precision'
       );
     }
-    if (
-      destinationPrecision == Precision.RADIUS &&
-      String.isNotBlank(destinationKey) &&
-      (destinationRadius == null ||
-      destinationRadius <= 0)
-    ) {
-      throw new LaneSearchException(
-        'destinationRadius is required and must be positive for RADIUS precision'
-      );
+  }
+
+  /** Blank means "both currencies", the same as null - a UI that sends "" is not an error. */
+  private void validateCurrency() {
+    if (String.isBlank(currencyIsoCode)) {
+      currencyIsoCode = null;
+      return;
     }
-    if (
-      currencyIsoCode != null &&
-      currencyIsoCode != 'CAD' &&
-      currencyIsoCode != 'USD'
-    ) {
+    if (currencyIsoCode != 'CAD' && currencyIsoCode != 'USD') {
       throw new LaneSearchException('currencyIsoCode must be CAD, USD or null');
     }
+  }
+
+  /**
+   * A postal prefix is exactly three letters or digits ("H1A", "660"), uppercased so it matches
+   * Revenova's rtms__Zip3_Lane__c. Blank means "use the place's own prefix" and stays blank.
+   */
+  private static String validatedZip3(String value, String fieldName) {
+    if (String.isBlank(value)) {
+      return value;
+    }
+    String trimmed = value.trim();
+    if (!Pattern.matches('[A-Za-z0-9]{3}', trimmed)) {
+      throw new LaneSearchException(
+        fieldName + ' must be exactly 3 letters or digits'
+      );
+    }
+    return trimmed.toUpperCase();
   }
 }

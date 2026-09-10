@@ -1,5 +1,14 @@
 /**
- * Counts, per place key, the stops created in the last 365 days, and writes Load_Count_365d__c.
+ * Counts, per place key, the LOADS created in the last 365 days that touch that place, and writes
+ * Load_Count_365d__c. One count per load END: a load whose first stop is in the place counts once,
+ * a load whose last stop is in the place counts once, so a load that both picks up and delivers in
+ * the same place counts 2 there. Ends whose stop has no location account, or whose location
+ * account has no city, are skipped - they have no place to count against.
+ *
+ * Was "stops in the last 365 days", which counted a load's intermediate stops (a place could
+ * score on a load that neither started nor ended there) and made the number impossible to state
+ * plainly. Load_Count_365d__c means "loads touching this place (last 365 days)".
+ *
  * The changed rows are handed to PlaceWriteBatch (chainUsageBatch=false) rather than updated
  * directly here, for the same governor-limit reason PlaceBuilderBatch does: a single update of
  * every place in a large org can exceed the 10,000-DML-row-per-transaction limit.
@@ -15,27 +24,38 @@ public without sharing class PlaceUsageBatch implements Database.Batchable<SObje
     return Database.getQueryLocator(
       [
         SELECT
-          rtms__Location2__r.ShippingCity,
-          rtms__Location2__r.ShippingState,
-          rtms__Location2__r.ShippingCountry
-        FROM rtms__Stop__c
-        WHERE
-          CreatedDate = LAST_N_DAYS:365
-          AND rtms__Location2__c != NULL
-          AND rtms__Location2__r.ShippingCity != NULL
+          rtms__First_Stop__r.rtms__Location2__r.ShippingCity,
+          rtms__First_Stop__r.rtms__Location2__r.ShippingState,
+          rtms__First_Stop__r.rtms__Location2__r.ShippingCountry,
+          rtms__Last_Stop__r.rtms__Location2__r.ShippingCity,
+          rtms__Last_Stop__r.rtms__Location2__r.ShippingState,
+          rtms__Last_Stop__r.rtms__Location2__r.ShippingCountry
+        FROM rtms__Load__c
+        WHERE CreatedDate = LAST_N_DAYS:365
       ]
     );
   }
 
-  public void execute(Database.BatchableContext bc, List<rtms__Stop__c> scope) {
-    for (rtms__Stop__c s : scope) {
-      String key = PlaceNormalizer.key(
-        s.rtms__Location2__r.ShippingCity,
-        s.rtms__Location2__r.ShippingState,
-        s.rtms__Location2__r.ShippingCountry
-      );
-      counts.put(key, (counts.containsKey(key) ? counts.get(key) : 0) + 1);
+  public void execute(Database.BatchableContext bc, List<rtms__Load__c> scope) {
+    for (rtms__Load__c l : scope) {
+      countEnd(l.rtms__First_Stop__r?.rtms__Location2__r);
+      countEnd(l.rtms__Last_Stop__r?.rtms__Location2__r);
     }
+  }
+
+  /** One load end. Null location account, or one with no city, has no place to count against. */
+  private void countEnd(Account location) {
+    if (location == null || String.isBlank(location.ShippingCity)) {
+      return;
+    }
+    // Same Text(120) cap PlaceBuilderBatch applies, so a very long key still matches its place.
+    String key = PlaceNormalizer.key(
+        location.ShippingCity,
+        location.ShippingState,
+        location.ShippingCountry
+      )
+      .left(120);
+    counts.put(key, (counts.containsKey(key) ? counts.get(key) : 0) + 1);
   }
 
   public void finish(Database.BatchableContext bc) {

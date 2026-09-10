@@ -70,9 +70,78 @@ public with sharing class PlaceNormalizer {
     'wyoming' => 'WY',
     'district of columbia' => 'DC'
   };
-  private static final Set<String> PROVINCE_CODES = new Set<String>(
-    PROVINCES.values()
-  );
+  /**
+   * Mexican states, mapped to the codes Revenova actually writes into rtms__State_Lane__c and the
+   * province half of rtms__City_Lane__c. Measured in PostProduc on 2026-09-09 by grouping
+   * rtms__Load__c.rtms__State_Lane__c against the first/last stop location account's
+   * ShippingState over 730 days: Revenova writes a 2-letter code ("General Escobedo, NL:Laredo,
+   * TX", "NL:TX"), NOT the full name and not the 3-letter ISO 3166-2:MX code, so Province__c has
+   * to hold that same 2-letter code for the PROVINCE and CITY precisions to match anything.
+   * Twenty-five states plus Distrito Federal were confirmed against real loads; seven states have
+   * no load in this org at all, so their codes come from the same 2-letter series rather than from
+   * measurement and are marked "unverified" below.
+   *
+   * Ciudad de México and Federal District are Salesforce's two picklist labels for one entity and
+   * Revenova writes a DIFFERENT code for each (MX vs DF, both measured), so both are kept: a place
+   * must carry whatever code the loads for that place carry, not a tidier merged one.
+   *
+   * Keys are accent-stripped and lowercased because provinceCode() looks them up that way, which
+   * is what makes "Nuevo León", "Nuevo Leon" and "NUEVO LEON" one place.
+   */
+  private static final Map<String, String> MX_STATES = new Map<String, String>{
+    'aguascalientes' => 'AG',
+    'baja california' => 'BC',
+    'baja california norte' => 'BC',
+    'baja california sur' => 'BS',
+    'campeche' => 'CP', // unverified: no load in this org
+    'chiapas' => 'CS', // unverified: no load in this org
+    'chihuahua' => 'CH',
+    'ciudad de mexico' => 'MX',
+    'cdmx' => 'MX',
+    'mexico city' => 'MX',
+    'distrito federal' => 'DF',
+    'federal district' => 'DF',
+    'coahuila' => 'CO',
+    'coahuila de zaragoza' => 'CO',
+    'colima' => 'CL',
+    'durango' => 'DG',
+    'guanajuato' => 'GT',
+    'guerrero' => 'GR',
+    'hidalgo' => 'HG',
+    'jalisco' => 'JA',
+    'mexico state' => 'ME',
+    'estado de mexico' => 'ME',
+    'state of mexico' => 'ME',
+    'mexico' => 'ME', // the STATE named México; no US or Canadian state shares the name
+    'michoacan' => 'MI',
+    'michoacan de ocampo' => 'MI',
+    'morelos' => 'MO',
+    'nayarit' => 'NA', // unverified: no load in this org
+    'nuevo leon' => 'NL',
+    'oaxaca' => 'OA', // unverified: no load in this org
+    'puebla' => 'PB',
+    'queretaro' => 'QE',
+    'quintana roo' => 'QR', // unverified: no load in this org
+    'san luis potosi' => 'SL',
+    'sinaloa' => 'SI', // unverified: no load in this org
+    'sonora' => 'SO',
+    'tabasco' => 'TB', // unverified: no load in this org
+    'tamaulipas' => 'TM',
+    'tlaxcala' => 'TL',
+    'veracruz' => 'VE',
+    'veracruz de ignacio de la llave' => 'VE',
+    'yucatan' => 'YU',
+    'zacatecas' => 'ZA'
+  };
+  // Declared after both maps on purpose: Apex initializes static finals in declaration order.
+  private static final Set<String> PROVINCE_CODES = allProvinceCodes();
+
+  private static Set<String> allProvinceCodes() {
+    Set<String> codes = new Set<String>(PROVINCES.values());
+    codes.addAll(MX_STATES.values());
+    return codes;
+  }
+
   private static final Map<String, String> COUNTRIES = new Map<String, String>{
     'canada' => 'CA',
     'ca' => 'CA',
@@ -157,10 +226,20 @@ public with sharing class PlaceNormalizer {
   }
 
   public static String normalizeCity(String city) {
-    if (String.isBlank(city)) {
+    return normalizeSegment(city);
+  }
+
+  /**
+   * The one normalization every key segment goes through: accents stripped, lowercased,
+   * punctuation collapsed to single spaces. Applied to the province segment as well as the city
+   * segment so an unmapped province ("Baden-Württemberg", "Baden-Wurttemberg") cannot split one
+   * place in two.
+   */
+  private static String normalizeSegment(String value) {
+    if (String.isBlank(value)) {
       return '';
     }
-    String s = stripAccents(city).toLowerCase();
+    String s = stripAccents(value).toLowerCase();
     s = s.replaceAll('[^a-z0-9 ]', ' ');
     return s.normalizeSpace();
   }
@@ -174,7 +253,13 @@ public with sharing class PlaceNormalizer {
     if (upper.length() == 2 && PROVINCE_CODES.contains(upper)) {
       return upper;
     }
-    String mapped = PROVINCES.get(stripAccents(t).toLowerCase());
+    String lookup = stripAccents(t).toLowerCase();
+    String mapped = PROVINCES.get(lookup);
+    if (mapped == null) {
+      mapped = MX_STATES.get(lookup);
+    }
+    // Still unknown: return the value as typed, in full. Truncating here is what produced the
+    // "GENERAL ESCOBEDO, Nue, MX" places; Province__c is Text(80), as wide as ShippingState.
     return mapped != null ? mapped : t;
   }
 
@@ -190,10 +275,15 @@ public with sharing class PlaceNormalizer {
     return t.toUpperCase().left(2);
   }
 
+  /**
+   * city|province|country, every segment normalized the same way (see normalizeSegment): the
+   * province goes through provinceCode() first, so "Nuevo León", "Nuevo Leon", "NUEVO LEON" and
+   * "NL" all land on "nl" and share one place.
+   */
   public static String key(String city, String province, String country) {
-    return normalizeCity(city) +
+    return normalizeSegment(city) +
       '|' +
-      provinceCode(province).toLowerCase() +
+      normalizeSegment(provinceCode(province)) +
       '|' +
       countryCode(country).toLowerCase();
   }

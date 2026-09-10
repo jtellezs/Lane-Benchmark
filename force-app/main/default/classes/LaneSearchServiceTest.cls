@@ -50,8 +50,10 @@ private class LaneSearchServiceTest {
       45.6066,
       -73.7124
     );
+    // The place carries ONLY the accented spelling; the factory writes "Montreal, QC" on the load,
+    // so a CITY match here can only come from cityLaneVariants' accent-stripped variant.
     insert new List<Pricing_Place__c>{
-      place('Montreal', 'QC', 'CA', 45.5019, -73.5674, 'H1A', 'Montréal'),
+      place('Montréal', 'QC', 'CA', 45.5019, -73.5674, 'H1A', null),
       place('Laval', 'QC', 'CA', 45.6066, -73.7124, 'H7P', null),
       place('Toronto', 'ON', 'CA', 43.6532, -79.3832, 'A1A', null)
     };
@@ -81,7 +83,7 @@ private class LaneSearchServiceTest {
     Fixture f = fixture();
     Test.startTest();
     createLoadsAndQuotes(f);
-    // Montreal's place lists the accented spelling; the factory wrote "Montreal, QC" on the load.
+    // The place's only spelling is "Montréal"; the load says "Montreal, QC".
     LaneSearchResult r = LaneSearchService.search(
       req('montreal|qc|ca', 'toronto|on|ca')
     );
@@ -129,13 +131,40 @@ private class LaneSearchServiceTest {
   @IsTest
   static void blankEndsMeanNoConstraintAndRowsAreNewestFirst() {
     Fixture f = fixture();
+    // One load, two quotes: Test.setCreatedDate() is rejected once the test context has started,
+    // and a single createLoad() fits the un-reset governor budget (see the factory's class doc).
+    f.mtlTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation
+    );
+    rtms__CarrierQuote__c older = PricingTestDataFactory.buildQuote(
+      f.g,
+      f.mtlTor,
+      1000
+    );
+    rtms__CarrierQuote__c newer = PricingTestDataFactory.buildQuote(
+      f.g,
+      f.mtlTor,
+      2000
+    );
+    insert new List<rtms__CarrierQuote__c>{ older, newer };
+    Test.setCreatedDate(older.Id, Datetime.now().addDays(-10));
+    Test.setCreatedDate(newer.Id, Datetime.now().addDays(-1));
     Test.startTest();
-    createLoadsAndQuotes(f);
     LaneSearchResult r = LaneSearchService.search(req(null, null));
     Test.stopTest();
     System.assertEquals(2, r.rows.size());
     System.assertEquals(false, r.truncated);
-    System.assert(r.elapsedMs >= 0);
+    System.assertEquals(
+      2000,
+      r.rows[0].carrierTotal,
+      'ORDER BY CreatedDate DESC puts the newer quote first'
+    );
+    System.assert(
+      r.rows[0].createdDate > r.rows[1].createdDate,
+      'the row carries the date it is ordered by'
+    );
   }
 
   @IsTest
@@ -169,10 +198,8 @@ private class LaneSearchServiceTest {
   /**
    * Not in the brief: added because this org enforces per-class 75% coverage under
    * RunSpecifiedTests (deploy 0AfbZ00000CneztSAB's codeCoverageWarnings), and the brief's five
-   * tests alone leave LaneSearchRequest at 72.97% and LaneSearchResult at 71.43% - both just under
-   * the gate. rowLimit/currencyIsoCode/destinationRadius are real validate() branches the brief
-   * wrote but never exercised; the Stats construction is a coverage-only line (Task 7 populates
-   * statsByCurrency for real) that keeps LaneSearchResult above the gate until then.
+   * tests alone left LaneSearchRequest under the gate. rowLimit/currencyIsoCode/destinationRadius
+   * are real validate() branches the brief wrote but never exercised.
    */
   @IsTest
   static void validateRejectsBadRowLimitCurrencyAndDestinationRadius() {
@@ -206,8 +233,160 @@ private class LaneSearchServiceTest {
       );
     }
 
-    LaneSearchResult.Stats s = new LaneSearchResult.Stats();
-    System.assertEquals(0, s.count, 'Stats.count defaults to 0');
+    // Blank is not a bad currency: it means "both", the same as null.
+    LaneSearchRequest blankCurrency = req(null, null);
+    blankCurrency.currencyIsoCode = '   ';
+    LaneSearchService.search(blankCurrency);
+
+    LaneSearchRequest badZip3 = req(null, null);
+    badZip3.originPrecision = LaneSearchRequest.Precision.ZIP3;
+    badZip3.originZip3 = 'H1A2';
+    try {
+      LaneSearchService.search(badZip3);
+      System.assert(false, 'originZip3 must be exactly 3 characters');
+    } catch (LaneSearchException e) {
+      System.assert(e.getMessage().contains('originZip3'), e.getMessage());
+    }
+
+    LaneSearchRequest lowerZip3 = req(null, null);
+    lowerZip3.destinationPrecision = LaneSearchRequest.Precision.ZIP3;
+    lowerZip3.destinationZip3 = ' h1a ';
+    LaneSearchService.search(lowerZip3);
+    System.assertEquals(
+      'H1A',
+      lowerZip3.destinationZip3,
+      'a valid prefix is trimmed and uppercased in place'
+    );
+  }
+
+  /**
+   * Every precision has to look at the correct side of Revenova's lane key, so each of these
+   * asserts a count that differs by end against the same two loads (Montreal->Toronto and
+   * Laval->Toronto): a request that matched both ends the same way would fail all four.
+   */
+  @IsTest
+  static void destinationEndMatchesTheOtherSideOfTheProvinceAndZip3Lanes() {
+    Fixture f = fixture();
+    Test.startTest();
+    createLoadsAndQuotes(f);
+    LaneSearchRequest qcOrigin = req('montreal|qc|ca', null);
+    qcOrigin.originPrecision = LaneSearchRequest.Precision.PROVINCE;
+    LaneSearchRequest qcDestination = req(null, 'montreal|qc|ca');
+    qcDestination.destinationPrecision = LaneSearchRequest.Precision.PROVINCE;
+    LaneSearchRequest zipOrigin = req('toronto|on|ca', null);
+    zipOrigin.originPrecision = LaneSearchRequest.Precision.ZIP3;
+    LaneSearchRequest zipDestination = req(null, 'toronto|on|ca');
+    zipDestination.destinationPrecision = LaneSearchRequest.Precision.ZIP3;
+    LaneSearchResult qcFrom = LaneSearchService.search(qcOrigin);
+    LaneSearchResult qcTo = LaneSearchService.search(qcDestination);
+    LaneSearchResult zipFrom = LaneSearchService.search(zipOrigin);
+    LaneSearchResult zipTo = LaneSearchService.search(zipDestination);
+    Test.stopTest();
+    System.assertEquals(2, qcFrom.rows.size(), 'both loads leave Quebec');
+    System.assertEquals(
+      0,
+      qcTo.rows.size(),
+      'neither load delivers in Quebec: "QC:%" must not match "%:QC"'
+    );
+    // Toronto's place prefix is A1A, the generic test postal the factory geocodes its own
+    // locations with, so it is the origin prefix of Montreal->Toronto and the destination prefix
+    // of both loads.
+    System.assertEquals(1, zipFrom.rows.size(), 'only "A1A:..." matches');
+    System.assertEquals(1000, zipFrom.rows[0].carrierTotal);
+    System.assertEquals(2, zipTo.rows.size(), 'both loads end in "...:A1A"');
+  }
+
+  @IsTest
+  static void destinationRadiusMeasuresFromTheDeliveryEnd() {
+    Fixture f = fixture();
+    Test.startTest();
+    createLoadsAndQuotes(f);
+    LaneSearchRequest fromToronto = req('toronto|on|ca', null);
+    fromToronto.originPrecision = LaneSearchRequest.Precision.RADIUS;
+    fromToronto.originRadius = 25;
+    LaneSearchRequest toToronto = req(null, 'toronto|on|ca');
+    toToronto.destinationPrecision = LaneSearchRequest.Precision.RADIUS;
+    toToronto.destinationRadius = 25;
+    LaneSearchResult origin = LaneSearchService.search(fromToronto);
+    LaneSearchResult destination = LaneSearchService.search(toToronto);
+    Test.stopTest();
+    System.assertEquals(
+      0,
+      origin.rows.size(),
+      'neither load picks up within 25 mi of Toronto'
+    );
+    System.assertEquals(
+      2,
+      destination.rows.size(),
+      'both loads deliver in Toronto'
+    );
+  }
+
+  /**
+   * A place that never got coordinates or a postal prefix (a location account with neither) has to
+   * say so rather than silently searching without that end's constraint. Both throws happen while
+   * the SOQL is being built, so no load is needed.
+   */
+  @IsTest
+  static void placesWithoutCoordinatesOrAPostalPrefixThrow() {
+    fixture();
+    insert place('Nowhere', 'ZZ', 'CA', null, null, null, null);
+
+    LaneSearchRequest noCoordinates = req('nowhere|zz|ca', null);
+    noCoordinates.originPrecision = LaneSearchRequest.Precision.RADIUS;
+    noCoordinates.originRadius = 25;
+    try {
+      LaneSearchService.search(noCoordinates);
+      System.assert(
+        false,
+        'a place with no coordinates cannot be a radius center'
+      );
+    } catch (LaneSearchException e) {
+      System.assert(
+        e.getMessage().contains('has no coordinates'),
+        e.getMessage()
+      );
+    }
+
+    LaneSearchRequest noPrefix = req(null, 'nowhere|zz|ca');
+    noPrefix.destinationPrecision = LaneSearchRequest.Precision.ZIP3;
+    try {
+      LaneSearchService.search(noPrefix);
+      System.assert(false, 'a place with no postal prefix cannot drive ZIP3');
+    } catch (LaneSearchException e) {
+      System.assert(
+        e.getMessage().contains('has no postal prefix'),
+        e.getMessage()
+      );
+      System.assert(
+        e.getMessage().contains('destinationZip3'),
+        'the message names the field that would fix it: ' + e.getMessage()
+      );
+    }
+  }
+
+  /** LIKE wildcards in a place's own spelling must not widen the search. */
+  @IsTest
+  static void escapeLikeNeutralizesWildcards() {
+    System.assertEquals(
+      'a\\%b\\_c',
+      LaneSearchQueryBuilder.escapeLike('a%b_c')
+    );
+    System.assertEquals(
+      '100\\% Pure',
+      LaneSearchQueryBuilder.escapeLike('100% Pure')
+    );
+    System.assertEquals(
+      'a\\\\b',
+      LaneSearchQueryBuilder.escapeLike('a\\b'),
+      'the escape character itself is escaped first'
+    );
+    System.assertEquals('', LaneSearchQueryBuilder.escapeLike(null));
+    System.assertEquals(
+      'Montreal, QC',
+      LaneSearchQueryBuilder.escapeLike('Montreal, QC'),
+      'ordinary text is untouched'
+    );
   }
 
   @IsTest
