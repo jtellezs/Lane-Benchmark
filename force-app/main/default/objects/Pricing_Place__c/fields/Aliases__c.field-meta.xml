@@ -2,9 +2,11 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Aliases__c</fullName>
     <label>Aliases</label>
-    <type>LongTextArea</type>
-    <length>4000</length>
-    <visibleLines>4</visibleLines>
+    <type>Text</type>
+    <length>255</length>
+    <externalId>false</externalId>
+    <required>false</required>
+    <unique>false</unique>
     <inlineHelpText
-  >Curated by pricing, one alias per line (e.g. Mtl). Never overwritten by the batch.</inlineHelpText>
+  >Curated by pricing, comma-separated (e.g. Mtl, Montreal-Nord). Matched by Lane Benchmark autocomplete. Never overwritten by the batch.</inlineHelpText>
 </CustomField>
