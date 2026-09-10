@@ -16,6 +16,7 @@
         <members>marginMath</members>
         <members>laneBenchmarkCsv</members>
         <members>laneBenchmarkStorage</members>
+        <members>laneBenchmarkPlacePicker</members>
         <name>LightningComponentBundle</name>
     </types>
     <!-- Apex -->

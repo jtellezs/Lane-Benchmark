@@ -1,0 +1,114 @@
+<template>
+  <div class="slds-form-element picker" onkeydown={handleKey}>
+    <div class="slds-grid slds-gutters_x-small slds-grid_vertical-align-end">
+      <div class="slds-col slds-size_7-of-12 slds-is-relative">
+        <lightning-input
+          data-id="term"
+          label={label}
+          value={displayValue}
+          placeholder="City, province or alias"
+          onchange={handleTerm}
+          autocomplete="off"
+        ></lightning-input>
+        <template lwc:if={hasValue}>
+          <button
+            data-id="clear"
+            class="slds-button slds-button_icon clear"
+            title="Clear"
+            onclick={handleClear}
+          >
+            <lightning-icon
+              icon-name="utility:clear"
+              size="x-small"
+              alternative-text="Clear"
+            ></lightning-icon>
+          </button>
+        </template>
+        <template lwc:if={isOpen}>
+          <div
+            class="slds-dropdown slds-dropdown_fluid slds-dropdown_length-10 list"
+            role="listbox"
+          >
+            <ul class="slds-listbox slds-listbox_vertical">
+              <template for:each={listItems} for:item="o">
+                <li
+                  key={o.key}
+                  data-key={o.key}
+                  class="slds-listbox__item option"
+                  role="option"
+                  onclick={handlePick}
+                >
+                  <span class="slds-truncate">{o.label}</span>
+                  <span class="slds-text-color_weak slds-m-left_x-small"
+                    >{o.loadText}</span
+                  >
+                  <template lwc:if={o.isMapbox}
+                    ><span class="slds-badge slds-m-left_x-small"
+                      >Mapbox</span
+                    ></template
+                  >
+                </li>
+              </template>
+            </ul>
+            <template lwc:if={showMapAction}>
+              <div class="slds-p-around_x-small slds-border_top">
+                <button
+                  data-id="map-search"
+                  class="slds-button slds-button_neutral slds-button_stretch"
+                  onclick={handleMapSearch}
+                >
+                  Not found? Search on the map
+                </button>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+      <div class="slds-col slds-size_5-of-12">
+        <lightning-combobox
+          data-id="precision"
+          label="Precision"
+          value={precision}
+          options={precisionOptions}
+          onchange={handlePrecision}
+        ></lightning-combobox>
+      </div>
+    </div>
+    <template lwc:if={isRadius}>
+      <div class="slds-grid slds-gutters_x-small slds-m-top_x-small">
+        <div class="slds-col slds-size_7-of-12">
+          <lightning-input
+            data-id="radius"
+            type="number"
+            min="1"
+            step="1"
+            label="Radius"
+            value={radius}
+            onchange={handleRadius}
+          ></lightning-input>
+        </div>
+        <div class="slds-col slds-size_5-of-12">
+          <lightning-radio-group
+            data-id="unit"
+            label="Unit"
+            type="button"
+            options={unitOptions}
+            value={unit}
+            onchange={handleUnit}
+          ></lightning-radio-group>
+        </div>
+      </div>
+    </template>
+    <template lwc:if={isSearching}
+      ><lightning-spinner
+        size="small"
+        alternative-text="Searching"
+      ></lightning-spinner
+    ></template>
+    <template lwc:if={error}
+      ><div class="slds-text-color_error slds-m-top_xx-small">
+        {error}
+      </div></template
+    >
+  </div>
+</template>
