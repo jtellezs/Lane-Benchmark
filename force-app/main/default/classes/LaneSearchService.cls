@@ -25,7 +25,7 @@ public without sharing class LaneSearchService {
       AccessLevel.SYSTEM_MODE
     );
     LaneSearchResult result = new LaneSearchResult();
-    result.elapsedMs = System.currentTimeMillis() - t0;
+    result.elapsedMs = (System.currentTimeMillis() - t0).intValue();
     result.truncated = quotes.size() > req.rowLimit;
     if (result.truncated) {
       quotes.remove(quotes.size() - 1);
@@ -171,6 +171,7 @@ public without sharing class LaneSearchService {
     r.accepted = q.rtms__Accepted__c;
     r.loadStatus = q.Load_Status__c;
     r.opsComments = q.Ops_Comments__c;
+    r.createdDate = q.CreatedDate;
     return r;
   }
 }
