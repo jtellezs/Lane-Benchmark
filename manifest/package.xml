@@ -13,6 +13,9 @@
     <types>
         <members>pricingDepartment</members>
         <members>quoteStats</members>
+        <members>marginMath</members>
+        <members>laneBenchmarkCsv</members>
+        <members>laneBenchmarkStorage</members>
         <name>LightningComponentBundle</name>
     </types>
     <!-- Apex -->
