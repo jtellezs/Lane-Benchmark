@@ -3194,22 +3194,20 @@ describe("c-lane-benchmark", () => {
       radius: 100,
       unit: "KM"
     });
-    el.shadowRoot
-      .querySelector("c-lane-benchmark-filters")
-      .dispatchEvent(
-        new CustomEvent("filterschange", {
-          detail: {
-            lookbackDays: 120,
-            currencyIsoCode: "CAD",
-            modes: ["LTL"],
-            equipmentCategories: [],
-            equipmentTypes: [],
-            hazmatOnly: false,
-            marketTestOnly: false,
-            acceptedFilter: "ANY_STATUS"
-          }
-        })
-      );
+    el.shadowRoot.querySelector("c-lane-benchmark-filters").dispatchEvent(
+      new CustomEvent("filterschange", {
+        detail: {
+          lookbackDays: 120,
+          currencyIsoCode: "CAD",
+          modes: ["LTL"],
+          equipmentCategories: [],
+          equipmentTypes: [],
+          hazmatOnly: false,
+          marketTestOnly: false,
+          acceptedFilter: "ANY_STATUS"
+        }
+      })
+    );
     el.shadowRoot
       .querySelector("c-lane-benchmark-filters")
       .dispatchEvent(new CustomEvent("apply"));
@@ -3276,19 +3274,17 @@ describe("c-lane-benchmark", () => {
       radius: 100,
       unit: "MI"
     });
-    el.shadowRoot
-      .querySelector("c-lane-benchmark-filters")
-      .dispatchEvent(
-        new CustomEvent("filterschange", {
-          detail: {
-            lookbackDays: 730,
-            modes: [],
-            equipmentCategories: [],
-            equipmentTypes: [],
-            acceptedFilter: "ANY_STATUS"
-          }
-        })
-      );
+    el.shadowRoot.querySelector("c-lane-benchmark-filters").dispatchEvent(
+      new CustomEvent("filterschange", {
+        detail: {
+          lookbackDays: 730,
+          modes: [],
+          equipmentCategories: [],
+          equipmentTypes: [],
+          acceptedFilter: "ANY_STATUS"
+        }
+      })
+    );
     el.shadowRoot
       .querySelector("c-lane-benchmark-filters")
       .dispatchEvent(new CustomEvent("apply"));
