@@ -56,7 +56,7 @@ the search semantics of phase 1.
   `MapboxGeocoder`, object read on `rtms__CarrierQuote__c`, `rtms__Load__c`,
   `Pricing_Place__c` (edit on `Aliases__c`/`Active__c` stays in
   `Pricing_Department_User`), field read on every field the page shows, and
-  access to the Named Credential's external credential principal. It is
+  nothing else. It is
   assigned by the user to the pricing team after deploy; `Pricing_Department_User`
   is unchanged.
 
@@ -88,14 +88,23 @@ adds them). This is a phase 1 class edit, covered by an added assertion in
   map of the origin and destination circles (Static Images API). What it does
   not do: any distance filtering; that stays in SOQL over Revenova's geocoded
   stops.
-- **Credentials:** the secret token never enters git or the browser. An
-  External Credential `Mapbox` (custom authentication) with a named principal
-  holding the token as a parameter, a Named Credential `Mapbox` for
-  `https://api.mapbox.com`, and the token appended by `MapboxGeocoder` as
-  `access_token` from `{!$Credential.Mapbox.token}`. The user enters the token
-  in Setup after the first deploy; the README documents the steps. If the
-  company's key is a public `pk.` token with URL restrictions, it still stays
-  server-side here.
+- **Credentials (decided 2026-09-09 after inspecting the org):** the company
+  already stores a Mapbox **public** token (`pk.`) in the org-default record
+  of the hierarchy custom setting `TPRO_KPI__c`, field `Mapbox_Api_Key__c`,
+  and already has an active Remote Site Setting `MapBox` for
+  `https://api.mapbox.com`; `KPI_ReportController` uses both today. Phase 2
+  reuses them: `MapboxGeocoder` reads
+  `TPRO_KPI__c.getOrgDefaults().Mapbox_Api_Key__c` at call time and throws
+  `MapboxException('Mapbox token is not configured')` when blank; no Named
+  Credential is introduced, no token enters git. Because the token is a
+  public one, the static map preview may use the same token in the image
+  URL, which is Mapbox's intended model for `pk.` tokens; the user should
+  add URL restrictions for the Salesforce domains
+  (`*.my.salesforce.com`, `*.lightning.force.com`, `*.sandbox.my.salesforce.com`)
+  on the token in the Mapbox account, and the README says so. The
+  `Lane_Benchmark_User` permission set needs no credential access; it needs
+  read on the `TPRO_KPI__c` setting only if a future change moves the read
+  out of system mode (Apex reads custom settings regardless of FLS).
 - **`MapboxGeocoder`:** `public with sharing class` with
   `static List<GeoResult> forward(String query, String countryHint)`
   (`GeoResult { name, city, province, country, lat, lng, postalPrefix }`,
@@ -110,12 +119,10 @@ adds them). This is a phase 1 class edit, covered by an added assertion in
   Static Images API with two circle overlays (GeoJSON `overlay` parameter)
   centred on the chosen origin and destination with their radii, 600×300,
   only when at least one end uses RADIUS precision. This needs the token in
-  the image URL, so the image URL is built by the controller
-  (`mapPreviewUrl(...)`) using a **separate public `pk.` token restricted to
-  the Salesforce domains**, stored in a second named principal parameter
-  (`publicToken`); if the company has no restricted public token yet, the map
-  preview is disabled (the component renders nothing) and the rest works.
-  A CSP Trusted Site for `https://api.mapbox.com` (img-src) is added.
+  the image URL, so the controller builds it (`mapPreviewUrl(...)`) with the
+  same public token from the custom setting; the component renders nothing
+  when the token is blank. A CSP Trusted Site for `https://api.mapbox.com`
+  (img-src) is added.
 - **Caching:** every geocoded result is stored as a `Pricing_Place__c` with
   `Source__c = 'Mapbox'`, `Location_Count__c = 0`, `Load_Count_365d__c = 0`,
   `Active__c = true`; it appears in later autocompletes for everyone, ranked
@@ -204,11 +211,11 @@ widening the radius or the lookback.
 1. Tab, page, app and permission set deployed to PostProduc through CI; the
    TransPro app shows the tab; the user assigns `Lane_Benchmark_User` to
    pricing.
-2. Named Credential configured with the company token by the user; a geocode
-   of "Saguenay, QC" from the page creates a Mapbox place and a search runs
-   from it.
+2. The existing token in `TPRO_KPI__c.Mapbox_Api_Key__c` works from the page:
+   a geocode of "Saguenay, QC" creates a Mapbox place and a search runs from
+   it; the user has added URL restrictions on the token in Mapbox.
 3. A pricing user completes a Montreal→Toronto search at each precision, a
    USD lane, and a CSV export; margins at 15% and 20% show suggested sell.
 4. All Jest and Apex tests pass in CI; PMD clean.
-5. README documents the Mapbox setup, the token handling, the storage key,
+5. README documents the Mapbox reuse (custom setting, remote site, token restrictions), the storage key,
    and the retirement plan for the old tab; roadmap updated.
