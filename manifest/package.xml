@@ -27,6 +27,9 @@
         <members>PlaceUsageBatch</members>
         <members>PlaceWriteBatch</members>
         <members>PlaceBuilderBatchTest</members>
+        <members>LaneBenchmarkController</members>
+        <members>LaneBenchmarkControllerTest</members>
+        <members>LaneBenchmarkPlaceService</members>
         <members>LaneSearchException</members>
         <members>LaneSearchFilters</members>
         <members>LaneSearchQueryBuilder</members>
@@ -34,6 +37,9 @@
         <members>LaneSearchResult</members>
         <members>LaneSearchService</members>
         <members>LaneSearchServiceTest</members>
+        <members>MapboxException</members>
+        <members>MapboxGeocoder</members>
+        <members>MapboxGeocoderTest</members>
         <name>ApexClass</name>
     </types>
     <types>
@@ -97,6 +103,7 @@
         <members>Pricing_Place__c.Spellings__c</members>
         <members>Pricing_Place__c.Postal_Prefix__c</members>
         <members>Pricing_Place__c.Active__c</members>
+        <members>Pricing_Place__c.Source__c</members>
         <name>CustomField</name>
     </types>
     <version>64.0</version>

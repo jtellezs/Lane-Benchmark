@@ -91,6 +91,26 @@ private class LaneSearchServiceTest {
     System.assertEquals(1, r.rows.size(), 'only Montreal->Toronto');
     System.assertEquals(1000, r.rows[0].carrierTotal);
     System.assertEquals('CAD', r.rows[0].currencyIsoCode);
+    System.assertEquals('Test Carrier', r.rows[0].carrierName);
+    System.assertEquals(
+      'quote.contact@example.invalid',
+      r.rows[0].carrier.contactEmail
+    );
+    System.assertEquals('514-555-0100', r.rows[0].carrier.contactPhone);
+    System.assertEquals(
+      'Acceptable',
+      r.rows[0].carrier.risk,
+      'from rtms__Company_Risk__c on the transportation profile'
+    );
+    System.assertNotEquals(
+      null,
+      r.rows[0].carrier.loadCount,
+      'from the vendor account Number_of_Loads__c (BlankAsZero formula)'
+    );
+    System.assert(
+      String.isBlank(r.rows[0].carrier.attention),
+      'clean profile (no BlackList__c/Outstanding_Claim__c) has no attention flags'
+    );
   }
 
   @IsTest
@@ -708,5 +728,24 @@ private class LaneSearchServiceTest {
     Test.stopTest();
     System.assertEquals(1, r90.rows.size());
     System.assertEquals(2, r730.rows.size(), 'any lookback is accepted');
+  }
+
+  @IsTest
+  static void applyDefaultsFillsNullFields() {
+    LaneSearchRequest req = (LaneSearchRequest) JSON.deserialize(
+      '{}',
+      LaneSearchRequest.class
+    );
+    System.assertEquals(
+      null,
+      req.lookbackDays,
+      'JSON.deserialize does not run field initializers'
+    );
+    req.validate();
+    System.assertEquals(90, req.lookbackDays);
+    System.assertEquals(LaneSearchRequest.Precision.CITY, req.originPrecision);
+    System.assertEquals(2000, req.rowLimit);
+    System.assertNotEquals(null, req.modes);
+    System.assertEquals(0, req.modes.size());
   }
 }

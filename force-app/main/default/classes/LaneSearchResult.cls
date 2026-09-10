@@ -43,6 +43,23 @@ public class LaneSearchResult {
     // and can be blank); phase 2 shows it as the row's age.
     @AuraEnabled
     public Datetime createdDate;
+    @AuraEnabled
+    public CarrierDetail carrier = new CarrierDetail();
+  }
+
+  // Grouped off Row (Task 3 review ruling) to keep Row under PMD's TooManyFields threshold:
+  // contactEmail/contactPhone/risk/loadCount/attention all describe the carrier on the quote.
+  public class CarrierDetail {
+    @AuraEnabled
+    public String contactEmail;
+    @AuraEnabled
+    public String contactPhone;
+    @AuraEnabled
+    public String risk;
+    @AuraEnabled
+    public Decimal loadCount;
+    @AuraEnabled
+    public String attention;
   }
 
   public class Stats {

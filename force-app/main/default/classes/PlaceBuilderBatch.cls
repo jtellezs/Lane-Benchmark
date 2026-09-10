@@ -111,6 +111,7 @@ public without sharing class PlaceBuilderBatch implements Database.Batchable<SOb
       // Key__c is Text(120); PlaceUsageBatch caps its own keys the same way so the two match.
       Pricing_Place__c p = new Pricing_Place__c(Key__c = key.left(120));
       p.City__c = mostCommon(g.spellingCounts);
+      p.Source__c = 'Locations';
       // No truncation: provinceCode() returns either a 2-letter code or the value as typed, and
       // Province__c is Text(80) - as wide as Account.ShippingState - so every value fits whole.
       p.Province__c = g.province;

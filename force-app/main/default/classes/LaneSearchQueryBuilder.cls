@@ -14,6 +14,7 @@ public with sharing class LaneSearchQueryBuilder {
     'SELECT Id, Name, rtms__Load__c, Origin__c, Destination__c, Mode__c, Equipment_Type__c, ' +
     'rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c, Carrier_Name__c, Carrier_Contact__c, ' +
     'CurrencyIsoCode, rtms__Carrier_Total__c, Quote_Date__c, Hazmat__c, rtms__Accepted__c, Load_Status__c, Ops_Comments__c, ' +
+    'Contact_Email__c, Contact_Phone__c, Carrier_Risk__c, Nb_of_loads__c, Carrier_Att__c, ' +
     'CreatedDate FROM rtms__CarrierQuote__c';
 
   // Brief called this local/parameter "where", but WHERE is a reserved Apex identifier (compiler
@@ -236,8 +237,7 @@ public with sharing class LaneSearchQueryBuilder {
   }
 
   /** Escapes SOQL LIKE wildcards in user-derived text. */
-  @TestVisible
-  private static String escapeLike(String s) {
+  public static String escapeLike(String s) {
     return s == null
       ? ''
       : s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_');

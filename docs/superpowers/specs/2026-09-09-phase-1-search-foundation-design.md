@@ -60,18 +60,18 @@ beyond what tests need, external geocoding, any deploy to production.
 
 Object `Pricing_Place__c` (one record per city/province/country):
 
-| Field                | Type                           | Notes                                                                                   |
-| -------------------- | ------------------------------ | --------------------------------------------------------------------------------------- |
-| `Name`               | Text(80)                       | Display, e.g. "Montréal, QC, CA" (most common spelling among locations)                 |
-| `Key__c`             | Text(120), external Id, unique | Normalized: `montreal                                                                   | qc  | ca` |
-| `City__c`            | Text(80)                       | Display spelling                                                                        |
-| `Province__c`        | Text(3)                        | Abbreviation: QC, ON, TX                                                                |
-| `Country__c`         | Text(2)                        | ISO-2: CA, US, MX                                                                       |
-| `Geolocation__c`     | Geolocation(6)                 | Average of the locations' shipping coordinates                                          |
-| `Location_Count__c`  | Number                         | Location accounts under this key                                                        |
-| `Load_Count_365d__c` | Number                         | Loads in the last 365 days with a first or last stop here                               |
-| `Aliases__c`         | LongTextArea                   | Curated, one alias per line, e.g. "Mtl", "Montreal-Nord"; matched by the phase 2 picker |
-| `Active__c`          | Checkbox, default true         | Pricing can hide a bad place without deleting it                                        |
+| Field                | Type                           | Notes                                                                                                                               |
+| -------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `Name`               | Text(80)                       | Display, e.g. "Montréal, QC, CA" (most common spelling among locations)                                                             |
+| `Key__c`             | Text(120), external Id, unique | Normalized: `montreal                                                                                                               | qc  | ca` |
+| `City__c`            | Text(80)                       | Display spelling                                                                                                                    |
+| `Province__c`        | Text(3)                        | Abbreviation: QC, ON, TX                                                                                                            |
+| `Country__c`         | Text(2)                        | ISO-2: CA, US, MX                                                                                                                   |
+| `Geolocation__c`     | Geolocation(6)                 | Average of the locations' shipping coordinates                                                                                      |
+| `Location_Count__c`  | Number                         | Location accounts under this key                                                                                                    |
+| `Load_Count_365d__c` | Number                         | Loads in the last 365 days with a first or last stop here                                                                           |
+| `Aliases__c`         | Text(255), comma-separated     | Curated, e.g. "Mtl, Montreal-Nord"; matched by the phase 2 picker. (changed in phase 2: long text areas cannot be filtered in SOQL) |
+| `Active__c`          | Checkbox, default true         | Pricing can hide a bad place without deleting it                                                                                    |
 
 `PlaceBuilderBatch` (Batchable, Database.Stateful): iterates Accounts with a
 shipping city and shipping latitude that are referenced by any
