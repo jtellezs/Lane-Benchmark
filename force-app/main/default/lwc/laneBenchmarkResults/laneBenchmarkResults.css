@@ -1,11 +1,11 @@
 .ltl-cell {
-  background: #fff4e5;
+  background: rgb(242, 238, 164);
 }
 .ftl-cell {
-  background: #e8f4ff;
+  background: rgb(177, 233, 177);
 }
 .freight-cell {
-  background: #eefbea;
+  background: rgb(156, 171, 231);
 }
 .detail td {
   background: #fafaf9;

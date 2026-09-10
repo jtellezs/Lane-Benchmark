@@ -119,8 +119,13 @@ describe("c-lane-benchmark-results", () => {
     const clicks = jest
       .spyOn(HTMLAnchorElement.prototype, "click")
       .mockImplementation(() => {});
+    // handleExport defers URL.revokeObjectURL via setTimeout (Safari can drop the
+    // download if the object URL is revoked synchronously); run that timer here.
+    jest.useFakeTimers();
     el.shadowRoot.querySelector('[data-id="export"]').click();
     await flush();
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
     expect(createUrl).toHaveBeenCalledTimes(1);
     const blob = createUrl.mock.calls[0][0];
     expect(blob.size).toBeGreaterThan(0);

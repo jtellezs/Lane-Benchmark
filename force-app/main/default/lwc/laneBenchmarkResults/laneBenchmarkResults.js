@@ -26,22 +26,33 @@ export const CSV_COLUMNS = [
 ];
 
 export default class LaneBenchmarkResults extends LightningElement {
-  @api rows = [];
   @api originLabel = "";
   @api destinationLabel = "";
   @track expanded = new Set();
   selected = null;
+  _rows = [];
+
+  @api
+  get rows() {
+    return this._rows;
+  }
+  set rows(value) {
+    this._rows = value;
+    // A fresh result set invalidates any indices the user had expanded before.
+    this.expanded = new Set();
+  }
 
   get hasRows() {
-    return (this.rows || []).length > 0;
+    return (this._rows || []).length > 0;
   }
   get viewRows() {
-    return (this.rows || []).map((r, i) => ({
+    return (this._rows || []).map((r, i) => ({
       ...r,
       index: i,
       rowNumber: i + 1,
       modeClass: `slds-cell-wrap ${MODE_CLASS[r.mode] || ""}`.trim(),
       isExpanded: this.expanded.has(i),
+      detailKey: `${r.quoteId}-detail`,
       total:
         r.carrierTotal === null || r.carrierTotal === undefined
           ? ""
@@ -65,7 +76,7 @@ export default class LaneBenchmarkResults extends LightningElement {
   }
   handleCarrier(event) {
     const i = Number(event.currentTarget.closest("tr").dataset.index);
-    this.selected = this.rows[i];
+    this.selected = this._rows[i];
   }
   handleClose() {
     this.selected = null;
@@ -75,13 +86,18 @@ export default class LaneBenchmarkResults extends LightningElement {
   }
 
   handleExport() {
-    const csv = toCsv(this.rows, CSV_COLUMNS);
+    const csv = toCsv(this._rows, CSV_COLUMNS);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = fileName(this.originLabel, this.destinationLabel, new Date());
+    // Safari can drop the download if the anchor isn't attached to the document,
+    // or if the object URL is revoked before the download has actually started.
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    // eslint-disable-next-line @lwc/lwc/no-async-operation
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 }

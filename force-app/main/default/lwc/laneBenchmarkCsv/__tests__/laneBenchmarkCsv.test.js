@@ -43,6 +43,29 @@ describe("toCsv", () => {
     expect(lines[1]).toBe("Laval,jo@acme.test");
     expect(lines[2]).toBe("Laval,");
   });
+  it("neutralizes formula-injection prefixes but leaves numbers untouched", () => {
+    const valueColumn = [{ label: "Value", field: "carrierName" }];
+    expect(
+      toCsv([{ carrierName: '=HYPERLINK("http://x")' }], valueColumn).split(
+        "\r\n"
+      )[1]
+    ).toBe(`"'=HYPERLINK(""http://x"")"`);
+    expect(toCsv([{ carrierName: "+1" }], valueColumn).split("\r\n")[1]).toBe(
+      "'+1"
+    );
+    expect(toCsv([{ carrierName: "-1" }], valueColumn).split("\r\n")[1]).toBe(
+      "'-1"
+    );
+    expect(toCsv([{ carrierName: "@x" }], valueColumn).split("\r\n")[1]).toBe(
+      "'@x"
+    );
+    expect(
+      toCsv(
+        [{ carrierTotal: -5 }],
+        [{ label: "Total", field: "carrierTotal" }]
+      ).split("\r\n")[1]
+    ).toBe("-5");
+  });
 });
 
 describe("fileName", () => {

@@ -1,6 +1,12 @@
 function cell(value) {
   if (value === null || value === undefined) return "";
-  const s = String(value);
+  if (typeof value === "number") return String(value);
+  // Neutralize CSV/spreadsheet formula injection: a leading =, +, -, @, tab or CR
+  // makes some spreadsheet apps evaluate the cell as a formula. Escaping with a
+  // leading single quote (RFC 4180 quoting still applies after this) defuses that
+  // without changing what a human sees when the cell is opened as text.
+  let s = String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

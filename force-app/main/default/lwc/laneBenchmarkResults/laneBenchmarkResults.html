@@ -68,7 +68,7 @@
                 <td class="slds-cell-wrap">{r.hazmatText} {r.acceptedText}</td>
               </tr>
               <template lwc:if={r.isExpanded}>
-                <tr key={r.quoteName} data-detail={r.index} class="detail">
+                <tr key={r.detailKey} data-detail={r.index} class="detail">
                   <td colspan="12">
                     <div class="slds-p-around_x-small">
                       <strong>Quote {r.quoteName}</strong> · Contact:
