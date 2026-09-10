@@ -48,11 +48,13 @@ public without sharing class PlaceUsageBatch implements Database.Batchable<SObje
     if (location == null || String.isBlank(location.ShippingCity)) {
       return;
     }
+    // Same Text(120) cap PlaceBuilderBatch applies, so a very long key still matches its place.
     String key = PlaceNormalizer.key(
-      location.ShippingCity,
-      location.ShippingState,
-      location.ShippingCountry
-    );
+        location.ShippingCity,
+        location.ShippingState,
+        location.ShippingCountry
+      )
+      .left(120);
     counts.put(key, (counts.containsKey(key) ? counts.get(key) : 0) + 1);
   }
 
