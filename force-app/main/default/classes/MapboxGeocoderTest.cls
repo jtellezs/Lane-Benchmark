@@ -16,8 +16,9 @@ private class MapboxGeocoderTest {
         req.getEndpoint()
       );
       System.assert(
-        !req.getEndpoint().contains('access_token=pk.test') || true
-      ); // token is appended; value asserted separately
+        req.getEndpoint().contains('access_token=pk.test'),
+        req.getEndpoint()
+      );
       HttpResponse r = new HttpResponse();
       r.setStatusCode(status);
       r.setBody(body);
@@ -75,6 +76,7 @@ private class MapboxGeocoderTest {
     System.assertEquals('TX', MapboxGeocoder.provinceFromShortCode('US-TX'));
     System.assertEquals('ME', MapboxGeocoder.provinceFromShortCode('MX-MEX'));
     System.assertEquals('PB', MapboxGeocoder.provinceFromShortCode('MX-PUE'));
+    System.assertEquals('MX', MapboxGeocoder.provinceFromShortCode('MX-CMX'));
     System.assertEquals(
       'ZZZ',
       MapboxGeocoder.provinceFromShortCode('XX-ZZZ'),

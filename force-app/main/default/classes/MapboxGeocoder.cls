@@ -13,7 +13,7 @@ public with sharing class MapboxGeocoder {
     'CAM' => 'CP',
     'CHP' => 'CS',
     'CHH' => 'CH',
-    'CMX' => 'DF',
+    'CMX' => 'MX',
     'COA' => 'CO',
     'COL' => 'CL',
     'DUR' => 'DG',
@@ -64,6 +64,9 @@ public with sharing class MapboxGeocoder {
   }
 
   public static List<GeoResult> forward(String query, String countryHint) {
+    if (String.isBlank(query)) {
+      throw new MapboxException('Query is required');
+    }
     String t = token();
     if (String.isBlank(t)) {
       throw new MapboxException(
@@ -82,9 +85,14 @@ public with sharing class MapboxGeocoder {
       countries +
       '&access_token=' +
       t;
-    HttpResponse res = send(url);
+    HttpRequest req = new HttpRequest();
+    req.setEndpoint(url);
+    req.setMethod('GET');
+    req.setTimeout(TIMEOUT_MS);
+    Http http = new Http();
+    HttpResponse res = http.send(req);
     if (res.getStatusCode() >= 500) {
-      res = send(url); // one retry
+      res = http.send(req); // one retry
     }
     if (res.getStatusCode() != 200) {
       throw new MapboxException(
@@ -92,14 +100,6 @@ public with sharing class MapboxGeocoder {
       );
     }
     return parse(res.getBody());
-  }
-
-  private static HttpResponse send(String url) {
-    HttpRequest req = new HttpRequest();
-    req.setEndpoint(url);
-    req.setMethod('GET');
-    req.setTimeout(TIMEOUT_MS);
-    return new Http().send(req);
   }
 
   @TestVisible
@@ -116,32 +116,28 @@ public with sharing class MapboxGeocoder {
       return out;
     }
     for (Object f : features) {
-      GeoResult g = toGeoResult((Map<String, Object>) f);
+      Map<String, Object> feat = (Map<String, Object>) f;
+      GeoResult g = new GeoResult();
+      g.name = (String) feat.get('place_name');
+      List<Object> center = (List<Object>) feat.get('center');
+      g.lng = Decimal.valueOf(String.valueOf(center[0]));
+      g.lat = Decimal.valueOf(String.valueOf(center[1]));
+      List<Object> types = (List<Object>) feat.get('place_type');
+      Boolean isPostcode = types != null && types.contains('postcode');
+      String text = (String) feat.get('text');
+      if (isPostcode) {
+        g.postalPrefix = text == null
+          ? null
+          : text.replace(' ', '').left(3).toUpperCase();
+      } else {
+        g.city = text;
+      }
+      applyContext(g, (List<Object>) feat.get('context'));
       if (g.city != null && g.country != null) {
         out.add(g);
       }
     }
     return out;
-  }
-
-  private static GeoResult toGeoResult(Map<String, Object> feat) {
-    GeoResult g = new GeoResult();
-    g.name = (String) feat.get('place_name');
-    List<Object> center = (List<Object>) feat.get('center');
-    g.lng = Decimal.valueOf(String.valueOf(center[0]));
-    g.lat = Decimal.valueOf(String.valueOf(center[1]));
-    List<Object> types = (List<Object>) feat.get('place_type');
-    Boolean isPostcode = types != null && types.contains('postcode');
-    String text = (String) feat.get('text');
-    if (isPostcode) {
-      g.postalPrefix = text == null
-        ? null
-        : text.replace(' ', '').left(3).toUpperCase();
-    } else {
-      g.city = text;
-    }
-    applyContext(g, (List<Object>) feat.get('context'));
-    return g;
   }
 
   private static void applyContext(GeoResult g, List<Object> ctx) {
@@ -156,7 +152,7 @@ public with sharing class MapboxGeocoder {
       }
       if (id.startsWith('place.') && g.city == null) {
         g.city = (String) item.get('text');
-      } else if (id.startsWith('region.')) {
+      } else if (id.startsWith('region.') && item.get('short_code') != null) {
         g.province = provinceFromShortCode((String) item.get('short_code'));
       } else if (id.startsWith('country.')) {
         g.country = ((String) item.get('short_code')).toUpperCase();
@@ -186,7 +182,25 @@ public with sharing class MapboxGeocoder {
     }
     List<String> features = new List<String>();
     for (Circle c : circles) {
-      features.add(polygonFeature(c));
+      List<String> pts = new List<String>();
+      Decimal latKm = 111.32;
+      Decimal lngKm = 111.32 * Math.cos(c.lat.doubleValue() * Math.PI / 180);
+      for (Integer i = 0; i <= 24; i++) {
+        Double a = i * 2 * Math.PI / 24;
+        Decimal lat = (c.lat + c.radiusKm / latKm * Math.cos(a)).setScale(4);
+        Decimal lng = (c.lng + c.radiusKm / lngKm * Math.sin(a)).setScale(4);
+        pts.add('[' + lng + ',' + lat + ']');
+      }
+      features.add(
+        '{"type":"Feature","properties":{"stroke":"' +
+          c.color +
+          '","stroke-width":2,"fill":"' +
+          c.color +
+          '","fill-opacity":0.15},' +
+          '"geometry":{"type":"Polygon","coordinates":[[' +
+          String.join(pts, ',') +
+          ']]}}'
+      );
     }
     String geojson =
       '{"type":"FeatureCollection","features":[' +
@@ -197,25 +211,5 @@ public with sharing class MapboxGeocoder {
       EncodingUtil.urlEncode(geojson, 'UTF-8') +
       ')/auto/600x300?padding=40&access_token=' +
       t;
-  }
-
-  private static String polygonFeature(Circle c) {
-    List<String> pts = new List<String>();
-    Decimal latKm = 111.32;
-    Decimal lngKm = 111.32 * Math.cos(c.lat.doubleValue() * Math.PI / 180);
-    for (Integer i = 0; i <= 24; i++) {
-      Double a = i * 2 * Math.PI / 24;
-      Decimal lat = (c.lat + c.radiusKm / latKm * Math.cos(a)).setScale(4);
-      Decimal lng = (c.lng + c.radiusKm / lngKm * Math.sin(a)).setScale(4);
-      pts.add('[' + lng + ',' + lat + ']');
-    }
-    return '{"type":"Feature","properties":{"stroke":"' +
-      c.color +
-      '","stroke-width":2,"fill":"' +
-      c.color +
-      '","fill-opacity":0.15},' +
-      '"geometry":{"type":"Polygon","coordinates":[[' +
-      String.join(pts, ',') +
-      ']]}}';
   }
 }
