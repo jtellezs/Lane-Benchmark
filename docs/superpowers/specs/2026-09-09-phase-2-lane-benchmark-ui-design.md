@@ -297,9 +297,16 @@ refresh, so row counts are lower than production would give.
   the URL; the country hint is validated before it reaches the Mapbox
   request; keyboard navigation was added to the picker; concurrent geocode
   inserts are tolerated; the `MapBox` Remote Site Setting is now in the repo.
+  Keyboard navigation verified in PostProduc; `lightning-input` forwards
+  `role`, `aria-expanded`, `aria-autocomplete` and `aria-controls` to its
+  native input, but not `aria-activedescendant`, so the highlighted option is
+  not announced to screen readers — deferred to phase 4 (needs a native
+  input).
 
 ### Deferred to phase 4
 
 - The Radius field's default value.
 - The `QueryException` raw message surfaced by `search()`.
+- `aria-activedescendant` announcement for the picker's highlighted option
+  (see the final-review fixes bullet above — needs a native `<input>`).
 - A TransPro app snapshot in the manifest.

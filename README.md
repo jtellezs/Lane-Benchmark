@@ -226,6 +226,9 @@ page (which stays untouched until pricing confirms the switch — see
 **Opening it:** either the **Lane Benchmark** tab inside the **TransPro**
 app, or the standalone **Lane Benchmark** app from the App Launcher.
 
+**After a deploy:** users may need a hard reload (Cmd+Shift+R) once, since
+Lightning caches components in the browser.
+
 **Precision** (chosen per origin and destination independently):
 
 - **Exact city** — matches the place's normalized city/province/country key.

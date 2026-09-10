@@ -30,6 +30,8 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
     return this._value;
   }
   set value(val) {
+    // invalidates a still-pending searchPlaces response so it can't reopen the list
+    this.requestSeq++;
     this._value = val;
     if (val) {
       this.term = "";
@@ -193,6 +195,8 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
     if (!opt) {
       return;
     }
+    // invalidates a still-pending searchPlaces response so it can't reopen the list
+    this.requestSeq++;
     this._value = opt.key;
     this._valueLabel = opt.label;
     this.term = "";
@@ -202,6 +206,8 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
   }
 
   handleClear() {
+    // invalidates a still-pending searchPlaces response so it can't reopen the list
+    this.requestSeq++;
     this._value = null;
     this._valueLabel = "";
     this.term = "";

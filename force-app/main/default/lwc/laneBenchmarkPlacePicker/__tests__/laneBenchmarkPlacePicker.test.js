@@ -291,4 +291,38 @@ describe("c-lane-benchmark-place-picker", () => {
     expect(items.length).toBe(1);
     expect(items[0].dataset.key).toBe("montmagny|qc|ca");
   });
+
+  it("invalidates a pending search when an option is picked while it's in flight", async () => {
+    const el = await mount();
+    const handler = jest.fn();
+    el.addEventListener("placechange", handler);
+    // first search resolves normally and opens the list
+    type(el, "mon");
+    jest.advanceTimersByTime(250);
+    await flush();
+    await flush();
+    expect(el.shadowRoot.querySelectorAll("li[data-key]").length).toBe(2);
+    // a second search starts but does not resolve yet
+    let resolveSecond;
+    searchPlaces.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecond = resolve;
+        })
+    );
+    type(el, "monx");
+    jest.advanceTimersByTime(250);
+    await flush();
+    // pick an option from the still-rendered (first-search) list while the second search is pending
+    el.shadowRoot.querySelector('li[data-key="montreal|qc|ca"]').click();
+    await flush();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(el.shadowRoot.querySelectorAll("li[data-key]").length).toBe(0);
+    // the now-stale pending search resolves after the pick; it must not reopen the list
+    resolveSecond(OPTIONS);
+    await flush();
+    await flush();
+    expect(el.shadowRoot.querySelectorAll("li[data-key]").length).toBe(0);
+    expect(el.value).toBe("montreal|qc|ca");
+  });
 });
