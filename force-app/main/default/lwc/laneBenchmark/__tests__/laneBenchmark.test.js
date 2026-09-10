@@ -245,4 +245,91 @@ describe("c-lane-benchmark", () => {
       el.shadowRoot.querySelector("c-lane-benchmark-filters").value.lookbackDays
     ).toBe(90);
   });
+
+  it("keeps the search result when the map preview call fails", async () => {
+    mapPreviewUrl.mockRejectedValue(new Error("no token"));
+    const el = await mount();
+    el.shadowRoot
+      .querySelector("c-lane-benchmark-filters")
+      .dispatchEvent(new CustomEvent("apply"));
+    await flush();
+    await flush();
+    await flush();
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-results").rows.length
+    ).toBe(1);
+    expect(el.shadowRoot.querySelector('[data-id="error"]')).toBeNull();
+  });
+
+  it("ignores a second apply while a search is already in flight", async () => {
+    let resolveSearch;
+    search.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSearch = resolve;
+        })
+    );
+    const el = await mount();
+    const filters = el.shadowRoot.querySelector("c-lane-benchmark-filters");
+    filters.dispatchEvent(new CustomEvent("apply"));
+    await flush();
+    filters.dispatchEvent(new CustomEvent("apply"));
+    await flush();
+    expect(search).toHaveBeenCalledTimes(1);
+    resolveSearch(RESULT);
+    await flush();
+    await flush();
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it("reset clears only the filter keys, keeping places, precisions, radii and margin", async () => {
+    const el = await mount();
+    pick(el, "origin", {
+      key: "montreal|qc|ca",
+      label: "Montréal, QC, CA",
+      precision: "RADIUS",
+      radius: 100,
+      unit: "MI"
+    });
+    el.shadowRoot
+      .querySelector("c-lane-benchmark-filters")
+      .dispatchEvent(new CustomEvent("apply"));
+    await flush();
+    await flush();
+    el.shadowRoot
+      .querySelector("c-lane-benchmark-stats")
+      .dispatchEvent(
+        new CustomEvent("marginchange", { detail: { marginPct: 20 } })
+      );
+    el.shadowRoot.querySelector("c-lane-benchmark-filters").dispatchEvent(
+      new CustomEvent("filterschange", {
+        detail: {
+          lookbackDays: 120,
+          modes: ["LTL"],
+          equipmentCategories: [],
+          equipmentTypes: [],
+          acceptedFilter: "ACCEPTED"
+        }
+      })
+    );
+    el.shadowRoot
+      .querySelector("c-lane-benchmark-filters")
+      .dispatchEvent(new CustomEvent("reset"));
+    await flush();
+    const origin = el.shadowRoot.querySelector(
+      'c-lane-benchmark-place-picker[data-id="origin"]'
+    );
+    expect(origin.precision).toBe("RADIUS");
+    expect(origin.radius).toBe(100);
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-stats").marginPct
+    ).toBe(20);
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-filters").value
+    ).toMatchObject({
+      lookbackDays: 90,
+      modes: [],
+      acceptedFilter: "ANY_STATUS"
+    });
+  });
 });

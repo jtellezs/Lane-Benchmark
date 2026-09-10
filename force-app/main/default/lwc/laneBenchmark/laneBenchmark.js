@@ -37,6 +37,9 @@ export default class LaneBenchmark extends LightningElement {
   needsConfirmation = false;
   previewUrl = null;
   ticker = null;
+  // the request as it was when the last successful search ran, so a margin-only
+  // edit can be saved without persisting unapplied filter changes
+  lastSearched = null;
 
   get filters() {
     const f = {};
@@ -107,26 +110,31 @@ export default class LaneBenchmark extends LightningElement {
     this.request = { ...this.request, ...event.detail };
   }
   handleMargin(event) {
-    this.request = { ...this.request, marginPct: event.detail.marginPct };
-    save(this.request);
+    const marginPct = event.detail.marginPct;
+    this.request = { ...this.request, marginPct };
+    // only persist a margin tweak against the request that was actually searched;
+    // unapplied filter edits in this.request must not leak into storage
+    if (this.lastSearched) {
+      save({ ...this.lastSearched, marginPct });
+    }
   }
   handleReset() {
-    this.request = {
-      ...emptyRequest(),
-      originKey: this.request.originKey,
-      originLabel: this.request.originLabel,
-      destinationKey: this.request.destinationKey,
-      destinationLabel: this.request.destinationLabel
-    };
+    // reset only the filter keys (lookback, currency, modes, equipment, flags,
+    // accepted status); places, precisions, radii, unit and margin are untouched
+    this.request = { ...this.request, ...cloneDefaults() };
   }
   handleClearSaved() {
     clear();
     this.request = emptyRequest();
     this.result = null;
     this.previewUrl = null;
+    this.lastSearched = null;
   }
 
   handleApply() {
+    if (this.isSearching) {
+      return;
+    }
     if (
       this.isRadiusSearch &&
       Number(this.request.lookbackDays) > LONG_RADIUS_DAYS
@@ -137,6 +145,9 @@ export default class LaneBenchmark extends LightningElement {
     this.runSearch();
   }
   handleContinue() {
+    if (this.isSearching) {
+      return;
+    }
     this.needsConfirmation = false;
     this.runSearch();
   }
@@ -172,6 +183,7 @@ export default class LaneBenchmark extends LightningElement {
     this.error = null;
     this.isSearching = true;
     this.elapsedSeconds = 0;
+    window.clearInterval(this.ticker);
     // eslint-disable-next-line @lwc/lwc/no-async-operation
     this.ticker = window.setInterval(() => {
       this.elapsedSeconds += 1;
@@ -179,14 +191,22 @@ export default class LaneBenchmark extends LightningElement {
     const svc = this.toServiceRequest();
     try {
       this.result = await search({ requestJson: JSON.stringify(svc) });
+      // the search succeeded: keep it even if the map preview below fails
+      this.lastSearched = { ...this.request };
       save(this.request);
-      this.previewUrl = await mapPreviewUrl({
-        originKey: svc.originKey,
-        originRadius: svc.originRadius,
-        destinationKey: svc.destinationKey,
-        destinationRadius: svc.destinationRadius,
-        unit: svc.radiusUnit
-      });
+      try {
+        this.previewUrl = await mapPreviewUrl({
+          originKey: svc.originKey,
+          originRadius: svc.originRadius,
+          destinationKey: svc.destinationKey,
+          destinationRadius: svc.destinationRadius,
+          unit: svc.radiusUnit
+        });
+      } catch {
+        // map preview is a nice-to-have; a failure here (no token, a place with no
+        // coordinates, Mapbox down) must not wipe the search result or show an error
+        this.previewUrl = null;
+      }
     } catch (e) {
       this.result = null;
       this.previewUrl = null;
