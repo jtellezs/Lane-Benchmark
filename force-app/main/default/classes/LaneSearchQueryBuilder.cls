@@ -237,8 +237,7 @@ public with sharing class LaneSearchQueryBuilder {
   }
 
   /** Escapes SOQL LIKE wildcards in user-derived text. */
-  @TestVisible
-  private static String escapeLike(String s) {
+  public static String escapeLike(String s) {
     return s == null
       ? ''
       : s.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_');

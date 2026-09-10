@@ -729,4 +729,23 @@ private class LaneSearchServiceTest {
     System.assertEquals(1, r90.rows.size());
     System.assertEquals(2, r730.rows.size(), 'any lookback is accepted');
   }
+
+  @IsTest
+  static void applyDefaultsFillsNullFields() {
+    LaneSearchRequest req = (LaneSearchRequest) JSON.deserialize(
+      '{}',
+      LaneSearchRequest.class
+    );
+    System.assertEquals(
+      null,
+      req.lookbackDays,
+      'JSON.deserialize does not run field initializers'
+    );
+    req.validate();
+    System.assertEquals(90, req.lookbackDays);
+    System.assertEquals(LaneSearchRequest.Precision.CITY, req.originPrecision);
+    System.assertEquals(2000, req.rowLimit);
+    System.assertNotEquals(null, req.modes);
+    System.assertEquals(0, req.modes.size());
+  }
 }
