@@ -15,6 +15,9 @@
 .option:hover {
   background: #f3f3f3;
 }
+.option.slds-has-focus {
+  background-color: #f3f3f3;
+}
 .clear {
   position: absolute;
   right: 0.25rem;

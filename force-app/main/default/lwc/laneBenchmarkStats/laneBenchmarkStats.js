@@ -30,11 +30,19 @@ export default class LaneBenchmarkStats extends LightningElement {
   get isEmpty() {
     return !this.hasStats && this.rowCount === 0;
   }
-  get elapsedText() {
-    return `${(Number(this.elapsedMs || 0) / 1000).toFixed(1)} s`;
-  }
-  get dedupeText() {
-    return this.dedupedCount ? `${this.dedupedCount} duplicates removed` : "";
+  /** Joins only the parts that apply, so a zero dedupe count doesn't leave a trailing " · ". */
+  get summary() {
+    const seconds = (Number(this.elapsedMs || 0) / 1000).toFixed(1);
+    const parts = [
+      `${this.rowCount} ${this.rowCount === 1 ? "row" : "rows"} in ${seconds} s`
+    ];
+    if (this.dedupedCount > 0) {
+      parts.push(`${this.dedupedCount} duplicates removed`);
+    }
+    if (this.truncated) {
+      parts.push("truncated to the first 2,000 rows");
+    }
+    return parts.join(" · ");
   }
   get cards() {
     return Object.keys(this.statsByCurrency || {})

@@ -10,6 +10,18 @@
 
 **Spec:** `docs/superpowers/specs/2026-09-09-phase-2-lane-benchmark-ui-design.md` (roadmap: `docs/superpowers/specs/2026-09-07-pricing-department-roadmap.md`; phase 1 spec for the service API: `docs/superpowers/specs/2026-09-09-phase-1-search-foundation-design.md`)
 
+> **Defects found in this plan's verbatim code during execution:**
+>
+> - CSV formula injection in `laneBenchmarkCsv` (fixed c587fd6).
+> - Export anchor detached and object URL revoked early (c587fd6).
+> - Wrong mode colours (c587fd6).
+> - Map preview failure wiping the search result (ea3d3c6).
+> - Double Apply racing searches (ea3d3c6).
+> - Reset clearing places/margin instead of only filters (ea3d3c6).
+> - `JSON.deserialize` skipping field initializers, solved by `applyDefaults()`.
+> - `Aliases__c` LongTextArea not filterable in SOQL, changed to Text(255).
+> - `TooManyFields` on `LaneSearchResult.Row`, solved by nested `CarrierDetail`.
+
 ## Global Constraints
 
 - Org alias `sandbox` = PostProduc, the only org touched (real deploys allowed): `sf project deploy start -x manifest/package.xml -o sandbox -l RunSpecifiedTests -t <tests> -w 30`, always in the foreground. Never `vscodeOrg`, `Full`, `devpro`.

@@ -47,8 +47,8 @@ public without sharing class LaneBenchmarkPlaceService {
     }
     Pricing_Place__c p = new Pricing_Place__c(
       Key__c = key,
-      City__c = g.city,
-      Province__c = g.province,
+      City__c = truncate(g.city),
+      Province__c = truncate(g.province),
       Country__c = g.country,
       Name = (g.city + ', ' + g.province + ', ' + g.country).left(80),
       Geolocation__Latitude__s = g.lat,
@@ -60,6 +60,10 @@ public without sharing class LaneBenchmarkPlaceService {
       Active__c = true
     );
     candidates.put(key, p);
+  }
+
+  private static String truncate(String value) {
+    return value == null ? null : value.left(80);
   }
 
   @SuppressWarnings(
@@ -85,6 +89,12 @@ public without sharing class LaneBenchmarkPlaceService {
     return existing;
   }
 
+  /**
+   * Inserts every candidate not already found by findExisting(). Concurrent requests can both
+   * pass that lookup for the same key and then race to insert it; Database.insert(.., false) lets
+   * a DUPLICATE_VALUE failure (the Key__c unique index) resolve to the record the other
+   * transaction just committed instead of surfacing as an error.
+   */
   @SuppressWarnings(
     'PMD.ApexCRUDViolation'
   ) // system mode by design (see class comment)
@@ -92,13 +102,41 @@ public without sharing class LaneBenchmarkPlaceService {
     Map<String, Pricing_Place__c> candidates,
     Map<String, Pricing_Place__c> existing
   ) {
+    List<String> keys = new List<String>();
     List<Pricing_Place__c> toInsert = new List<Pricing_Place__c>();
     for (String key : candidates.keySet()) {
       if (!existing.containsKey(key)) {
+        keys.add(key);
         toInsert.add(candidates.get(key));
       }
     }
-    insert toInsert;
+    if (toInsert.isEmpty()) {
+      return;
+    }
+    List<Database.SaveResult> results = Database.insert(toInsert, false);
+    Set<String> duplicateKeys = new Set<String>();
+    for (Integer i = 0; i < results.size(); i++) {
+      if (results[i].isSuccess()) {
+        continue;
+      }
+      if (isDuplicateValueError(results[i])) {
+        duplicateKeys.add(keys[i]);
+      } else {
+        throw new MapboxException('Could not save the geocoded place');
+      }
+    }
+    if (!duplicateKeys.isEmpty()) {
+      existing.putAll(findExisting(duplicateKeys));
+    }
+  }
+
+  private static Boolean isDuplicateValueError(Database.SaveResult result) {
+    for (Database.Error err : result.getErrors()) {
+      if (err.getStatusCode() == StatusCode.DUPLICATE_VALUE) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /** Static Images URL for the origin/destination radii, or null when neither end has both a place and a radius. */

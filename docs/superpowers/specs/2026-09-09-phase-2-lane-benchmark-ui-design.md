@@ -74,12 +74,17 @@ except `geocode`, which writes the cache and is therefore not cacheable.
 | `getFilterOptions()`                            | none                        | `FilterOptions { modes: List<String>, equipmentByCategory: Map<String, List<String>>, currencies: List<String> }` | Enabled `rtms__Mode__c` by `rtms__Order__c`; enabled `rtms__EquipmentType__c` grouped by `rtms__Category__c` (null category → "Other"); currencies fixed `CAD`, `USD`.                                                                                                                                                                                                                                                                                 |
 | `geocode(String query, String countryHint)`     | free text, optional ISO-2   | `List<PlaceOption>`                                                                                               | Calls `MapboxGeocoder.forward(query, countryHint)` (up to 5 results, `types=place,locality,postcode`, `country=ca,us,mx`), converts each to a `Pricing_Place__c` with `Source__c = 'Mapbox'`, upserts by `Key__c` **only if the key does not already exist** (never downgrades a Locations place), and returns them as `PlaceOption`s. Called only when the user explicitly asks ("Search on the map" action in the picker), never on every keystroke. |
 
-`LaneSearchResult.Row` gains `contactEmail`, `contactPhone`, `carrierRisk`,
-`carrierLoadCount`, `carrierAttention` (from `Contact_Email__c`,
-`Contact_Phone__c`, `Carrier_Risk__c`, `Nb_of_loads__c`, `Carrier_Att__c`,
-already selected by phase 0's controller; `LaneSearchQueryBuilder.SELECT_CLAUSE`
-adds them). This is a phase 1 class edit, covered by an added assertion in
-`LaneSearchServiceTest`.
+`LaneBenchmarkPlaceService.upsertFromGeocode()` (which backs `geocode()`'s
+place-matching) only ever inserts new places; the name is a misnomer kept
+as-is for now since it never updates an existing record either way.
+
+`LaneSearchResult.Row` gains a nested `carrier` (`CarrierDetail`) with
+`contactEmail`, `contactPhone`, `risk`, `loadCount`, `attention` (from
+`Contact_Email__c`, `Contact_Phone__c`, `Carrier_Risk__c`, `Nb_of_loads__c`,
+`Carrier_Att__c`, already selected by phase 0's controller;
+`LaneSearchQueryBuilder.SELECT_CLAUSE` adds them) — grouped off `Row` itself
+to keep `Row` under PMD's `TooManyFields` threshold. This is a phase 1 class
+edit, covered by an added assertion in `LaneSearchServiceTest`.
 
 ## Mapbox integration
 
@@ -219,3 +224,90 @@ widening the radius or the lookback.
 4. All Jest and Apex tests pass in CI; PMD clean.
 5. README documents the Mapbox reuse (custom setting, remote site, token restrictions), the storage key,
    and the retirement plan for the old tab; roadmap updated.
+
+## Outcome (2026-09-10)
+
+Deploys to PostProduc (`sandbox`), in order:
+
+- Backend (Tasks 1-3, `phase-2/backend`, merged as PR #17): `0AfbZ00000CoFY1SAN`.
+- Components, check-only (Tasks 4-9, `phase-2/components`, merged as PR #18): `0AfbZ00000CoHI6SAN` (55/55 Apex tests).
+- Task 10 (page, tab, app, TransPro tab, permission set, CSP site): `0AfbZ00000CoN0vSAF` (Succeeded, 55/55 Apex tests across the seven required classes: `PricingDepartmentControllerTest`, `PlaceNormalizerTest`, `PricingTestDataFactoryTest`, `PlaceBuilderBatchTest`, `LaneSearchServiceTest`, `MapboxGeocoderTest`, `LaneBenchmarkControllerTest`).
+
+Jest: 62 tests passing across the picker, filters, stats, results, map,
+container and the three pure modules (54 before the final-review fix wave;
++7 for keyboard navigation, the stale-response guard, the map-search guard,
+the summary wording and the long-radius confirmation reset; +1 in round 2
+for the pick-then-resolve guard).
+
+### Manual checks
+
+Done 2026-09-10 in PostProduc (`sandbox`), as the user who deployed, with
+`Lane_Benchmark_User` assigned. Loads in PostProduc stop at the sandbox
+refresh, so row counts are lower than production would give.
+
+- Montreal -> Toronto, both ends Exact city, 90 days: 1 row in 0.9 s; the
+  CAD stats card shows min/median/average/max and Sell (median) 252.89 at the
+  default 15 % margin.
+- Same lane with destination Radius 100 km: 45 rows in 0.4 s, "3 duplicates
+  removed"; the Mapbox static map appears with the 100 km circle around
+  Toronto; results span Burlington, Mississauga, Etobicoke, Hamilton and
+  Guelph.
+- 20 % button: Sell (median) moves from 1,610.00 to 1,680.00 (median 1,400).
+- Typeahead: "Montreal" lists Montréal, QC, CA (2720 loads) first, then the
+  spelling variants and the "Not found? Search on the map" button; "Saguenay"
+  resolves from the dictionary (9 loads).
+- Search on the map: "Kuujjuaq" (not in the dictionary) returns
+  "Kuujjuaq, QC, CA" with the Mapbox badge; picking it and applying gives the
+  empty state ("No quotes match this lane and these filters yet ...") with
+  the map still showing the Toronto circle. No console errors.
+- Navigation: the Trans-Pro app shows "Lane Benchmark" as a regular tab (last
+  in the bar); the Lane Benchmark app opens from its own URL with the single
+  tab. The Revenova "Transportation" app does not list it, as intended.
+- Not exercised in the browser: CSV export (the download cannot be triggered
+  from the automated session). The file content is covered by the
+  `laneBenchmarkCsv` Jest tests (BOM, RFC 4180 quoting, formula-injection
+  guard); the user should open one export in Excel/Numbers and confirm
+  accents survive.
+- Cosmetic, left for the final review: the results box says "Run a search to
+  see quotes." after a search that returned zero rows; the counter reads
+  "1 rows"; the Radius field starts empty when Radius is selected.
+
+### Adaptations from the plan's verbatim code
+
+- `Pricing_Place__c.Aliases__c` became a plain `Text(255)`, comma-separated
+  field rather than a long text area, so it can appear in a SOQL `LIKE`
+  filter (`searchPlaces`'s alias match) — a long text area field cannot be
+  filtered in SOQL.
+- `LaneSearchRequest.validate()` applies `applyDefaults()` first, because
+  `JSON.deserialize` does not run field initializers: a field the UI leaves
+  out of the JSON request arrives `null`, not at its declared default, so
+  defaults have to be filled in before the rest of validation runs.
+- `LaneBenchmarkPlaceService` was split out of `LaneBenchmarkController` to
+  keep the controller's PMD cyclomatic-complexity total under the 40
+  threshold (extracting private helpers within the controller alone does not
+  reduce a class-wide total; moving the branches to another class does).
+- The Mapbox token is read from the org-default record of the hierarchy
+  custom setting `TPRO_KPI__c`, field `Mapbox_Api_Key__c` (a public `pk.`
+  token, already in use by `KPI_ReportController`) — not a Named Credential.
+  See "Mapbox integration" above.
+- The permission set grants `viewAllRecords` on `Pricing_Place__c` (public
+  reference data; the controller is `without sharing` so it changes nothing).
+- The tab motif is `Custom80: Motorcycle` (known to deploy) rather than the
+  planned `Custom53: Compass`.
+- Final-review fixes: callout errors are mapped to `MapboxException` without
+  the URL; the country hint is validated before it reaches the Mapbox
+  request; keyboard navigation was added to the picker; concurrent geocode
+  inserts are tolerated; the `MapBox` Remote Site Setting is now in the repo.
+  Keyboard navigation verified in PostProduc; `lightning-input` forwards
+  `role`, `aria-expanded`, `aria-autocomplete` and `aria-controls` to its
+  native input, but not `aria-activedescendant`, so the highlighted option is
+  not announced to screen readers — deferred to phase 4 (needs a native
+  input).
+
+### Deferred to phase 4
+
+- The Radius field's default value.
+- The `QueryException` raw message surfaced by `search()`.
+- `aria-activedescendant` announcement for the picker's highlighted option
+  (see the final-review fixes bullet above — needs a native `<input>`).
+- A TransPro app snapshot in the manifest.

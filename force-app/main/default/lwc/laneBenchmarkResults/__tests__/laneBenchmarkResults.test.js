@@ -151,5 +151,8 @@ describe("c-lane-benchmark-results", () => {
       0
     );
     expect(el.shadowRoot.querySelector('[data-id="export"]')).toBeNull();
+    expect(el.shadowRoot.textContent).toContain(
+      "No quotes match this lane and these filters."
+    );
   });
 });

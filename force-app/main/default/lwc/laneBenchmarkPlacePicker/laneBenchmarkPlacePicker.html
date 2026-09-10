@@ -9,6 +9,11 @@
           placeholder="City, province or alias"
           onchange={handleTerm}
           autocomplete="off"
+          role="combobox"
+          aria-expanded={isOpen}
+          aria-autocomplete="list"
+          aria-controls={listboxId}
+          aria-activedescendant={activeDescendant}
         ></lightning-input>
         <template lwc:if={hasValue}>
           <button
@@ -27,15 +32,20 @@
         <template lwc:if={isOpen}>
           <div
             class="slds-dropdown slds-dropdown_fluid slds-dropdown_length-10 list"
-            role="listbox"
           >
-            <ul class="slds-listbox slds-listbox_vertical">
+            <ul
+              id={listboxId}
+              class="slds-listbox slds-listbox_vertical"
+              role="listbox"
+            >
               <template for:each={listItems} for:item="o">
                 <li
                   key={o.key}
+                  id={o.optionId}
                   data-key={o.key}
-                  class="slds-listbox__item option"
+                  class={o.liClass}
                   role="option"
+                  aria-selected={o.ariaSelected}
                   onclick={handlePick}
                 >
                   <span class="slds-truncate">{o.label}</span>
@@ -55,6 +65,7 @@
                 <button
                   data-id="map-search"
                   class="slds-button slds-button_neutral slds-button_stretch"
+                  disabled={isSearching}
                   onclick={handleMapSearch}
                 >
                   Not found? Search on the map

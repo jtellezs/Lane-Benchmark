@@ -3,11 +3,18 @@
     <!-- Pricing Department app: Lightning App Page + tab -->
     <types>
         <members>Pricing_Department</members>
+        <members>Lane_Benchmark</members>
         <name>FlexiPage</name>
     </types>
     <types>
         <members>Pricing_Department</members>
+        <members>Lane_Benchmark</members>
         <name>CustomTab</name>
+    </types>
+    <types>
+        <members>Lane_Benchmark</members>
+        <members>TransPro</members>
+        <name>CustomApplication</name>
     </types>
     <!-- UI -->
     <types>
@@ -49,6 +56,8 @@
         <members>MapboxException</members>
         <members>MapboxGeocoder</members>
         <members>MapboxGeocoderTest</members>
+        <members>MapboxResponseParser</members>
+        <members>LaneBenchmarkPlaceServiceTest</members>
         <name>ApexClass</name>
     </types>
     <types>
@@ -63,7 +72,16 @@
     <!-- Security -->
     <types>
         <members>Pricing_Department_User</members>
+        <members>Lane_Benchmark_User</members>
         <name>PermissionSet</name>
+    </types>
+    <types>
+        <members>Mapbox_API</members>
+        <name>CspTrustedSite</name>
+    </types>
+    <types>
+        <members>MapBox</members>
+        <name>RemoteSiteSetting</name>
     </types>
     <!-- Custom fields on the managed Carrier Quote object read by the controller -->
     <types>
