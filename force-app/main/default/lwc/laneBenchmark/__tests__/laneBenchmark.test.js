@@ -211,6 +211,50 @@ describe("c-lane-benchmark", () => {
     expect(search).toHaveBeenCalledTimes(1);
   });
 
+  it("lowering the lookback and applying again clears the long-radius confirmation banner", async () => {
+    const el = await mount();
+    pick(el, "origin", {
+      key: "montreal|qc|ca",
+      label: "Montréal, QC, CA",
+      precision: "RADIUS",
+      radius: 100,
+      unit: "MI"
+    });
+    const filters = () =>
+      el.shadowRoot.querySelector("c-lane-benchmark-filters");
+    filters().dispatchEvent(
+      new CustomEvent("filterschange", {
+        detail: {
+          lookbackDays: 730,
+          modes: [],
+          equipmentCategories: [],
+          equipmentTypes: [],
+          acceptedFilter: "ANY_STATUS"
+        }
+      })
+    );
+    filters().dispatchEvent(new CustomEvent("apply"));
+    await flush();
+    expect(search).not.toHaveBeenCalled();
+    expect(el.shadowRoot.textContent).toMatch(/10-20 seconds/);
+    filters().dispatchEvent(
+      new CustomEvent("filterschange", {
+        detail: {
+          lookbackDays: 90,
+          modes: [],
+          equipmentCategories: [],
+          equipmentTypes: [],
+          acceptedFilter: "ANY_STATUS"
+        }
+      })
+    );
+    filters().dispatchEvent(new CustomEvent("apply"));
+    await flush();
+    await flush();
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(el.shadowRoot.textContent).not.toMatch(/10-20 seconds/);
+  });
+
   it("shows the controller error message and clears results", async () => {
     search.mockRejectedValue({
       body: { message: "Unknown place key: nowhere|zz|zz" }

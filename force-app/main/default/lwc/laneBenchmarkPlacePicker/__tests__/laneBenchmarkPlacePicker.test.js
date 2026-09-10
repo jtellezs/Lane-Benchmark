@@ -46,6 +46,11 @@ function type(el, text) {
   input.dispatchEvent(new CustomEvent("change", { detail: { value: text } }));
 }
 
+function pressKey(el, key) {
+  const picker = el.shadowRoot.querySelector(".picker");
+  picker.dispatchEvent(new KeyboardEvent("keydown", { key, cancelable: true }));
+}
+
 describe("c-lane-benchmark-place-picker", () => {
   beforeEach(() => {
     jest.useFakeTimers();
@@ -141,7 +146,6 @@ describe("c-lane-benchmark-place-picker", () => {
     const el = await mount();
     type(el, "sague");
     jest.advanceTimersByTime(250);
-    searchPlaces.mockResolvedValue([]);
     await flush();
     await flush();
     el.shadowRoot.querySelector('button[data-id="map-search"]').click();
@@ -185,5 +189,106 @@ describe("c-lane-benchmark-place-picker", () => {
     await flush();
     await flush();
     expect(searchPlaces).not.toHaveBeenCalled();
+  });
+
+  it("keyboard: ArrowDown twice then Enter picks the second option", async () => {
+    const el = await mount();
+    const handler = jest.fn();
+    el.addEventListener("placechange", handler);
+    type(el, "mon");
+    jest.advanceTimersByTime(250);
+    await flush();
+    await flush();
+    pressKey(el, "ArrowDown");
+    pressKey(el, "ArrowDown");
+    pressKey(el, "Enter");
+    await flush();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler.mock.calls[0][0].detail.key).toBe("montmagny|qc|ca");
+  });
+
+  it("keyboard: Escape closes the list", async () => {
+    const el = await mount();
+    type(el, "mon");
+    jest.advanceTimersByTime(250);
+    await flush();
+    await flush();
+    expect(el.shadowRoot.querySelectorAll("li[data-key]").length).toBe(2);
+    pressKey(el, "Escape");
+    await flush();
+    expect(el.shadowRoot.querySelectorAll("li[data-key]").length).toBe(0);
+  });
+
+  it("keyboard: ArrowUp at the first option stays at index 0", async () => {
+    const el = await mount();
+    const handler = jest.fn();
+    el.addEventListener("placechange", handler);
+    type(el, "mon");
+    jest.advanceTimersByTime(250);
+    await flush();
+    await flush();
+    pressKey(el, "ArrowDown"); // -1 -> 0
+    pressKey(el, "ArrowUp"); // stays at 0
+    pressKey(el, "ArrowUp"); // stays at 0
+    pressKey(el, "Enter");
+    await flush();
+    expect(handler.mock.calls[0][0].detail.key).toBe("montreal|qc|ca");
+  });
+
+  it("ignores a second rapid click on the map search button while one is pending", async () => {
+    let resolveGeocode;
+    geocode.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveGeocode = resolve;
+        })
+    );
+    const el = await mount();
+    type(el, "sague");
+    jest.advanceTimersByTime(250);
+    await flush();
+    await flush();
+    const btn = el.shadowRoot.querySelector('button[data-id="map-search"]');
+    btn.click();
+    btn.click();
+    expect(geocode).toHaveBeenCalledTimes(1);
+    resolveGeocode([]);
+    await flush();
+    await flush();
+  });
+
+  it("ignores a stale search response that resolves after a newer one", async () => {
+    let resolveFirst;
+    let resolveSecond;
+    searchPlaces
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveFirst = resolve;
+          })
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSecond = resolve;
+          })
+      );
+    const el = await mount();
+    type(el, "mo");
+    jest.advanceTimersByTime(250);
+    await flush();
+    type(el, "mon");
+    jest.advanceTimersByTime(250);
+    await flush();
+    expect(searchPlaces).toHaveBeenCalledTimes(2);
+    resolveSecond([OPTIONS[1]]);
+    await flush();
+    await flush();
+    resolveFirst([OPTIONS[0]]);
+    await flush();
+    await flush();
+    const items = el.shadowRoot.querySelectorAll("li[data-key]");
+    expect(items.length).toBe(1);
+    expect(items[0].dataset.key).toBe("montmagny|qc|ca");
   });
 });

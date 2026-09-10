@@ -129,6 +129,8 @@ export default class LaneBenchmark extends LightningElement {
     this.result = null;
     this.previewUrl = null;
     this.lastSearched = null;
+    this.error = null;
+    this.needsConfirmation = false;
   }
 
   handleApply() {
@@ -180,6 +182,7 @@ export default class LaneBenchmark extends LightningElement {
   }
 
   async runSearch() {
+    this.needsConfirmation = false;
     this.error = null;
     this.isSearching = true;
     this.elapsedSeconds = 0;

@@ -233,8 +233,10 @@ Deploys to PostProduc (`sandbox`), in order:
 - Components, check-only (Tasks 4-9, `phase-2/components`, merged as PR #18): `0AfbZ00000CoHI6SAN` (55/55 Apex tests).
 - Task 10 (page, tab, app, TransPro tab, permission set, CSP site): `0AfbZ00000CoN0vSAF` (Succeeded, 55/55 Apex tests across the seven required classes: `PricingDepartmentControllerTest`, `PlaceNormalizerTest`, `PricingTestDataFactoryTest`, `PlaceBuilderBatchTest`, `LaneSearchServiceTest`, `MapboxGeocoderTest`, `LaneBenchmarkControllerTest`).
 
-Jest: 54 tests passing across the picker, filters, stats, results, map,
-container and the three pure modules.
+Jest: 61 tests passing across the picker, filters, stats, results, map,
+container and the three pure modules (54 before the final-review fix wave;
++7 for keyboard navigation, the stale-response guard, the map-search guard,
+the summary wording and the long-radius confirmation reset).
 
 ### Manual checks
 
@@ -287,3 +289,17 @@ refresh, so row counts are lower than production would give.
   custom setting `TPRO_KPI__c`, field `Mapbox_Api_Key__c` (a public `pk.`
   token, already in use by `KPI_ReportController`) — not a Named Credential.
   See "Mapbox integration" above.
+- The permission set grants `viewAllRecords` on `Pricing_Place__c` (public
+  reference data; the controller is `without sharing` so it changes nothing).
+- The tab motif is `Custom80: Motorcycle` (known to deploy) rather than the
+  planned `Custom53: Compass`.
+- Final-review fixes: callout errors are mapped to `MapboxException` without
+  the URL; the country hint is validated before it reaches the Mapbox
+  request; keyboard navigation was added to the picker; concurrent geocode
+  inserts are tolerated; the `MapBox` Remote Site Setting is now in the repo.
+
+### Deferred to phase 4
+
+- The Radius field's default value.
+- The `QueryException` raw message surfaced by `search()`.
+- A TransPro app snapshot in the manifest.

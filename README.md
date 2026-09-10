@@ -250,9 +250,16 @@ time the page opens. The filters panel has a "Clear saved filters" link that
 removes that key and also resets the page back to an empty request and no
 result — a full reset, not just a storage clear.
 
+**Search caching:** `LaneBenchmarkController.search` is a cacheable Apex
+method (`@AuraEnabled(cacheable=true)`), so re-running an identical request
+within a few minutes may serve cached rows instead of hitting the query again.
+
 **Mapbox reuse:** the picker's "Search on the map" fallback and the radius
 map preview call Mapbox through the same setup `KPI_ReportController`
-already uses — no new credential was created:
+already uses — no new credential was created. "Search on the map" creates
+`Pricing_Place__c` rows (`Source__c = 'Mapbox'`) for any Lane Benchmark user
+through system-mode Apex (`LaneBenchmarkPlaceService` is `without sharing`),
+making one Mapbox call per click:
 
 - Token: the org-default record of the hierarchy custom setting
   `TPRO_KPI__c`, field `Mapbox_Api_Key__c` (a public `pk.` token).

@@ -10,8 +10,14 @@ const PRECISIONS = [
   { label: "Radius", value: "RADIUS" }
 ];
 
+// One combobox listbox id per component instance, so two pickers on the same page
+// (origin/destination) don't collide on aria-controls/aria-activedescendant targets.
+let nextPickerId = 0;
+
 export default class LaneBenchmarkPlacePicker extends LightningElement {
   @api label = "Place";
+
+  listboxId = `lane-benchmark-picker-listbox-${nextPickerId++}`;
 
   _value = null;
   _valueLabel = "";
@@ -27,7 +33,7 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
     this._value = val;
     if (val) {
       this.term = "";
-      this.options = [];
+      this.setOptions([]);
       this.isOpen = false;
       window.clearTimeout(this.timer);
     }
@@ -66,6 +72,7 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
   }
 
   @track options = [];
+  highlightedIndex = -1;
   term = "";
   isOpen = false;
   isSearching = false;
@@ -76,6 +83,7 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
     { label: "km", value: "KM" }
   ];
   timer = null;
+  requestSeq = 0;
 
   get isRadius() {
     return this.precision === "RADIUS";
@@ -90,11 +98,28 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
     return this.isOpen && this.term.trim().length >= 3;
   }
   get listItems() {
-    return this.options.map((o) => ({
+    return this.options.map((o, index) => ({
       ...o,
       isMapbox: o.source === "Mapbox",
-      loadText: o.loadCount ? `${o.loadCount} loads` : ""
+      loadText: o.loadCount ? `${o.loadCount} loads` : "",
+      optionId: `${this.listboxId}-option-${index}`,
+      liClass:
+        index === this.highlightedIndex
+          ? "slds-listbox__item option slds-has-focus"
+          : "slds-listbox__item option",
+      ariaSelected: index === this.highlightedIndex ? "true" : "false"
     }));
+  }
+  get activeDescendant() {
+    return this.highlightedIndex >= 0
+      ? `${this.listboxId}-option-${this.highlightedIndex}`
+      : null;
+  }
+
+  /** Every options list change (search results, clear, pick) resets the keyboard highlight. */
+  setOptions(list) {
+    this.options = list;
+    this.highlightedIndex = -1;
   }
 
   handleTerm(event) {
@@ -112,32 +137,46 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
   async search() {
     const term = this.term.trim();
     if (term.length < 2) {
-      this.options = [];
+      this.setOptions([]);
       this.isOpen = false;
       return;
     }
+    const seq = ++this.requestSeq;
     this.isSearching = true;
     try {
-      this.options = await searchPlaces({ term, limitCount: 10 });
+      const results = await searchPlaces({ term, limitCount: 10 });
+      if (seq !== this.requestSeq) {
+        return; // a newer search already landed; drop this stale response
+      }
+      this.setOptions(results);
       this.isOpen = true;
       this.error = null;
     } catch (e) {
+      if (seq !== this.requestSeq) {
+        return;
+      }
       this.error = e?.body?.message || "Place search failed";
-      this.options = [];
+      this.setOptions([]);
     } finally {
-      this.isSearching = false;
+      if (seq === this.requestSeq) {
+        this.isSearching = false;
+      }
     }
   }
 
   async handleMapSearch() {
+    if (this.isSearching) {
+      return;
+    }
     this.isSearching = true;
     try {
-      this.options = await geocode({
+      const results = await geocode({
         query: this.term.trim(),
         countryHint: null
       });
+      this.setOptions(results);
       this.isOpen = true;
-      this.error = this.options.length ? null : "No place found on the map";
+      this.error = results.length ? null : "No place found on the map";
     } catch (e) {
       this.error = e?.body?.message || "Map search is unavailable right now";
     } finally {
@@ -147,11 +186,17 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
 
   handlePick(event) {
     const key = event.currentTarget.dataset.key;
-    const opt = this.options.find((o) => o.key === key);
+    this.selectOption(this.options.find((o) => o.key === key));
+  }
+
+  selectOption(opt) {
+    if (!opt) {
+      return;
+    }
     this._value = opt.key;
     this._valueLabel = opt.label;
     this.term = "";
-    this.options = [];
+    this.setOptions([]);
     this.isOpen = false;
     this.emit();
   }
@@ -160,7 +205,7 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
     this._value = null;
     this._valueLabel = "";
     this.term = "";
-    this.options = [];
+    this.setOptions([]);
     this.isOpen = false;
     this.emit();
   }
@@ -187,6 +232,42 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
   handleKey(event) {
     if (event.key === "Escape") {
       this.isOpen = false;
+      return;
+    }
+    if (!this.isOpen) {
+      return;
+    }
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      this.moveHighlight(1);
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      this.moveHighlight(-1);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      this.handleEnter();
+    }
+  }
+
+  moveHighlight(step) {
+    if (!this.options.length) {
+      return;
+    }
+    const next = this.highlightedIndex + step;
+    this.highlightedIndex = Math.min(
+      Math.max(next, 0),
+      this.options.length - 1
+    );
+  }
+
+  handleEnter() {
+    const picked = this.options[this.highlightedIndex];
+    if (picked) {
+      this.selectOption(picked);
+      return;
+    }
+    if (!this.options.length && this.showMapAction) {
+      this.handleMapSearch();
     }
   }
 

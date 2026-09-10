@@ -87,4 +87,14 @@ describe("c-lane-benchmark-stats", () => {
     const empty = await mount({ statsByCurrency: {}, rowCount: 0 });
     expect(text(empty)).toContain("No quotes");
   });
+
+  it("summary omits the dedupe segment and its separator when there are none, and singularizes one row", async () => {
+    const el = await mount({ dedupedCount: 0, rowCount: 1 });
+    const summary = el.shadowRoot
+      .querySelector('[data-id="summary"]')
+      .textContent.trim();
+    expect(summary).toBe("1 row in 0.4 s");
+    expect(summary.endsWith(" s")).toBe(true);
+    expect(summary).not.toContain("duplicates removed");
+  });
 });

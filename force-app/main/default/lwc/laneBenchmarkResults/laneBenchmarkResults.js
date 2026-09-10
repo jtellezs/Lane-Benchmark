@@ -62,7 +62,7 @@ export default class LaneBenchmarkResults extends LightningElement {
     }));
   }
   get selectedFlags() {
-    return this.selected && this.selected.carrier.attention
+    return this.selected?.carrier?.attention
       ? this.selected.carrier.attention.trim()
       : "";
   }

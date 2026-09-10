@@ -39,9 +39,10 @@
             ></lightning-button>
           </div>
           <div
+            data-id="summary"
             class="slds-col slds-text-align_right slds-text-color_weak slds-text-body_small"
           >
-            {rowCount} rows in {elapsedText} · {dedupeText}
+            {summary}
           </div>
         </div>
         <template lwc:if={truncated}>
