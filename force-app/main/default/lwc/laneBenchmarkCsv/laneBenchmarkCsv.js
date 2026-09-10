@@ -4,9 +4,17 @@ function cell(value) {
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+function valueAt(row, field) {
+  return field
+    .split(".")
+    .reduce((v, key) => (v === null || v === undefined ? v : v[key]), row);
+}
+
 export function toCsv(rows, columns) {
   const header = columns.map((c) => cell(c.label)).join(",");
-  const body = rows.map((r) => columns.map((c) => cell(r[c.field])).join(","));
+  const body = rows.map((r) =>
+    columns.map((c) => cell(valueAt(r, c.field))).join(",")
+  );
   // eslint-disable-next-line no-irregular-whitespace
   return `﻿${[header, ...body].join("\r\n")}`;
 }

@@ -27,6 +27,22 @@ describe("toCsv", () => {
   it("handles an empty row list", () => {
     expect(toCsv([], columns)).toBe("﻿Origin,Carrier,Total");
   });
+  it("resolves a dotted field against a nested object", () => {
+    const nestedColumns = [
+      { label: "Origin", field: "origin" },
+      { label: "Email", field: "carrier.contactEmail" }
+    ];
+    const csv = toCsv(
+      [
+        { origin: "Laval", carrier: { contactEmail: "jo@acme.test" } },
+        { origin: "Laval", carrier: null }
+      ],
+      nestedColumns
+    );
+    const lines = csv.split("\r\n");
+    expect(lines[1]).toBe("Laval,jo@acme.test");
+    expect(lines[2]).toBe("Laval,");
+  });
 });
 
 describe("fileName", () => {

@@ -1,0 +1,32 @@
+.ltl-cell {
+  background: #fff4e5;
+}
+.ftl-cell {
+  background: #e8f4ff;
+}
+.freight-cell {
+  background: #eefbea;
+}
+.detail td {
+  background: #fafaf9;
+}
+.modal-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 9001;
+}
+.w-2 {
+  width: 2rem;
+}
+.w-4 {
+  width: 4rem;
+}
+.w-5 {
+  width: 5rem;
+}
+.w-6 {
+  width: 6rem;
+}
+.w-7 {
+  width: 7rem;
+}
