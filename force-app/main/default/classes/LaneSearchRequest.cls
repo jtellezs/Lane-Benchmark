@@ -85,14 +85,16 @@ public class LaneSearchRequest {
     }
   }
 
+  // The parameter is endPrecision, not precision: Apex is case-insensitive, so a local named
+  // "precision" hides the "Precision" enum type and Precision.RADIUS stops compiling.
   private static void validateRadius(
-    Precision precision,
+    Precision endPrecision,
     String key,
     Decimal radius,
     String fieldName
   ) {
     if (
-      precision == Precision.RADIUS &&
+      endPrecision == Precision.RADIUS &&
       String.isNotBlank(key) &&
       (radius == null ||
       radius <= 0)
