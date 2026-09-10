@@ -56,23 +56,7 @@ private class PlaceBuilderBatchTest {
       List<Pricing_Place__c> places = pbb.buildPlacesForTest();
       new PlaceWriteBatch(places, false).execute(null, places);
     }
-    PlaceUsageBatch pub = new PlaceUsageBatch();
-    pub.execute(
-      null,
-      [
-        SELECT
-          rtms__Location2__r.ShippingCity,
-          rtms__Location2__r.ShippingState,
-          rtms__Location2__r.ShippingCountry
-        FROM rtms__Stop__c
-        WHERE
-          CreatedDate = LAST_N_DAYS:365
-          AND rtms__Location2__c != NULL
-          AND rtms__Location2__r.ShippingCity != NULL
-      ]
-    );
-    List<Pricing_Place__c> updates = pub.buildUpdatesForTest();
-    new PlaceWriteBatch(updates, false).execute(null, updates);
+    runUsageBatch();
 
     Map<String, Pricing_Place__c> byKey = new Map<String, Pricing_Place__c>();
     for (Pricing_Place__c p : [
@@ -120,7 +104,8 @@ private class PlaceBuilderBatchTest {
       mtl.Postal_Prefix__c
     );
     System.assertEquals(true, mtl.Active__c);
-    // Usage batch ran in finish(): Laval was a destination twice, Montreal an origin twice.
+    // The usage batch counts one per load END: Laval was a destination twice, Montreal an origin
+    // twice.
     System.assertEquals(2, byKey.get('laval|qc|ca').Load_Count_365d__c);
     System.assertEquals(2, byKey.get('montreal|qc|ca').Load_Count_365d__c);
   }
@@ -160,8 +145,10 @@ private class PlaceBuilderBatchTest {
       new PlaceWriteBatch(places, false).execute(null, places);
     }
 
+    runUsageBatch();
+
     Pricing_Place__c place = [
-      SELECT Name, Key__c, Province__c, Country__c
+      SELECT Name, Key__c, Province__c, Country__c, Load_Count_365d__c
       FROM Pricing_Place__c
       WHERE Key__c = 'general escobedo|nl|mx'
     ];
@@ -175,6 +162,11 @@ private class PlaceBuilderBatchTest {
       'General Escobedo, NL, MX',
       place.Name,
       'no truncated province in the display name'
+    );
+    System.assertEquals(
+      2,
+      place.Load_Count_365d__c,
+      'one load, both ends in this place: counted once per end'
     );
 
     LaneSearchRequest search = new LaneSearchRequest();
@@ -220,6 +212,31 @@ private class PlaceBuilderBatchTest {
     ];
     System.assertEquals('Baden-Württemberg', p.Province__c);
     System.assertEquals('Stuttgart, Baden-Württemberg, GE', p.Name);
+  }
+
+  /**
+   * Drives PlaceUsageBatch by hand over the same loads its own start() would select. The batch
+   * chain that finish() kicks off is not reliably synchronous at this depth in test context, and
+   * this is idempotent, so running it either way is harmless.
+   */
+  private static void runUsageBatch() {
+    PlaceUsageBatch pub = new PlaceUsageBatch();
+    pub.execute(
+      null,
+      [
+        SELECT
+          rtms__First_Stop__r.rtms__Location2__r.ShippingCity,
+          rtms__First_Stop__r.rtms__Location2__r.ShippingState,
+          rtms__First_Stop__r.rtms__Location2__r.ShippingCountry,
+          rtms__Last_Stop__r.rtms__Location2__r.ShippingCity,
+          rtms__Last_Stop__r.rtms__Location2__r.ShippingState,
+          rtms__Last_Stop__r.rtms__Location2__r.ShippingCountry
+        FROM rtms__Load__c
+        WHERE CreatedDate = LAST_N_DAYS:365
+      ]
+    );
+    List<Pricing_Place__c> updates = pub.buildUpdatesForTest();
+    new PlaceWriteBatch(updates, false).execute(null, updates);
   }
 
   @IsTest
