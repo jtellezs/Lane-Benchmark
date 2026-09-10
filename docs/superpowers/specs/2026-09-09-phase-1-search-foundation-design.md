@@ -339,8 +339,8 @@ false)`. Fixed and merged as origin #11 / TPLM #9, deployed as
 
 A scoped review after the Outcome above was written found one data defect
 and a set of contract/hygiene gaps; all of them landed in one branch,
-`phase-1/final-review-fixes` (origin PR **#13**, mirror PR **#10**), and
-were redeployed to PostProduc as **DEPLOY_ID_PLACEHOLDER** (TEST_COUNT_PLACEHOLDER tests).
+`phase-1/final-review-fixes` (origin PR **#13**, mirror PR **#11**), and
+were redeployed to PostProduc as **`0AfbZ00000CntXVSAZ`** (43 tests, 0 failures; 36 before this wave).
 
 - **The province defect (the one real bug).** `PlaceNormalizer` knew
   Canadian provinces and US states only, so every Mexican location fell
@@ -382,7 +382,34 @@ escobedo|nuevo león|mx` was the 10th busiest place in the whole
 - **The dictionary was rebuilt from scratch after the fix.** Every place key
   containing a Mexican province changed, and `Load_Count_365d__c` changed
   meaning at the same time (below), so the whole object was deleted and
-  rebuilt rather than upserted over: REBUILD_PLACEHOLDER
+  rebuilt rather than upserted over.
+
+  Confirmed first that no curation existed to lose: 10,496 places, **0** with
+  `Aliases__c` and **0** inactive (`Aliases__c` is a long text area and cannot be
+  filtered in SOQL, so this was counted in anonymous Apex). Deleted in two
+  9,000-row anonymous-Apex transactions, then `Database.executeBatch(new
+PlaceBuilderBatch(), 2000)` against the merged and deployed `main`. Four jobs,
+  all `Completed` with 0 errors: `707bZ00000qx59yQAA` (PlaceBuilderBatch, 30/30) →
+  `707bZ00000qx9pUQAQ` (PlaceWriteBatch, 6/6) → `707bZ00000qx6hCQAQ`
+  (PlaceUsageBatch, 28/28 — 28 chunks over 55,432 loads, where the old stop-based
+  scope was 57) → `707bZ00000qxAqIQAU` (PlaceWriteBatch, 6/6). The chain still
+  fires with `PlaceWriteBatch` no longer `Database.Stateful`, which is what those
+  four jobs prove.
+
+  **10,496 places before, 10,496 after**: the province remapping is one-to-one
+  (no two Mexican state names share a code), so nothing merged or split. What
+  changed is the content — 428 Mexican places, **none** of them carrying a
+  province longer than the 2-letter code Revenova writes, and 536 places worldwide
+  (Guangdong, Istanbul, Shanghai, Baden-Württemberg…) keeping a full province name
+  that Text(3) used to cut to three characters. The two Mexico City places
+  (`ciudad de mexico|mx|mx` and `ciudad de mexico|df|mx`) stayed separate, as
+  intended. Load counts fell across the board — Laredo 7,196 → 6,173, Calgary
+  3,219 → 1,918 — which is the loads-per-end change, not a regression.
+
+  The heap line added to `PlaceBuilderBatch.finish()` produced no `ApexLog` on this
+  run: no trace flag was active for the batch's automated context. It is deployed
+  and will log the next time the batch runs under a debug log.
+
 - **`Load_Count_365d__c` counts loads, not stops.** `PlaceUsageBatch` used
   to iterate `rtms__Stop__c`, so a place scored on loads that neither
   started nor ended there (any intermediate stop counted) and the number
