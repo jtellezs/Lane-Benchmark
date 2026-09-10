@@ -11,18 +11,27 @@ export const DEFAULT_FILTERS = Object.freeze({
   acceptedFilter: "ANY_STATUS"
 });
 
+export function cloneDefaults() {
+  return {
+    ...DEFAULT_FILTERS,
+    modes: [],
+    equipmentCategories: [],
+    equipmentTypes: []
+  };
+}
+
 export default class LaneBenchmarkFilters extends LightningElement {
   @api options = {
     modes: [],
     equipmentByCategory: {},
     currencies: ["CAD", "USD"]
   };
-  _value = { ...DEFAULT_FILTERS };
+  _value = cloneDefaults();
   @api get value() {
     return this._value;
   }
   set value(v) {
-    this._value = { ...DEFAULT_FILTERS, ...(v || {}) };
+    this._value = { ...cloneDefaults(), ...(v || {}) };
   }
 
   acceptedOptions = [
@@ -79,6 +88,7 @@ export default class LaneBenchmarkFilters extends LightningElement {
   handleLookback(event) {
     const n = parseInt(event.detail.value, 10);
     if (!Number.isFinite(n) || n < 1) {
+      event.target.value = this._value.lookbackDays;
       this.update({});
       return; // keep previous value, re-emit
     }
@@ -117,7 +127,7 @@ export default class LaneBenchmarkFilters extends LightningElement {
     this.dispatchEvent(new CustomEvent("apply"));
   }
   handleReset() {
-    this._value = { ...DEFAULT_FILTERS };
+    this._value = cloneDefaults();
     this.dispatchEvent(
       new CustomEvent("filterschange", { detail: { ...this._value } })
     );

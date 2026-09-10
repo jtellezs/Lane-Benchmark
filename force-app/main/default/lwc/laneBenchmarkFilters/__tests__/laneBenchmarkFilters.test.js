@@ -48,10 +48,19 @@ describe("c-lane-benchmark-filters", () => {
         .querySelector('[data-id="categories"]')
         .options.map((o) => o.value)
     ).toEqual(["Van", "Reefer"]);
+    const a = createElement("c-lane-benchmark-filters", { is: Filters });
+    const b = createElement("c-lane-benchmark-filters", { is: Filters });
+    document.body.appendChild(a);
+    document.body.appendChild(b);
+    await flush();
+    expect(a.value.modes).not.toBe(b.value.modes);
   });
 
   it("emits the full filters object on each change and narrows equipment types by category", async () => {
-    const el = await mount();
+    const el = await mount({
+      ...DEFAULTS,
+      equipmentTypes: ["Dry Van 53'", "Reefer 53'"]
+    });
     const handler = jest.fn();
     el.addEventListener("filterschange", handler);
     change(el, "lookback", "365");
@@ -62,8 +71,10 @@ describe("c-lane-benchmark-filters", () => {
     expect(last).toMatchObject({
       lookbackDays: 365,
       currencyIsoCode: "USD",
-      equipmentCategories: ["Reefer"]
+      equipmentCategories: ["Reefer"],
+      equipmentTypes: ["Reefer 53'"]
     });
+    expect(last.equipmentTypes).not.toContain("Dry Van 53'");
     expect(
       el.shadowRoot
         .querySelector('[data-id="types"]')
@@ -82,12 +93,14 @@ describe("c-lane-benchmark-filters", () => {
     const el = await mount();
     const handler = jest.fn();
     el.addEventListener("filterschange", handler);
-    change(el, "lookback", "0");
+    const input = el.shadowRoot.querySelector('[data-id="lookback"]');
+    input.value = "0";
+    input.dispatchEvent(new CustomEvent("change", { detail: { value: "0" } }));
     await flush();
     expect(
       handler.mock.calls[handler.mock.calls.length - 1][0].detail.lookbackDays
     ).toBe(90);
-    expect(el.shadowRoot.querySelector('[data-id="lookback"]').value).toBe(90);
+    expect(input.value).toBe(90);
   });
 
   it("apply, reset and clear-saved raise their events; reset restores defaults", async () => {
