@@ -3,8 +3,10 @@
     <fullName>Province__c</fullName>
     <label>Province / State</label>
     <type>Text</type>
-    <length>3</length>
+    <length>80</length>
     <externalId>false</externalId>
     <required>false</required>
     <unique>false</unique>
+    <inlineHelpText
+  >The province/state code Revenova writes in the load lane keys (QC, TX, NL). Unmapped values are kept in full - as wide as Account.ShippingState - rather than truncated. Maintained by PlaceBuilderBatch.</inlineHelpText>
 </CustomField>

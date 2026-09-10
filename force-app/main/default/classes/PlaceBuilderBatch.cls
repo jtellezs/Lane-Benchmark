@@ -106,14 +106,11 @@ public without sharing class PlaceBuilderBatch implements Database.Batchable<SOb
       Agg g = aggs.get(key);
       Pricing_Place__c p = new Pricing_Place__c(Key__c = key);
       p.City__c = mostCommon(g.spellingCounts);
-      p.Province__c = g.province.left(3);
+      // No truncation: provinceCode() returns either a 2-letter code or the value as typed, and
+      // Province__c is Text(80) - as wide as Account.ShippingState - so every value fits whole.
+      p.Province__c = g.province;
       p.Country__c = g.country.left(2);
-      p.Name = (p.City__c +
-        ', ' +
-        p.Province__c +
-        ', ' +
-        p.Country__c)
-        .left(80);
+      p.Name = displayName(p.City__c, p.Province__c, p.Country__c);
       p.Location_Count__c = g.locationCount;
       p.Spellings__c = String.join(new List<String>(g.spellings), '\n')
         .left(4000);
@@ -127,6 +124,24 @@ public without sharing class PlaceBuilderBatch implements Database.Batchable<SOb
       places.add(p);
     }
     return places;
+  }
+
+  /**
+   * "City, PROV, CC" within Name's 80 characters, shortening the CITY when it does not fit and
+   * never the province: a truncated province ("GENERAL ESCOBEDO, Nue, MX") reads as a different
+   * place entirely, which is the defect this replaced.
+   */
+  private static String displayName(
+    String city,
+    String province,
+    String country
+  ) {
+    String suffix = ', ' + province + ', ' + country;
+    Integer room = 80 - suffix.length();
+    String shownCity = room >= city.length()
+      ? city
+      : city.left(Math.max(room, 0));
+    return (shownCity + suffix).left(80);
   }
 
   private static String mostCommon(Map<String, Integer> counts) {

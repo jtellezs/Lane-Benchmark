@@ -22,9 +22,22 @@ private class PlaceNormalizerTest {
     System.assertEquals('QC', PlaceNormalizer.provinceCode('qc'));
     System.assertEquals('ON', PlaceNormalizer.provinceCode('Ontario'));
     System.assertEquals('TX', PlaceNormalizer.provinceCode('Texas'));
+    // Revenova writes 2-letter codes for Mexican states as well ("General Escobedo, NL:Laredo,
+    // TX", "NL:TX"), measured over 730 days of loads in PostProduc, so a Mexican state name maps
+    // like any other. It used to fall through unmapped and reach Pricing_Place__c as "Nue".
+    System.assertEquals('NL', PlaceNormalizer.provinceCode('Nuevo León'));
+    System.assertEquals('NL', PlaceNormalizer.provinceCode('Nuevo Leon'));
+    System.assertEquals('NL', PlaceNormalizer.provinceCode('NUEVO LEON'));
+    System.assertEquals('ME', PlaceNormalizer.provinceCode('Mexico State'));
+    System.assertEquals('QE', PlaceNormalizer.provinceCode('Querétaro'));
+    // Ciudad de México and Federal District are one entity under two Salesforce labels, and
+    // Revenova writes a different code for each; both are kept so a place matches its own loads.
+    System.assertEquals('MX', PlaceNormalizer.provinceCode('Ciudad de México'));
+    System.assertEquals('DF', PlaceNormalizer.provinceCode('Federal District'));
+    // Unknown province: returned as typed, in full, never truncated.
     System.assertEquals(
-      'Nuevo León',
-      PlaceNormalizer.provinceCode('Nuevo León')
+      'Baden-Württemberg',
+      PlaceNormalizer.provinceCode('Baden-Württemberg')
     );
     System.assertEquals('', PlaceNormalizer.provinceCode(null));
   }
@@ -52,6 +65,33 @@ private class PlaceNormalizerTest {
     System.assertEquals(
       'laredo|tx|us',
       PlaceNormalizer.key('Laredo', 'Texas', 'United States')
+    );
+  }
+
+  @IsTest
+  static void keyCollapsesEverySpellingOfAProvince() {
+    String expected = 'general escobedo|nl|mx';
+    System.assertEquals(
+      expected,
+      PlaceNormalizer.key('General Escobedo', 'Nuevo León', 'Mexico')
+    );
+    System.assertEquals(
+      expected,
+      PlaceNormalizer.key('GENERAL ESCOBEDO', 'Nuevo Leon', 'México')
+    );
+    System.assertEquals(
+      expected,
+      PlaceNormalizer.key('General  Escobedo', 'NUEVO LEON', 'MX')
+    );
+    // An unmapped province goes through the same accent/punctuation normalization as the city, so
+    // two spellings of it cannot split one place in two.
+    System.assertEquals(
+      'stuttgart|baden wurttemberg|ge',
+      PlaceNormalizer.key('Stuttgart', 'Baden-Württemberg', 'Germany')
+    );
+    System.assertEquals(
+      'stuttgart|baden wurttemberg|ge',
+      PlaceNormalizer.key('STUTTGART', 'Baden-Wurttemberg', 'Germany')
     );
   }
 
