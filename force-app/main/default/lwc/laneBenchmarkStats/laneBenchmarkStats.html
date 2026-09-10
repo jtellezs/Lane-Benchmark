@@ -1,0 +1,92 @@
+<template>
+  <lightning-card title="Statistics" icon-name="standard:metrics">
+    <div class="slds-p-horizontal_medium">
+      <template lwc:if={isEmpty}>
+        <p class="slds-text-color_weak">
+          No quotes match this lane and these filters yet. Widen the radius or
+          the lookback, or choose a broader precision.
+        </p>
+      </template>
+      <template lwc:else>
+        <div
+          class="slds-grid slds-gutters_small slds-wrap slds-m-bottom_small slds-grid_vertical-align-end"
+        >
+          <div class="slds-col slds-size_1-of-3">
+            <lightning-input
+              data-id="margin"
+              type="text"
+              label="Margin %"
+              value={marginPct}
+              onchange={handleMarginInput}
+            ></lightning-input>
+            <template lwc:if={marginError}>
+              <div class="slds-text-color_error slds-text-body_small">
+                {marginError}
+              </div>
+            </template>
+          </div>
+          <div class="slds-col">
+            <lightning-button
+              data-id="margin-15"
+              label="15%"
+              onclick={handleMargin15}
+            ></lightning-button>
+            <lightning-button
+              data-id="margin-20"
+              label="20%"
+              class="slds-m-left_x-small"
+              onclick={handleMargin20}
+            ></lightning-button>
+          </div>
+          <div
+            class="slds-col slds-text-align_right slds-text-color_weak slds-text-body_small"
+          >
+            {rowCount} rows in {elapsedText} · {dedupeText}
+          </div>
+        </div>
+        <template lwc:if={truncated}>
+          <div
+            class="slds-notify slds-notify_alert slds-alert_warning slds-m-bottom_small"
+            role="alert"
+          >
+            Showing the first 2,000 most recent quotes; narrow the lookback or
+            filters to see everything.
+          </div>
+        </template>
+        <div class="slds-grid slds-gutters_small slds-wrap">
+          <template for:each={cards} for:item="c">
+            <div
+              key={c.currency}
+              data-currency={c.currency}
+              class="slds-col slds-size_1-of-1 slds-large-size_1-of-2 slds-m-bottom_small"
+            >
+              <div class="slds-box slds-box_small">
+                <h3 class="slds-text-heading_small">
+                  {c.currency} · {c.count} quotes ({c.countNonZero} priced)
+                </h3>
+                <dl class="slds-dl_horizontal slds-m-top_x-small">
+                  <dt class="slds-dl_horizontal__label">Min</dt>
+                  <dd class="slds-dl_horizontal__detail">{c.min}</dd>
+                  <dt class="slds-dl_horizontal__label">Median</dt>
+                  <dd class="slds-dl_horizontal__detail">{c.median}</dd>
+                  <dt class="slds-dl_horizontal__label">Average</dt>
+                  <dd class="slds-dl_horizontal__detail">{c.avg}</dd>
+                  <dt class="slds-dl_horizontal__label">Max</dt>
+                  <dd class="slds-dl_horizontal__detail">{c.max}</dd>
+                  <dt class="slds-dl_horizontal__label slds-text-title_bold">
+                    Sell (median)
+                  </dt>
+                  <dd class="slds-dl_horizontal__detail slds-text-title_bold">
+                    {c.sellMedian}
+                  </dd>
+                  <dt class="slds-dl_horizontal__label">Sell (average)</dt>
+                  <dd class="slds-dl_horizontal__detail">{c.sellAvg}</dd>
+                </dl>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+  </lightning-card>
+</template>
