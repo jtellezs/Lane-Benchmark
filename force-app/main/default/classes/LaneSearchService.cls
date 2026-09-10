@@ -172,11 +172,11 @@ public without sharing class LaneSearchService {
     r.loadStatus = q.Load_Status__c;
     r.opsComments = q.Ops_Comments__c;
     r.createdDate = q.CreatedDate;
-    r.contactEmail = q.Contact_Email__c;
-    r.contactPhone = q.Contact_Phone__c;
-    r.carrierRisk = q.Carrier_Risk__c;
-    r.carrierLoadCount = q.Nb_of_loads__c;
-    r.carrierAttention = q.Carrier_Att__c;
+    r.carrier.contactEmail = q.Contact_Email__c;
+    r.carrier.contactPhone = q.Contact_Phone__c;
+    r.carrier.risk = q.Carrier_Risk__c;
+    r.carrier.loadCount = q.Nb_of_loads__c;
+    r.carrier.attention = q.Carrier_Att__c;
     return r;
   }
 }

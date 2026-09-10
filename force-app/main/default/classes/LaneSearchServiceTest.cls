@@ -94,13 +94,22 @@ private class LaneSearchServiceTest {
     System.assertEquals('Test Carrier', r.rows[0].carrierName);
     System.assertEquals(
       'quote.contact@example.invalid',
-      r.rows[0].contactEmail
+      r.rows[0].carrier.contactEmail
     );
-    System.assertEquals('514-555-0100', r.rows[0].contactPhone);
+    System.assertEquals('514-555-0100', r.rows[0].carrier.contactPhone);
     System.assertEquals(
       'Acceptable',
-      r.rows[0].carrierRisk,
+      r.rows[0].carrier.risk,
       'from rtms__Company_Risk__c on the transportation profile'
+    );
+    System.assertNotEquals(
+      null,
+      r.rows[0].carrier.loadCount,
+      'from the vendor account Number_of_Loads__c (BlankAsZero formula)'
+    );
+    System.assert(
+      String.isBlank(r.rows[0].carrier.attention),
+      'clean profile (no BlackList__c/Outstanding_Claim__c) has no attention flags'
     );
   }
 

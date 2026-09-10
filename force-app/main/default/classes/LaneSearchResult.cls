@@ -44,15 +44,22 @@ public class LaneSearchResult {
     @AuraEnabled
     public Datetime createdDate;
     @AuraEnabled
+    public CarrierDetail carrier = new CarrierDetail();
+  }
+
+  // Grouped off Row (Task 3 review ruling) to keep Row under PMD's TooManyFields threshold:
+  // contactEmail/contactPhone/risk/loadCount/attention all describe the carrier on the quote.
+  public class CarrierDetail {
+    @AuraEnabled
     public String contactEmail;
     @AuraEnabled
     public String contactPhone;
     @AuraEnabled
-    public String carrierRisk;
+    public String risk;
     @AuraEnabled
-    public Decimal carrierLoadCount;
+    public Decimal loadCount;
     @AuraEnabled
-    public String carrierAttention;
+    public String attention;
   }
 
   public class Stats {
