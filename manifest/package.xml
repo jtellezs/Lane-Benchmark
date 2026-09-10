@@ -56,6 +56,7 @@
         <members>MapboxException</members>
         <members>MapboxGeocoder</members>
         <members>MapboxGeocoderTest</members>
+        <members>MapboxResponseParser</members>
         <members>LaneBenchmarkPlaceServiceTest</members>
         <name>ApexClass</name>
     </types>

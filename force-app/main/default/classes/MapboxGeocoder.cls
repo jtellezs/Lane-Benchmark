@@ -2,44 +2,12 @@
  * Forward geocoding and static-map URLs through the company's Mapbox account.
  * Token: TPRO_KPI__c org default, Mapbox_Api_Key__c (public pk. token). Remote site: MapBox.
  * Only the search CENTER is geocoded; historical data is never sent to Mapbox.
+ * Response parsing lives in MapboxResponseParser (see that class's doc comment for why): this
+ * class keeps the callout itself (build the request, send with one retry, callout-error mapping).
  */
 public with sharing class MapboxGeocoder {
   private static final String BASE = 'https://api.mapbox.com';
   private static final Integer TIMEOUT_MS = 10000;
-  private static final Map<String, String> MX_ISO_TO_REVENOVA = new Map<String, String>{
-    'AGU' => 'AG',
-    'BCN' => 'BC',
-    'BCS' => 'BS',
-    'CAM' => 'CP',
-    'CHP' => 'CS',
-    'CHH' => 'CH',
-    'CMX' => 'MX',
-    'COA' => 'CO',
-    'COL' => 'CL',
-    'DUR' => 'DG',
-    'GUA' => 'GT',
-    'GRO' => 'GR',
-    'HID' => 'HG',
-    'JAL' => 'JA',
-    'MEX' => 'ME',
-    'MIC' => 'MI',
-    'MOR' => 'MO',
-    'NAY' => 'NA',
-    'NLE' => 'NL',
-    'OAX' => 'OA',
-    'PUE' => 'PB',
-    'QUE' => 'QE',
-    'ROO' => 'QR',
-    'SLP' => 'SL',
-    'SIN' => 'SI',
-    'SON' => 'SO',
-    'TAB' => 'TB',
-    'TAM' => 'TM',
-    'TLA' => 'TL',
-    'VER' => 'VE',
-    'YUC' => 'YU',
-    'ZAC' => 'ZA'
-  };
 
   public class GeoResult {
     public String name;
@@ -73,6 +41,21 @@ public with sharing class MapboxGeocoder {
         'Mapbox token is not configured (TPRO_KPI__c.Mapbox_Api_Key__c)'
       );
     }
+    HttpRequest req = buildRequest(query, countryHint, t);
+    HttpResponse res = sendWithRetry(req);
+    if (res.getStatusCode() != 200) {
+      throw new MapboxException(
+        'Mapbox geocoding failed: HTTP ' + res.getStatusCode()
+      );
+    }
+    return MapboxResponseParser.parse(res.getBody());
+  }
+
+  private static HttpRequest buildRequest(
+    String query,
+    String countryHint,
+    String token
+  ) {
     String countries = sanitizeCountryHint(countryHint);
     String url =
       BASE +
@@ -82,27 +65,25 @@ public with sharing class MapboxGeocoder {
       '?limit=5&language=en&types=place,locality,postcode' +
       (countries != null ? '&country=' + countries : '') +
       '&access_token=' +
-      t;
+      token;
     HttpRequest req = new HttpRequest();
     req.setEndpoint(url);
     req.setMethod('GET');
     req.setTimeout(TIMEOUT_MS);
+    return req;
+  }
+
+  private static HttpResponse sendWithRetry(HttpRequest req) {
     Http http = new Http();
-    HttpResponse res;
     try {
-      res = http.send(req);
+      HttpResponse res = http.send(req);
       if (res.getStatusCode() >= 500) {
         res = http.send(req); // one retry
       }
+      return res;
     } catch (System.CalloutException e) {
       throw new MapboxException('Mapbox is not reachable right now');
     }
-    if (res.getStatusCode() != 200) {
-      throw new MapboxException(
-        'Mapbox geocoding failed: HTTP ' + res.getStatusCode()
-      );
-    }
-    return parse(res.getBody());
   }
 
   /** Only 'xx' or 'xx,yy,...' (ISO-3166 alpha-2, lowercase) is forwarded to Mapbox; anything else is dropped. */
@@ -117,83 +98,10 @@ public with sharing class MapboxGeocoder {
       : null;
   }
 
-  @TestVisible
-  private static List<GeoResult> parse(String body) {
-    Map<String, Object> root;
-    try {
-      root = (Map<String, Object>) JSON.deserializeUntyped(body);
-    } catch (Exception e) {
-      throw new MapboxException('Could not parse the Mapbox response');
-    }
-    List<GeoResult> out = new List<GeoResult>();
-    List<Object> features = (List<Object>) root.get('features');
-    if (features == null) {
-      return out;
-    }
-    for (Object f : features) {
-      Map<String, Object> feat = (Map<String, Object>) f;
-      List<Object> center = (List<Object>) feat.get('center');
-      if (!hasValidCenter(center)) {
-        continue;
-      }
-      GeoResult g = new GeoResult();
-      g.name = (String) feat.get('place_name');
-      g.lng = Decimal.valueOf(String.valueOf(center[0]));
-      g.lat = Decimal.valueOf(String.valueOf(center[1]));
-      List<Object> types = (List<Object>) feat.get('place_type');
-      Boolean isPostcode = types != null && types.contains('postcode');
-      String text = (String) feat.get('text');
-      if (isPostcode) {
-        g.postalPrefix = text == null
-          ? null
-          : text.replace(' ', '').left(3).toUpperCase();
-      } else {
-        g.city = text;
-      }
-      applyContext(g, (List<Object>) feat.get('context'));
-      if (g.city != null && g.country != null) {
-        out.add(g);
-      }
-    }
-    return out;
-  }
-
-  private static Boolean hasValidCenter(List<Object> center) {
-    return center != null && center.size() == 2;
-  }
-
-  private static void applyContext(GeoResult g, List<Object> ctx) {
-    if (ctx == null) {
-      return;
-    }
-    for (Object c : ctx) {
-      Map<String, Object> item = (Map<String, Object>) c;
-      String id = (String) item.get('id');
-      if (id == null) {
-        continue;
-      }
-      if (id.startsWith('place.') && g.city == null) {
-        g.city = (String) item.get('text');
-      } else if (id.startsWith('region.') && item.get('short_code') != null) {
-        g.province = provinceFromShortCode((String) item.get('short_code'));
-      } else if (id.startsWith('country.') && item.get('short_code') != null) {
-        g.country = ((String) item.get('short_code')).toUpperCase();
-      }
-    }
-  }
-
   /** 'CA-QC' -> 'QC', 'US-TX' -> 'TX', 'MX-NLE' -> 'NL' (Revenova's code); unknown suffix kept. */
   @TestVisible
   private static String provinceFromShortCode(String shortCode) {
-    if (String.isBlank(shortCode) || !shortCode.contains('-')) {
-      return shortCode;
-    }
-    String prefix = shortCode.substringBefore('-').toUpperCase();
-    String suffix = shortCode.substringAfter('-').toUpperCase();
-    if (prefix == 'MX' && MX_ISO_TO_REVENOVA.containsKey(suffix)) {
-      return MX_ISO_TO_REVENOVA.get(suffix);
-    }
-    return suffix;
+    return MapboxResponseParser.provinceFromShortCode(shortCode);
   }
 
   /** Static Images API URL with one polygon per circle (24 points each), or null without a token / circles. */

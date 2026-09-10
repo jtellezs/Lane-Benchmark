@@ -189,7 +189,7 @@ private class MapboxGeocoderTest {
 
   @IsTest
   static void malformedFeaturesAreSkippedWithoutException() {
-    List<MapboxGeocoder.GeoResult> out = MapboxGeocoder.parse(
+    List<MapboxGeocoder.GeoResult> out = MapboxResponseParser.parse(
       MALFORMED_FEATURES
     );
     System.assertEquals(
