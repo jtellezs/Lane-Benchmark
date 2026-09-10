@@ -34,6 +34,9 @@
         <members>LaneSearchResult</members>
         <members>LaneSearchService</members>
         <members>LaneSearchServiceTest</members>
+        <members>MapboxException</members>
+        <members>MapboxGeocoder</members>
+        <members>MapboxGeocoderTest</members>
         <name>ApexClass</name>
     </types>
     <types>
