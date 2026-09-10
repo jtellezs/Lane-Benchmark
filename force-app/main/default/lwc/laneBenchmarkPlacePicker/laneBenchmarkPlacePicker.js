@@ -25,6 +25,12 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
   }
   set value(val) {
     this._value = val;
+    if (val) {
+      this.term = "";
+      this.options = [];
+      this.isOpen = false;
+      window.clearTimeout(this.timer);
+    }
   }
 
   @api
@@ -182,6 +188,10 @@ export default class LaneBenchmarkPlacePicker extends LightningElement {
     if (event.key === "Escape") {
       this.isOpen = false;
     }
+  }
+
+  disconnectedCallback() {
+    window.clearTimeout(this.timer);
   }
 
   emit() {

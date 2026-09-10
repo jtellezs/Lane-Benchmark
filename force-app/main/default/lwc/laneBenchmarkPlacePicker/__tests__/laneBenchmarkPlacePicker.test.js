@@ -164,4 +164,26 @@ describe("c-lane-benchmark-place-picker", () => {
     await flush();
     expect(handler.mock.calls[0][0].detail.key).toBeNull();
   });
+
+  it("ignores a pending debounce when the parent sets a value mid-type", async () => {
+    const el = await mount();
+    type(el, "mon");
+    el.value = "toronto|on|ca";
+    el.valueLabel = "Toronto, ON, CA";
+    jest.runOnlyPendingTimers();
+    await flush();
+    await flush();
+    expect(searchPlaces).not.toHaveBeenCalled();
+    expect(el.shadowRoot.querySelectorAll("li[data-key]").length).toBe(0);
+  });
+
+  it("clears the pending debounce timer on disconnect", async () => {
+    const el = await mount();
+    type(el, "mon");
+    document.body.removeChild(el);
+    jest.runOnlyPendingTimers();
+    await flush();
+    await flush();
+    expect(searchPlaces).not.toHaveBeenCalled();
+  });
 });
