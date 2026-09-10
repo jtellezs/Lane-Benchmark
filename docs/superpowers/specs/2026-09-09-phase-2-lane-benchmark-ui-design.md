@@ -74,12 +74,17 @@ except `geocode`, which writes the cache and is therefore not cacheable.
 | `getFilterOptions()`                            | none                        | `FilterOptions { modes: List<String>, equipmentByCategory: Map<String, List<String>>, currencies: List<String> }` | Enabled `rtms__Mode__c` by `rtms__Order__c`; enabled `rtms__EquipmentType__c` grouped by `rtms__Category__c` (null category → "Other"); currencies fixed `CAD`, `USD`.                                                                                                                                                                                                                                                                                 |
 | `geocode(String query, String countryHint)`     | free text, optional ISO-2   | `List<PlaceOption>`                                                                                               | Calls `MapboxGeocoder.forward(query, countryHint)` (up to 5 results, `types=place,locality,postcode`, `country=ca,us,mx`), converts each to a `Pricing_Place__c` with `Source__c = 'Mapbox'`, upserts by `Key__c` **only if the key does not already exist** (never downgrades a Locations place), and returns them as `PlaceOption`s. Called only when the user explicitly asks ("Search on the map" action in the picker), never on every keystroke. |
 
-`LaneSearchResult.Row` gains `contactEmail`, `contactPhone`, `carrierRisk`,
-`carrierLoadCount`, `carrierAttention` (from `Contact_Email__c`,
-`Contact_Phone__c`, `Carrier_Risk__c`, `Nb_of_loads__c`, `Carrier_Att__c`,
-already selected by phase 0's controller; `LaneSearchQueryBuilder.SELECT_CLAUSE`
-adds them). This is a phase 1 class edit, covered by an added assertion in
-`LaneSearchServiceTest`.
+`LaneBenchmarkPlaceService.upsertFromGeocode()` (which backs `geocode()`'s
+place-matching) only ever inserts new places; the name is a misnomer kept
+as-is for now since it never updates an existing record either way.
+
+`LaneSearchResult.Row` gains a nested `carrier` (`CarrierDetail`) with
+`contactEmail`, `contactPhone`, `risk`, `loadCount`, `attention` (from
+`Contact_Email__c`, `Contact_Phone__c`, `Carrier_Risk__c`, `Nb_of_loads__c`,
+`Carrier_Att__c`, already selected by phase 0's controller;
+`LaneSearchQueryBuilder.SELECT_CLAUSE` adds them) — grouped off `Row` itself
+to keep `Row` under PMD's `TooManyFields` threshold. This is a phase 1 class
+edit, covered by an added assertion in `LaneSearchServiceTest`.
 
 ## Mapbox integration
 
@@ -219,3 +224,37 @@ widening the radius or the lookback.
 4. All Jest and Apex tests pass in CI; PMD clean.
 5. README documents the Mapbox reuse (custom setting, remote site, token restrictions), the storage key,
    and the retirement plan for the old tab; roadmap updated.
+
+## Outcome (2026-09-10)
+
+Deploys to PostProduc (`sandbox`), in order:
+
+- Backend (Tasks 1-3, `phase-2/backend`, merged as PR #17): `0AfbZ00000CoFY1SAN`.
+- Components, check-only (Tasks 4-9, `phase-2/components`, merged as PR #18): `0AfbZ00000CoHI6SAN` (55/55 Apex tests).
+- Task 10 (page, tab, app, TransPro tab, permission set, CSP site): `0AfbZ00000CoN0vSAF` (Succeeded, 55/55 Apex tests across the seven required classes: `PricingDepartmentControllerTest`, `PlaceNormalizerTest`, `PricingTestDataFactoryTest`, `PlaceBuilderBatchTest`, `LaneSearchServiceTest`, `MapboxGeocoderTest`, `LaneBenchmarkControllerTest`).
+
+Jest: 54 tests passing across the picker, filters, stats, results, map,
+container and the three pure modules.
+
+### Manual checks
+
+_To be filled in by the controller after the browser checks._
+
+### Adaptations from the plan's verbatim code
+
+- `Pricing_Place__c.Aliases__c` became a plain `Text(255)`, comma-separated
+  field rather than a long text area, so it can appear in a SOQL `LIKE`
+  filter (`searchPlaces`'s alias match) — a long text area field cannot be
+  filtered in SOQL.
+- `LaneSearchRequest.validate()` applies `applyDefaults()` first, because
+  `JSON.deserialize` does not run field initializers: a field the UI leaves
+  out of the JSON request arrives `null`, not at its declared default, so
+  defaults have to be filled in before the rest of validation runs.
+- `LaneBenchmarkPlaceService` was split out of `LaneBenchmarkController` to
+  keep the controller's PMD cyclomatic-complexity total under the 40
+  threshold (extracting private helpers within the controller alone does not
+  reduce a class-wide total; moving the branches to another class does).
+- The Mapbox token is read from the org-default record of the hierarchy
+  custom setting `TPRO_KPI__c`, field `Mapbox_Api_Key__c` (a public `pk.`
+  token, already in use by `KPI_ReportController`) — not a Named Credential.
+  See "Mapbox integration" above.
