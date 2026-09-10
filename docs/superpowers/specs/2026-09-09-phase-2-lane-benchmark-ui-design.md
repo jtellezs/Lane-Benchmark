@@ -238,7 +238,36 @@ container and the three pure modules.
 
 ### Manual checks
 
-_To be filled in by the controller after the browser checks._
+Done 2026-09-10 in PostProduc (`sandbox`), as the user who deployed, with
+`Lane_Benchmark_User` assigned. Loads in PostProduc stop at the sandbox
+refresh, so row counts are lower than production would give.
+
+- Montreal -> Toronto, both ends Exact city, 90 days: 1 row in 0.9 s; the
+  CAD stats card shows min/median/average/max and Sell (median) 252.89 at the
+  default 15 % margin.
+- Same lane with destination Radius 100 km: 45 rows in 0.4 s, "3 duplicates
+  removed"; the Mapbox static map appears with the 100 km circle around
+  Toronto; results span Burlington, Mississauga, Etobicoke, Hamilton and
+  Guelph.
+- 20 % button: Sell (median) moves from 1,610.00 to 1,680.00 (median 1,400).
+- Typeahead: "Montreal" lists Montréal, QC, CA (2720 loads) first, then the
+  spelling variants and the "Not found? Search on the map" button; "Saguenay"
+  resolves from the dictionary (9 loads).
+- Search on the map: "Kuujjuaq" (not in the dictionary) returns
+  "Kuujjuaq, QC, CA" with the Mapbox badge; picking it and applying gives the
+  empty state ("No quotes match this lane and these filters yet ...") with
+  the map still showing the Toronto circle. No console errors.
+- Navigation: the Trans-Pro app shows "Lane Benchmark" as a regular tab (last
+  in the bar); the Lane Benchmark app opens from its own URL with the single
+  tab. The Revenova "Transportation" app does not list it, as intended.
+- Not exercised in the browser: CSV export (the download cannot be triggered
+  from the automated session). The file content is covered by the
+  `laneBenchmarkCsv` Jest tests (BOM, RFC 4180 quoting, formula-injection
+  guard); the user should open one export in Excel/Numbers and confirm
+  accents survive.
+- Cosmetic, left for the final review: the results box says "Run a search to
+  see quotes." after a search that returned zero rows; the counter reads
+  "1 rows"; the Radius field starts empty when Radius is selected.
 
 ### Adaptations from the plan's verbatim code
 

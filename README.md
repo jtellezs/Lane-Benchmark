@@ -271,7 +271,7 @@ sf org assign permset -n Lane_Benchmark_User -o sandbox
 ```
 
 **Retiring the old tab (phase 4):** once pricing has switched over, the
-`Pricing_Department` tab/page/LWC and its permission set are removed in a
+`Pricing_Department` tab/page/LWC are removed in a
 separate change (roadmap phase 4); nothing about that removal is done yet.
 
 ## Known issues worth fixing
