@@ -71,7 +71,8 @@ private class PlaceBuilderBatchTest {
         Spellings__c,
         Postal_Prefix__c,
         Active__c,
-        Load_Count_365d__c
+        Load_Count_365d__c,
+        Source__c
       FROM Pricing_Place__c
     ]) {
       byKey.put(p.Key__c, p);
@@ -104,6 +105,7 @@ private class PlaceBuilderBatchTest {
       mtl.Postal_Prefix__c
     );
     System.assertEquals(true, mtl.Active__c);
+    System.assertEquals('Locations', mtl.Source__c);
     // The usage batch counts one per load END: Laval was a destination twice, Montreal an origin
     // twice.
     System.assertEquals(2, byKey.get('laval|qc|ca').Load_Count_365d__c);

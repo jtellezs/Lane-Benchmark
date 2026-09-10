@@ -97,6 +97,7 @@
         <members>Pricing_Place__c.Spellings__c</members>
         <members>Pricing_Place__c.Postal_Prefix__c</members>
         <members>Pricing_Place__c.Active__c</members>
+        <members>Pricing_Place__c.Source__c</members>
         <name>CustomField</name>
     </types>
     <version>64.0</version>

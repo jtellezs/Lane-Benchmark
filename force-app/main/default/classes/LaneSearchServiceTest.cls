@@ -91,6 +91,17 @@ private class LaneSearchServiceTest {
     System.assertEquals(1, r.rows.size(), 'only Montreal->Toronto');
     System.assertEquals(1000, r.rows[0].carrierTotal);
     System.assertEquals('CAD', r.rows[0].currencyIsoCode);
+    System.assertEquals('Test Carrier', r.rows[0].carrierName);
+    System.assertEquals(
+      'quote.contact@example.invalid',
+      r.rows[0].contactEmail
+    );
+    System.assertEquals('514-555-0100', r.rows[0].contactPhone);
+    System.assertEquals(
+      'Acceptable',
+      r.rows[0].carrierRisk,
+      'from rtms__Company_Risk__c on the transportation profile'
+    );
   }
 
   @IsTest

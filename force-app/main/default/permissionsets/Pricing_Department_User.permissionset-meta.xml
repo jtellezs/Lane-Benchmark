@@ -89,6 +89,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
+        <field>Pricing_Place__c.Source__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
         <field>Pricing_Place__c.Spellings__c</field>
         <readable>true</readable>
     </fieldPermissions>

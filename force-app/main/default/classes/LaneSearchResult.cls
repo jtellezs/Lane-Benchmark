@@ -43,6 +43,16 @@ public class LaneSearchResult {
     // and can be blank); phase 2 shows it as the row's age.
     @AuraEnabled
     public Datetime createdDate;
+    @AuraEnabled
+    public String contactEmail;
+    @AuraEnabled
+    public String contactPhone;
+    @AuraEnabled
+    public String carrierRisk;
+    @AuraEnabled
+    public Decimal carrierLoadCount;
+    @AuraEnabled
+    public String carrierAttention;
   }
 
   public class Stats {
