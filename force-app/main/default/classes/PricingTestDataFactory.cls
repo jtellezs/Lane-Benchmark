@@ -14,12 +14,13 @@
  *   save, so writing it directly is silently overwritten, and the extra Load DML would trip the
  *   same limit.
  * - Load lane keys (rtms__City_Lane__c/State_Lane__c/Zip3_Lane__c) survive stop insertion
- *   unchanged, but the managed rtms__StopUpsert trigger blanks a Stop's own
- *   rtms__City__c/rtms__Postal_Code__c/geolocation fields on every save WHEN that stop has
- *   rtms__Location2__c - see buildStop()'s doc comment for the full discovery. Read
- *   city/postal/geolocation off rtms__Location2__r (the account) for such stops, never off the
- *   stop directly. A stop with no rtms__Location2__c (see createLoadWithAdHocOrigin()) is not
- *   touched by that trigger and keeps its own city/postal/geolocation fields as written.
+ *   unchanged. Stops with a location account are the exception: ON A STOP THAT HAS
+ *   rtms__Location2__c SET - and only there - the managed rtms__StopUpsert trigger blanks that
+ *   stop's own rtms__City__c/rtms__Postal_Code__c/geolocation fields on every save; see
+ *   buildStop()'s doc comment for the full discovery. Read city/postal/geolocation off
+ *   rtms__Location2__r (the account) for those stops, never off the stop directly. A stop with no
+ *   rtms__Location2__c (see createLoadWithAdHocOrigin()) is left alone by that trigger and keeps
+ *   its own city/postal/geolocation fields exactly as written.
  *
  * The graph is verified end to end in PostProduc: deploy request 0AfbZ00000CnJYrSAN,
  * PricingDepartmentControllerTest 12/12 passing.
@@ -493,12 +494,12 @@ public class PricingTestDataFactory {
   private static rtms__Stop__c buildStop(
     rtms__Load__c load,
     Integer stopNumber,
-    Account location
+    Account locationAccount
   ) {
     return new rtms__Stop__c(
       rtms__Load__c = load.Id,
       rtms__Number__c = stopNumber,
-      rtms__Location2__c = location.Id
+      rtms__Location2__c = locationAccount.Id
     );
   }
 }
