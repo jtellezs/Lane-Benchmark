@@ -17,6 +17,7 @@
         <members>laneBenchmarkCsv</members>
         <members>laneBenchmarkStorage</members>
         <members>laneBenchmarkPlacePicker</members>
+        <members>laneBenchmarkFilters</members>
         <name>LightningComponentBundle</name>
     </types>
     <!-- Apex -->
