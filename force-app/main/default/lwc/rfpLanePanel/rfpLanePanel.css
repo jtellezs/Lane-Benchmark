@@ -1,0 +1,10 @@
+.lane-panel {
+  position: relative;
+}
+.sell {
+  font-weight: 700;
+}
+.hint {
+  color: #0176d3;
+  text-decoration: underline;
+}
