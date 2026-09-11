@@ -37,6 +37,14 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 | Apex             | `classes/RfpController`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Phase 3a: `projectsForAccount` for the customer Account component; phase 3b adds the workbench methods                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | UI               | `lwc/rfpProjectsForAccount`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Phase 3a: "RFP Projects (customer)", the Account record page component listing a customer's projects, files and bid counts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | Security         | `permissionsets/RFP_Tool_User`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Phase 3a: the pricing team's RFP access — create/read/edit on the three RFP objects, read on `Pricing_Place__c`/`Account`, the RFP and Lane Benchmark Apex classes                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Apex             | `classes/RfpImportService`, `RfpLaneController`                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | Phase 3b: mapped rows into `RFP_Lane__c` (city key then postal prefix); lane list, pricing whitelist, raw rows for export, manual end resolution                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Apex             | `classes/RfpHistoryService`, `RfpHistoryController`                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Phase 3b: per-lane carrier-quote history snapshots (CITY, falling back to a 50 km radius on a miss)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Apex             | `classes/RfpProjectController`, `RfpBidController`                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Phase 3b: projects, column mapping, file attach, customer/carrier typeahead; bids                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Apex             | `classes/RfpUserError`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Phase 3b: shared `AuraHandledException` helper used by the four workbench controllers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| UI               | `lwc/rfpHeaderGuess`, `rfpSheet`, `rfpSheetLoader`, `rfpWorkbook`, `rfpMath`, `rfpPricing`, `rfpBatch`                                                                                                                                                                                                                                                                                                                                                                                                          | Phase 3b: pure modules — header guessing, workbook parsing and CSV codepage detection, the SheetJS script loader, export workbook building, bid/price math, chunked lane batching                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| UI               | `lwc/rfpTool`, `rfpProjectList`, `rfpUpload`, `rfpColumnMapper`, `rfpLaneTable`, `rfpLanePanel`, `rfpBidForm`, `rfpAccountPicker`, `rfpExport`                                                                                                                                                                                                                                                                                                                                                                  | Phase 3b: the workbench container plus its project list, file upload, column mapper, lane table, lane detail panel, bid form, customer/carrier typeahead and Excel export                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Navigation       | `tabs/RFP_Tool`, `flexipages/RFP_Tool`, `applications/TransPro` (tab added), `applications/Lane_Benchmark` (tab added)                                                                                                                                                                                                                                                                                                                                                                                          | Phase 3b: the RFP Tool tab/page, added to both apps                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Security         | `staticresources/sheetJs`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Phase 3b: SheetJS Community Edition 0.18.5 (Apache-2.0), vendored in-repo because the org's same-named static resource belongs to the EN6IA managed package                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 Not included on purpose:
 
@@ -109,6 +117,11 @@ cannot read as "No such column". When a deploy introduces or changes that
 permission set in the same deploy as new user-mode code, deploy the
 permission set on its own first with `-l NoTestRun`, assign it, then run the
 real test-running deploy.
+
+Every new LWC bundle must be registered in `manifest/package.xml`
+(`LightningComponentBundle` members) — phase 3b found 16 bundles that had
+been created but never added to the manifest, so `sf project retrieve start`
+against the manifest would have silently dropped them.
 
 ### Place dictionary
 
@@ -393,6 +406,66 @@ To place the component:
 This step was not performed in 3a — activating a clone changes the Account
 page for the whole org, an admin decision on a shared sandbox — so the
 component is deployed but not yet visible on any Account page.
+
+## RFP Tool (phase 3b)
+
+The workbench: upload a customer's lane file, map its columns, import lanes,
+pull carrier-quote history, price each lane, record carrier bids, and export
+the customer's file back with our prices filled in.
+
+**Opening it.** The **RFP Tool** tab, present in both the **TransPro** and
+**Lane Benchmark** apps. The **RFP Projects (customer)** component on a
+customer Account also opens a project directly: a row click navigates to
+`standard__navItemPage` `RFP_Tool` with state `c__projectId`, which `rfpTool`
+reads from `CurrentPageReference` and opens without showing the project list.
+
+**Flow.** Project (create or open) → upload the customer's file → map its
+columns to our fields (the mapping is remembered per customer) → import
+lanes (each end resolved to a `Pricing_Place__c` by city key, then postal
+prefix) → load carrier-quote history per lane (CITY, falling back to a 50 km
+radius on a CITY miss) → price each lane (from a bid, the history median, or
+a manual cost, plus margin) → record carrier bids → export the customer's
+file back with our prices and the selected bid filled in.
+
+**Limits.**
+
+- Upload: 3 MB per file, 2,000 lanes per project.
+- Import: 200 rows per `importLanes` call (the browser chunks a larger file).
+- History: 10 lanes per `loadHistory` call.
+- Raw rows (export only): paged 500 at a time through `getRawRows`.
+- Export: at most 200 lanes' selected bids are fetched, one `getBids` call
+  per lane, when building the workbook.
+
+**SheetJS.** The browser parses the workbook with static resource `sheetJs`
+(SheetJS Community Edition 0.18.5, Apache-2.0), vendored under
+`force-app/main/default/staticresources/`. It could not stay org-side as the
+plan assumed: the org's own `sheetJs` StaticResource belongs to the EN6IA
+managed package, so a bare `resourceUrl` reference to it never resolves (see
+the spec Outcome for the ruling). Keep the vendored file at 0.18.5 unless it
+is deliberately upgraded.
+
+**CSV encoding.** A `.csv`/`.txt` upload carries no encoding of its own; the
+bytes are sniffed with `TextDecoder('utf-8', { fatal: true })` before
+parsing — decodable as UTF-8, it is read as UTF-8 (SheetJS codepage 65001),
+otherwise as Windows-1252 (1252). Workbook formats (`.xlsx`/`.xlsm`/`.xls`)
+carry their own encoding and are read as-is.
+
+**Typeaheads.** The customer and carrier pickers (`rfpAccountPicker`) both
+call the same Apex typeahead, `RfpProjectController.searchAccounts(term,
+kind)`, filtered by Account record type.
+
+**Uploaded file.** `attachFile` inserts the raw upload as a
+`ContentVersion`/`ContentDocumentLink` on the `RFP_Project__c` record; it
+shows up under Files on the project, not on the lanes.
+
+**Permission set and custom permission.** `RFP_Tool_User` gains tab
+visibility for `RFP_Tool` (alongside its existing `Lane_Benchmark` app and
+tab visibility) and class access to the four workbench controllers
+(`RfpProjectController`, `RfpLaneController`, `RfpHistoryController`,
+`RfpBidController`) and the two services (`RfpImportService`,
+`RfpHistoryService`). The `RFP_Tool` custom permission (added in 3a) still
+gates `rfpProjectsForAccount`; assigning `RFP_Tool_User` grants both the
+workbench tab and that permission.
 
 ## Known issues worth fixing
 
