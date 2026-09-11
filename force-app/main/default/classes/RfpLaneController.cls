@@ -177,4 +177,15 @@ public with sharing class RfpLaneController {
       AccessLevel.USER_MODE
     )[0];
   }
+
+  /** Shared by RfpHistoryService: the same field list as getLanes, for a set of Ids. */
+  public static List<RFP_Lane__c> lanesByIds(List<Id> laneIds) {
+    return Database.queryWithBinds(
+      'SELECT ' +
+        LANE_FIELDS +
+        ' FROM RFP_Lane__c WHERE Id IN :laneIds ORDER BY Row_Number__c',
+      new Map<String, Object>{ 'laneIds' => laneIds },
+      AccessLevel.USER_MODE
+    );
+  }
 }
