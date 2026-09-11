@@ -53,15 +53,16 @@ export default class RfpProjectsForAccount extends NavigationMixin(
     return this.projects.length > 0;
   }
 
+  /**
+   * The workbench, not the project's record page: c-rfp-tool reads
+   * c__projectId off the page reference and opens that project.
+   */
   handleOpen(event) {
     const id = event.currentTarget.dataset.id;
     this[NavigationMixin.Navigate]({
-      type: "standard__recordPage",
-      attributes: {
-        recordId: id,
-        objectApiName: "RFP_Project__c",
-        actionName: "view"
-      }
+      type: "standard__navItemPage",
+      attributes: { apiName: "RFP_Tool" },
+      state: { c__projectId: id }
     });
   }
 }

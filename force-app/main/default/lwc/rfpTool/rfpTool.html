@@ -1,0 +1,185 @@
+<template>
+  <lightning-card title="RFP Tool" icon-name="standard:contract">
+    <div class="slds-p-horizontal_small">
+      <template lwc:if={error}>
+        <p data-id="error" class="slds-text-color_error slds-m-bottom_x-small">
+          {error}
+        </p>
+      </template>
+      <template lwc:if={note}>
+        <p data-id="note" class="slds-text-color_weak slds-m-bottom_x-small">
+          {note}
+        </p>
+      </template>
+
+      <template lwc:if={busy}>
+        <div
+          class="slds-grid slds-grid_vertical-align-center slds-gutters_x-small slds-m-bottom_x-small"
+        >
+          <div class="slds-col slds-size_1-of-2">
+            <lightning-progress-bar
+              data-id="progress"
+              value={progressValue}
+              size="large"
+            ></lightning-progress-bar>
+          </div>
+          <div class="slds-col slds-text-color_weak" data-id="progress-text">
+            {progressText}
+          </div>
+          <div class="slds-col">
+            <lightning-button
+              data-id="stop"
+              label="Stop"
+              onclick={handleStop}
+            ></lightning-button>
+          </div>
+        </div>
+      </template>
+
+      <template lwc:if={isList}>
+        <c-rfp-project-list onopen={handleOpenProject}></c-rfp-project-list>
+      </template>
+
+      <template lwc:if={isUpload}>
+        <div class="slds-m-bottom_x-small">
+          <lightning-button
+            data-id="back"
+            label="All projects"
+            onclick={handleBack}
+          ></lightning-button>
+          <template lwc:if={hasLanes}>
+            <lightning-button
+              class="slds-m-left_x-small"
+              data-id="to-workbench"
+              label="Back to the lanes"
+              onclick={handleShowWorkbench}
+            ></lightning-button>
+          </template>
+        </div>
+        <h2 class="slds-text-heading_small slds-m-bottom_x-small">
+          {projectTitle}
+        </h2>
+        <c-rfp-upload
+          project-id={projectId}
+          onparsed={handleParsed}
+        ></c-rfp-upload>
+      </template>
+
+      <template lwc:if={isMap}>
+        <div class="slds-m-bottom_x-small">
+          <lightning-button
+            data-id="back"
+            label="All projects"
+            onclick={handleBack}
+          ></lightning-button>
+        </div>
+        <h2 class="slds-text-heading_small slds-m-bottom_x-small">
+          {projectTitle} — {fileName}
+        </h2>
+        <c-rfp-column-mapper
+          headers={headers}
+          sample-rows={sampleRows}
+          mapping={mapping}
+          onmappingchange={handleMappingChange}
+          onimport={handleImport}
+        ></c-rfp-column-mapper>
+      </template>
+
+      <template lwc:if={isWorkbench}>
+        <div
+          class="slds-grid slds-wrap slds-grid_vertical-align-end slds-gutters_x-small slds-m-bottom_x-small"
+        >
+          <div class="slds-col">
+            <lightning-button
+              data-id="back"
+              label="All projects"
+              onclick={handleBack}
+            ></lightning-button>
+          </div>
+          <div class="slds-col">
+            <lightning-button
+              data-id="upload-more"
+              label="Upload a file"
+              onclick={handleUploadMore}
+            ></lightning-button>
+          </div>
+          <div class="slds-col">
+            <lightning-combobox
+              data-id="precision"
+              label="History precision"
+              value={precision}
+              options={precisionOptions}
+              onchange={handlePrecision}
+            ></lightning-combobox>
+          </div>
+          <div class="slds-col">
+            <lightning-input
+              data-id="lookback"
+              type="number"
+              label="Lookback (days)"
+              value={lookbackDays}
+              onchange={handleLookback}
+            ></lightning-input>
+          </div>
+          <div class="slds-col">
+            <lightning-button
+              data-id="load-history"
+              variant="brand"
+              label="Load history"
+              onclick={handleLoadHistory}
+            ></lightning-button>
+          </div>
+          <div class="slds-col">
+            <lightning-button
+              data-id="refresh-history"
+              label="Refresh history"
+              onclick={handleRefreshHistory}
+            ></lightning-button>
+          </div>
+          <div class="slds-col">
+            <lightning-button
+              data-id="retry-failed"
+              label="Retry failed"
+              onclick={handleRetryFailed}
+            ></lightning-button>
+          </div>
+          <div class="slds-col">
+            <c-rfp-export
+              project={project}
+              lanes={lanes}
+              bids-by-lane-id={bidsByLaneId}
+            ></c-rfp-export>
+          </div>
+        </div>
+
+        <template lwc:if={summary}>
+          <p
+            data-id="summary"
+            class="slds-text-color_weak slds-m-bottom_x-small"
+          >
+            {summary}
+          </p>
+        </template>
+
+        <div class="slds-grid slds-wrap slds-gutters_x-small">
+          <div class="slds-col slds-size_1-of-1 slds-large-size_8-of-12">
+            <c-rfp-lane-table
+              lanes={lanes}
+              selected-id={selectedId}
+              currency={currency}
+              onselect={handleSelect}
+              onresolveend={handleResolveEnd}
+            ></c-rfp-lane-table>
+          </div>
+          <div class="slds-col slds-size_1-of-1 slds-large-size_4-of-12">
+            <c-rfp-lane-panel
+              lane={selectedLane}
+              project={project}
+              onpricingchange={handlePricingChange}
+            ></c-rfp-lane-panel>
+          </div>
+        </div>
+      </template>
+    </div>
+  </lightning-card>
+</template>

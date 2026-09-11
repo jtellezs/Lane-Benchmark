@@ -1,0 +1,112 @@
+<template>
+  <div class="slds-grid slds-wrap slds-gutters">
+    <div class="slds-col slds-size_1-of-1 slds-large-size_8-of-12">
+      <h2 class="slds-text-heading_small slds-m-bottom_x-small">
+        RFP projects
+      </h2>
+      <template lwc:if={error}>
+        <p data-id="error" class="slds-text-color_error slds-m-bottom_x-small">
+          {error}
+        </p>
+      </template>
+      <template lwc:if={loading}>
+        <p class="slds-text-color_weak">Loading…</p>
+      </template>
+      <template lwc:if={hasProjects}>
+        <table class="slds-table slds-table_bordered slds-table_cell-buffer">
+          <thead>
+            <tr class="slds-line-height_reset">
+              <th scope="col">Project</th>
+              <th scope="col">Customer</th>
+              <th scope="col">Status</th>
+              <th scope="col">Due</th>
+              <th scope="col">Lanes</th>
+              <th scope="col">Costed</th>
+              <th scope="col">Sold</th>
+              <th scope="col">File</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template for:each={rows} for:item="r">
+              <tr key={r.id} data-id="project-row">
+                <td>
+                  <button
+                    class="slds-button slds-text-link"
+                    data-project-id={r.id}
+                    onclick={handleOpen}
+                  >
+                    {r.name}
+                  </button>
+                </td>
+                <td>{r.customer}</td>
+                <td>{r.status}</td>
+                <td>{r.due}</td>
+                <td>{r.lanes}</td>
+                <td>{r.costed}</td>
+                <td>{r.sold}</td>
+                <td class="slds-cell-wrap">{r.file}</td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </template>
+      <template lwc:if={isEmpty}>
+        <p class="slds-text-color_weak slds-p-around_small">
+          No RFP projects yet.
+        </p>
+      </template>
+    </div>
+
+    <div class="slds-col slds-size_1-of-1 slds-large-size_4-of-12">
+      <div class="slds-box slds-box_x-small">
+        <h2 class="slds-text-heading_small slds-m-bottom_x-small">
+          New project
+        </h2>
+        <lightning-input
+          data-id="name"
+          label="Name"
+          value={name}
+          onchange={handleName}
+          required
+        ></lightning-input>
+        <c-rfp-account-picker
+          label="Customer"
+          kind="customer"
+          value={customerId}
+          value-label={customerName}
+          onaccountchange={handleAccount}
+        ></c-rfp-account-picker>
+        <lightning-input
+          data-id="due-date"
+          type="date"
+          label="Due date"
+          value={dueDate}
+          onchange={handleDueDate}
+        ></lightning-input>
+        <lightning-combobox
+          data-id="currency"
+          label="Currency"
+          value={currency}
+          options={currencyOptions}
+          onchange={handleCurrency}
+        ></lightning-combobox>
+        <lightning-input
+          data-id="default-margin"
+          type="number"
+          label="Default margin %"
+          value={defaultMargin}
+          onchange={handleMargin}
+        ></lightning-input>
+        <div class="slds-m-top_small">
+          <lightning-button
+            data-id="create"
+            variant="brand"
+            label="Create"
+            disabled={cannotCreate}
+            onclick={handleCreate}
+          ></lightning-button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

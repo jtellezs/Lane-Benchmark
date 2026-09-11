@@ -1,8 +1,7 @@
 import { LightningElement, api } from "lwc";
-import { loadScript } from "lightning/platformResourceLoader";
-import sheetJs from "@salesforce/resourceUrl/sheetJs";
 import attachFile from "@salesforce/apex/RfpProjectController.attachFile";
 import { parse, MAX_ROWS } from "c/rfpSheet";
+import { ensureSheetJs } from "c/rfpSheetLoader";
 
 const MAX_BYTES = 3 * 1024 * 1024;
 
@@ -10,7 +9,6 @@ export default class RfpUpload extends LightningElement {
   @api projectId;
   status = "";
   error = null;
-  sheetReady = null;
 
   get accept() {
     return ".xlsx,.xlsm,.xls,.csv";
@@ -29,7 +27,7 @@ export default class RfpUpload extends LightningElement {
       }
       this.status = "Reading…";
       const buffer = await this.readBuffer(file);
-      await this.ensureSheetJs();
+      await ensureSheetJs(this);
       const workbook = window.XLSX.read(new Uint8Array(buffer), {
         type: "array"
       });
@@ -70,17 +68,6 @@ export default class RfpUpload extends LightningElement {
       reader.onerror = () => reject(new Error("The file could not be read."));
       reader.readAsArrayBuffer(file);
     });
-  }
-
-  ensureSheetJs() {
-    if (window.XLSX) return Promise.resolve();
-    if (!this.sheetReady) {
-      this.sheetReady = loadScript(this, sheetJs).catch((e) => {
-        this.sheetReady = null;
-        throw e;
-      });
-    }
-    return this.sheetReady;
   }
 }
 

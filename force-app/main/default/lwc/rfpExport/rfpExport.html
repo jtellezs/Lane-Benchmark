@@ -1,0 +1,35 @@
+<template>
+  <div class="slds-grid slds-grid_vertical slds-gutters_xx-small">
+    <div>
+      <lightning-button
+        data-id="export"
+        label="Export to Excel"
+        icon-name="utility:download"
+        disabled={disabled}
+        onclick={handleExport}
+      ></lightning-button>
+    </div>
+    <template lwc:if={confirming}>
+      <div class="slds-m-top_xx-small">
+        <p data-id="confirm" class="slds-text-color_weak">
+          No lane has a cost yet. The workbook will only hold the lanes as they
+          came in.
+        </p>
+        <lightning-button
+          data-id="export-anyway"
+          variant="destructive-text"
+          label="Export anyway"
+          onclick={handleExportAnyway}
+        ></lightning-button>
+      </div>
+    </template>
+    <template lwc:if={busy}>
+      <p class="slds-text-color_weak slds-m-top_xx-small">Building…</p>
+    </template>
+    <template lwc:if={error}>
+      <p data-id="error" class="slds-text-color_error slds-m-top_xx-small">
+        {error}
+      </p>
+    </template>
+  </div>
+</template>
