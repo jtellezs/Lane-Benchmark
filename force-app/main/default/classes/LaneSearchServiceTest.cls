@@ -748,4 +748,65 @@ private class LaneSearchServiceTest {
     System.assertNotEquals(null, req.modes);
     System.assertEquals(0, req.modes.size());
   }
+
+  @IsTest
+  static void bidsMergeIntoRowsAndObeyTheSourceFilter() {
+    Fixture f = fixture();
+    Test.startTest();
+    createLoadsAndQuotes(f);
+    Pricing_Place__c mtl = [
+      SELECT Id, City__c, Province__c, Country__c, Postal_Prefix__c
+      FROM Pricing_Place__c
+      WHERE Key__c = 'montreal|qc|ca'
+    ];
+    Pricing_Place__c tor = [
+      SELECT Id, City__c, Province__c, Country__c, Postal_Prefix__c
+      FROM Pricing_Place__c
+      WHERE Key__c = 'toronto|on|ca'
+    ];
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      RfpTestDataFactory.createProject(f.g.customer),
+      mtl,
+      tor
+    );
+    BenchmarkRateService.save(RfpTestDataFactory.buildBid(lane, 1200));
+    Benchmark_Rate__c expired = RfpTestDataFactory.buildBid(lane, 999);
+    expired.Valid_From__c = Date.today().addDays(-60);
+    expired.Expires_On__c = Date.today().addDays(-1);
+    BenchmarkRateService.save(expired);
+
+    LaneSearchResult all = LaneSearchService.search(
+      req('montreal|qc|ca', 'toronto|on|ca')
+    );
+    LaneSearchRequest loadsOnly = req('montreal|qc|ca', 'toronto|on|ca');
+    loadsOnly.sourceFilter = LaneSearchRequest.RowSource.LOADS;
+    LaneSearchResult loads = LaneSearchService.search(loadsOnly);
+    LaneSearchRequest bidsOnly = req('montreal|qc|ca', 'toronto|on|ca');
+    bidsOnly.sourceFilter = LaneSearchRequest.RowSource.BIDS;
+    LaneSearchResult bids = LaneSearchService.search(bidsOnly);
+    Test.stopTest();
+
+    System.assertEquals(2, all.rows.size(), 'one quote + one active bid');
+    System.assertEquals(1, loads.rows.size());
+    System.assertEquals(null, loads.rows[0].bid);
+    System.assertEquals(
+      2,
+      bids.rows.size(),
+      'active and expired bids, no quotes'
+    );
+    Set<String> statuses = new Set<String>{
+      bids.rows[0].bid.status,
+      bids.rows[1].bid.status
+    };
+    System.assert(
+      statuses.contains('Expired') && statuses.contains('Active'),
+      statuses
+    );
+    System.assertEquals(
+      2,
+      all.statsByCurrency.get('CAD').count,
+      'stats count both sources'
+    );
+    System.assertEquals(1100, all.statsByCurrency.get('CAD').avg);
+  }
 }

@@ -64,6 +64,8 @@
         <members>BenchmarkRateServiceTest</members>
         <members>BidSearchQueryBuilder</members>
         <members>BidSearchQueryBuilderTest</members>
+        <members>BidSearchService</members>
+        <members>BidSearchServiceTest</members>
         <name>ApexClass</name>
     </types>
     <types>

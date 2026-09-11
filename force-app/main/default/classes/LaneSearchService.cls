@@ -1,9 +1,13 @@
 /**
- * Lane search over rtms__CarrierQuote__c. Orchestrates a search: validate the request, resolve
- * places, build the dynamic SOQL (LaneSearchQueryBuilder.buildSoql), run it, then dedupe rows and
- * compute per-currency statistics. See LaneSearchQueryBuilder for how precisions map onto
- * Revenova's lane keys on the Load (CITY, PROVINCE, ZIP3) or DISTANCE() through the stops
- * (RADIUS), and for the currency/mode/equipment/hazmat/market-test/accepted filters.
+ * Lane search over rtms__CarrierQuote__c and (phase 3) Benchmark_Rate__c bids. Orchestrates a
+ * search: validate the request, resolve places, build the dynamic SOQL for quotes
+ * (LaneSearchQueryBuilder.buildSoql), run it, ask BidSearchService for the bid rows, merge both
+ * row sources by CreatedDate descending, then dedupe and compute per-currency statistics. See
+ * LaneSearchQueryBuilder for how precisions map onto Revenova's lane keys on the Load (CITY,
+ * PROVINCE, ZIP3) or DISTANCE() through the stops (RADIUS), and for the
+ * currency/mode/equipment/hazmat/market-test/accepted filters; BidSearchQueryBuilder mirrors that
+ * for bids. BidSearchService lives in its own class so this stays an orchestrator (already split
+ * twice for PMD).
  */
 // Runs without sharing on purpose: pricing benchmarks every team's quotes. Access is gated by the Lane Benchmark permission sets.
 // Task 7 review ruling: the SOQL-building logic (every precision/filter branch) was extracted
@@ -19,57 +23,66 @@ public without sharing class LaneSearchService {
     Map<String, Object> binds = new Map<String, Object>();
     String soql = LaneSearchQueryBuilder.buildSoql(req, binds, places);
     Long t0 = System.currentTimeMillis();
-    List<rtms__CarrierQuote__c> quotes = Database.queryWithBinds(
-      soql,
-      binds,
-      AccessLevel.SYSTEM_MODE
-    );
+    // BidSearchQueryBuilder.canMatchBids already drops bids when sourceFilter is LOADS; the
+    // mirror image (BIDS excludes quotes) has no query-builder side to hook into, since
+    // LaneSearchQueryBuilder has no "can this ever match a load" concept - skip the query here.
+    List<rtms__CarrierQuote__c> quotes = req.sourceFilter ==
+      LaneSearchRequest.RowSource.BIDS
+      ? new List<rtms__CarrierQuote__c>()
+      : Database.queryWithBinds(soql, binds, AccessLevel.SYSTEM_MODE);
     LaneSearchResult result = new LaneSearchResult();
-    result.elapsedMs = (System.currentTimeMillis() - t0).intValue();
-    result.truncated = quotes.size() > req.rowLimit;
-    if (result.truncated) {
+    Boolean quotesTruncated = quotes.size() > req.rowLimit;
+    if (quotesTruncated) {
       quotes.remove(quotes.size() - 1);
     }
-    collectRows(quotes, result);
+    List<LaneSearchResult.Row> quoteRows = new List<LaneSearchResult.Row>();
+    for (rtms__CarrierQuote__c q : quotes) {
+      quoteRows.add(toRow(q));
+    }
+    BidSearchService.Outcome bidOutcome = new BidSearchService.Outcome();
+    List<LaneSearchResult.Row> bidRows = BidSearchService.search(
+      req,
+      places,
+      bidOutcome
+    );
+    result.elapsedMs = (System.currentTimeMillis() - t0).intValue();
+    result.truncated =
+      quotesTruncated ||
+      bidOutcome.truncated ||
+      quoteRows.size() + bidRows.size() > req.rowLimit;
+    collectRows(
+      BidSearchService.mergeRows(quoteRows, bidRows, req.rowLimit),
+      result
+    );
     return result;
   }
 
   /**
-   * Dedupes quotes (same fingerprint as PricingDepartmentController.UniqueCarrierQuote, but on
-   * rtms__Carrier_Total__c instead of the CAD-converted total, so USD quotes dedupe too) into
-   * result.rows/dedupedCount, and rolls the surviving totals up into result.statsByCurrency.
+   * Dedupes rows (same fingerprint as PricingDepartmentController.UniqueCarrierQuote for quotes,
+   * on rtms__Carrier_Total__c instead of the CAD-converted total so USD quotes dedupe too; bid
+   * rows never collapse - see BidSearchService.fingerprint) into result.rows/dedupedCount, and
+   * rolls the surviving totals up into result.statsByCurrency.
    */
   private static void collectRows(
-    List<rtms__CarrierQuote__c> quotes,
+    List<LaneSearchResult.Row> rows,
     LaneSearchResult result
   ) {
     Set<String> seen = new Set<String>();
     Map<String, List<Decimal>> totalsByCurrency = new Map<String, List<Decimal>>();
-    for (rtms__CarrierQuote__c q : quotes) {
-      String fingerprint =
-        String.valueOf(q.rtms__Carrier_Total__c) +
-        '|' +
-        q.Carrier_Name__c +
-        '|' +
-        q.Origin__c +
-        '|' +
-        q.Destination__c +
-        '|' +
-        q.Mode__c +
-        '|' +
-        q.Equipment_Type__c;
+    for (LaneSearchResult.Row r : rows) {
+      String fingerprint = BidSearchService.fingerprint(r);
       if (seen.contains(fingerprint)) {
         result.dedupedCount++;
         continue;
       }
       seen.add(fingerprint);
-      result.rows.add(toRow(q));
-      String cur = q.CurrencyIsoCode == null ? 'CAD' : q.CurrencyIsoCode;
+      result.rows.add(r);
+      String cur = r.currencyIsoCode == null ? 'CAD' : r.currencyIsoCode;
       if (!totalsByCurrency.containsKey(cur)) {
         totalsByCurrency.put(cur, new List<Decimal>());
       }
       totalsByCurrency.get(cur)
-        .add(q.rtms__Carrier_Total__c == null ? 0 : q.rtms__Carrier_Total__c);
+        .add(r.carrierTotal == null ? 0 : r.carrierTotal);
     }
     for (String cur : totalsByCurrency.keySet()) {
       result.statsByCurrency.put(cur, stats(totalsByCurrency.get(cur)));
