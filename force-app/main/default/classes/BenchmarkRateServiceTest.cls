@@ -199,6 +199,28 @@ private class BenchmarkRateServiceTest {
   }
 
   @IsTest
+  static void saveUpdateStripsServiceMaintainedFields() {
+    Fx f = fx();
+    Benchmark_Rate__c saved = BenchmarkRateService.save(
+      RfpTestDataFactory.buildBid(f.lane, 1500)
+    );
+    // A queried record carries City_Lane__c etc.; passing it back must not fail or rewrite them.
+    Benchmark_Rate__c queried = [
+      SELECT Id, Rate__c, City_Lane__c, State_Lane__c, Zip3_Lane__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :saved.Id
+    ];
+    queried.Rate__c = 1600;
+    Benchmark_Rate__c again = BenchmarkRateService.save(queried);
+    System.assertEquals(1600, again.Rate__c);
+    System.assertEquals(
+      'Montréal, QC:Toronto, ON',
+      again.City_Lane__c,
+      'keys re-stamped by the trigger, not by save'
+    );
+  }
+
+  @IsTest
   static void laneKeyHelpersMatchTheLoadFormat() {
     Pricing_Place__c o = new Pricing_Place__c(
       City__c = 'Laval',

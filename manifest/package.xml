@@ -69,6 +69,7 @@
         <members>BidSearchServiceTest</members>
         <members>RfpController</members>
         <members>RfpControllerTest</members>
+        <members>RfpSecurityTest</members>
         <name>ApexClass</name>
     </types>
     <types>

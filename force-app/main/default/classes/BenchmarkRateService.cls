@@ -1,24 +1,34 @@
 /**
- * Saves carrier bids (Benchmark_Rate__c) in user mode. Validates the rate, inserts/updates and
- * reloads - nothing else. The lane keys Lane Benchmark searches on (city lane, state lane, zip3
- * lane, geolocations, project, mode/equipment/hazmat) are stamped by BenchmarkRateTrigger's
- * before-insert/before-update call into applyLanes below, not by save(): RFP_Tool_User marks those
- * fields editable=false (they are service-maintained, never user-entered), so the user-mode
- * insert/update here must not set them - only a system-context trigger can. This also means a bid
- * created directly on the record page (bypassing save() entirely) still gets stamped, which a
- * save()-only implementation could never do.
+ * Saves carrier bids (Benchmark_Rate__c) in user mode. Validates the rate, strips whatever fields
+ * the running user may not write, inserts/updates and reloads - nothing else. The lane keys Lane
+ * Benchmark searches on (city lane, state lane, zip3 lane, geolocations, project,
+ * mode/equipment/hazmat) are stamped by BenchmarkRateTrigger's before-insert/before-update call
+ * into applyLanes below, not by save(): RFP_Tool_User marks those fields editable=false (they are
+ * service-maintained, never user-entered), so the user-mode insert/update here must not set them -
+ * only a system-context trigger can. save() enforces that with Security.stripInaccessible before
+ * the DML (a queried record - the record page, a re-save - carries those fields populated; passing
+ * it back must not fail or silently attempt to rewrite them). This also means a bid created
+ * directly on the record page (bypassing save() entirely) still gets stamped, which a save()-only
+ * implementation could never do.
  */
 public with sharing class BenchmarkRateService {
   public static Benchmark_Rate__c save(Benchmark_Rate__c bid) {
     if (bid.Rate__c == null) {
       throw new LaneSearchException('A bid needs a rate.');
     }
-    if (bid.Id == null) {
-      Database.insert(bid, AccessLevel.USER_MODE);
+    Boolean isInsert = bid.Id == null;
+    // Drop every field the running user may not write (the trigger re-stamps the service-maintained ones).
+    SObjectAccessDecision decision = Security.stripInaccessible(
+      isInsert ? AccessType.CREATABLE : AccessType.UPDATABLE,
+      new List<Benchmark_Rate__c>{ bid }
+    );
+    Benchmark_Rate__c clean = (Benchmark_Rate__c) decision.getRecords()[0];
+    if (isInsert) {
+      Database.insert(clean, AccessLevel.USER_MODE);
     } else {
-      Database.update(bid, AccessLevel.USER_MODE);
+      Database.update(clean, AccessLevel.USER_MODE);
     }
-    return reload(bid.Id);
+    return reload(clean.Id);
   }
 
   /** Called by BenchmarkRateTrigger (before insert/update) for every bid in the trigger batch. */

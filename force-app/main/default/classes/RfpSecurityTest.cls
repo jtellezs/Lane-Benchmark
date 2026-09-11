@@ -1,0 +1,169 @@
+@IsTest
+private class RfpSecurityTest {
+  /** Creates a user holding only the named permission set. Returns null when the org has no usable profile. */
+  private static User restrictedUser(String permSetName) {
+    List<Profile> profiles = [
+      SELECT Id
+      FROM Profile
+      WHERE Name IN ('Standard User', 'Minimum Access - Salesforce')
+      ORDER BY Name DESC
+      LIMIT 1
+    ];
+    if (profiles.isEmpty()) {
+      return null;
+    }
+    User u = new User(
+      ProfileId = profiles[0].Id,
+      Username = 'rfp.' + System.currentTimeMillis() + '@example.invalid',
+      Email = 'rfp@example.invalid',
+      LastName = 'Rfp',
+      Alias = 'rfp',
+      TimeZoneSidKey = 'America/Toronto',
+      LocaleSidKey = 'en_CA',
+      EmailEncodingKey = 'UTF-8',
+      LanguageLocaleKey = 'en_US'
+    );
+    PermissionSet ps = [SELECT Id FROM PermissionSet WHERE Name = :permSetName];
+    System.runAs(new User(Id = UserInfo.getUserId())) {
+      insert u;
+      insert new PermissionSetAssignment(
+        AssigneeId = u.Id,
+        PermissionSetId = ps.Id
+      );
+    }
+    return u;
+  }
+
+  private class Fx {
+    PricingTestDataFactory.Graph g;
+    Pricing_Place__c mtl;
+    Pricing_Place__c laval;
+    Pricing_Place__c tor;
+    RFP_Lane__c lane;
+  }
+  private static Fx fx() {
+    Fx f = new Fx();
+    f.g = PricingTestDataFactory.createGraph();
+    f.mtl = RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    f.laval = RfpTestDataFactory.createPlace(
+      'Laval',
+      'QC',
+      'CA',
+      45.6066,
+      -73.7124,
+      'H7P'
+    );
+    f.tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    f.lane = RfpTestDataFactory.createLane(
+      RfpTestDataFactory.createProject(f.g.customer),
+      f.mtl,
+      f.tor
+    );
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    return f;
+  }
+  private static LaneSearchRequest req(
+    String o,
+    String d,
+    LaneSearchRequest.Precision p
+  ) {
+    LaneSearchRequest r = new LaneSearchRequest();
+    r.originKey = o;
+    r.destinationKey = d;
+    r.originPrecision = p;
+    r.destinationPrecision = p;
+    if (p == LaneSearchRequest.Precision.RADIUS) {
+      r.originRadius = 50;
+      r.destinationRadius = 50;
+      r.radiusUnit = LaneSearchRequest.Unit.KM;
+    }
+    r.sourceFilter = LaneSearchRequest.RowSource.BIDS;
+    return r;
+  }
+
+  @IsTest
+  static void bidIsFoundAtEveryPrecision() {
+    Fx f = fx();
+    BenchmarkRateService.save(RfpTestDataFactory.buildBid(f.lane, 1200));
+    Test.startTest();
+    LaneSearchResult city = LaneSearchService.search(
+      req('montreal|qc|ca', 'toronto|on|ca', LaneSearchRequest.Precision.CITY)
+    );
+    LaneSearchResult prov = LaneSearchService.search(
+      req('laval|qc|ca', 'toronto|on|ca', LaneSearchRequest.Precision.PROVINCE)
+    );
+    LaneSearchResult zip3 = LaneSearchService.search(
+      req('montreal|qc|ca', 'toronto|on|ca', LaneSearchRequest.Precision.ZIP3)
+    );
+    LaneSearchResult radius = LaneSearchService.search(
+      req('laval|qc|ca', 'toronto|on|ca', LaneSearchRequest.Precision.RADIUS)
+    );
+    Test.stopTest();
+    System.assertEquals(1, city.rows.size(), 'CITY');
+    System.assertEquals(
+      1,
+      prov.rows.size(),
+      'PROVINCE (QC:ON matches from Laval)'
+    );
+    System.assertEquals(1, zip3.rows.size(), 'ZIP3 H1A:M5V');
+    System.assertEquals(
+      1,
+      radius.rows.size(),
+      'RADIUS 50 km from Laval reaches Montréal'
+    );
+    System.assertNotEquals(null, radius.rows[0].bid);
+  }
+
+  @IsTest
+  static void rfpToolUserOnlyCanSaveABidAndLaneBenchmarkUserSeesIt() {
+    Fx f = fx();
+    User pricing = restrictedUser('RFP_Tool_User');
+    User viewer = restrictedUser('Lane_Benchmark_User');
+    if (pricing == null || viewer == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    Test.startTest();
+    Benchmark_Rate__c saved;
+    System.runAs(pricing) {
+      saved = BenchmarkRateService.save(
+        RfpTestDataFactory.buildBid(f.lane, 900)
+      );
+    }
+    Integer seen;
+    System.runAs(viewer) {
+      seen = LaneSearchService.search(
+          req(
+            'montreal|qc|ca',
+            'toronto|on|ca',
+            LaneSearchRequest.Precision.CITY
+          )
+        )
+        .rows.size();
+    }
+    Test.stopTest();
+    System.assertEquals(
+      'Montréal, QC:Toronto, ON',
+      [SELECT City_Lane__c FROM Benchmark_Rate__c WHERE Id = :saved.Id]
+      .City_Lane__c
+    );
+    System.assertEquals(1, seen);
+  }
+}
