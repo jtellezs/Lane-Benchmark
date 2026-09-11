@@ -30,6 +30,13 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 | Security         | `permissionsets/Pricing_Department_User`                                                                                                                                                                                                                                                                                                                       | The way to grant access from now on: tab, Apex class, read on every field the page uses except `rtms__Carrier_Service__c`, `rtms__Vendor__c`, and `rtms__Load__c` (required/master-detail fields; Salesforce rejects field permissions on them, they are always readable once the object is). Also grants object Read on `rtms__Load__c` because Carrier Quote is its master-detail child, and object Read/Edit + field read (Edit also on `Aliases__c`/`Active__c`) on `Pricing_Place__c` so the place dictionary is queryable outside of system-mode Apex. `profiles/Pricing` is kept for reference and never deployed |
 | Security         | `permissionsets/Lane_Benchmark_User`                                                                                                                                                                                                                                                                                                                           | Grants access to the Lane Benchmark page: app/tab visibility, Apex class access (`LaneBenchmarkController`, `LaneBenchmarkPlaceService`, `LaneSearchService`, `MapboxGeocoder`), object read on `rtms__CarrierQuote__c`/`rtms__Load__c`/`Pricing_Place__c`, field read on every field the page shows. Assign this to the pricing team; `Pricing_Department_User` is unchanged                                                                                                                                                                                                                                            |
 | Security (CSP)   | `cspTrustedSites/Mapbox_API`                                                                                                                                                                                                                                                                                                                                   | `img-src` trusted site for `https://api.mapbox.com`, needed for the Lane Benchmark static map preview                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Data             | `objects/RFP_Project__c/*`, `objects/RFP_Lane__c/*`, `objects/Benchmark_Rate__c/*`                                                                                                                                                                                                                                                                             | Phase 3a: the RFP data model — project, lane and carrier bid; see "RFP Tool (phase 3a)" below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Apex             | `classes/RfpTestDataFactory`                                                                                                                                                                                                                                                                                                                                   | Phase 3a: test builders for projects, lanes, bids and places, reusing `PricingTestDataFactory`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Apex             | `classes/BenchmarkRateService`                                                                                                                                                                                                                                                                                                                                 | Phase 3a: saves a bid in user mode and copies its lane keys from the lane's resolved places                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Apex             | `classes/BidSearchQueryBuilder`, `BidSearchService`                                                                                                                                                                                                                                                                                                            | Phase 3a: builds the bid SOQL at the same precision `LaneSearchQueryBuilder` uses for Loads, and merges bid rows into `LaneSearchService`'s results                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Apex             | `classes/RfpController`                                                                                                                                                                                                                                                                                                                                        | Phase 3a: `projectsForAccount` for the customer Account component; phase 3b adds the workbench methods                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| UI               | `lwc/rfpProjectsForAccount`                                                                                                                                                                                                                                                                                                                                    | Phase 3a: "RFP Projects (customer)", the Account record page component listing a customer's projects, files and bid counts                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Security         | `permissionsets/RFP_Tool_User`                                                                                                                                                                                                                                                                                                                                 | Phase 3a: the pricing team's RFP access — create/read/edit on the three RFP objects, read on `Pricing_Place__c`/`Account`, the RFP and Lane Benchmark Apex classes                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 Not included on purpose:
 
@@ -94,6 +101,14 @@ sf project deploy start -x manifest/package.xml --post-destructive-changes manif
 ```
 
 Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
+
+User-mode Apex (`RfpController`, `BenchmarkRateService`) needs its permission
+set (`RFP_Tool_User`) already assigned to the test-running user before a
+`RunSpecifiedTests` deploy — `WITH USER_MODE` reports a field the running user
+cannot read as "No such column". When a deploy introduces or changes that
+permission set in the same deploy as new user-mode code, deploy the
+permission set on its own first with `-l NoTestRun`, assign it, then run the
+real test-running deploy.
 
 ### Place dictionary
 
@@ -283,6 +298,73 @@ sf org assign permset -n Lane_Benchmark_User -o sandbox
 **Retiring the old tab (phase 4):** once pricing has switched over, the
 `Pricing_Department` tab/page/LWC are removed in a
 separate change (roadmap phase 4); nothing about that removal is done yet.
+
+## RFP Tool (phase 3a)
+
+Foundation only: the data model, the bid service, bids as a second source in
+Lane Benchmark, and a customer Account component. The workbench (upload,
+mapping, history, bid form, export, the `RFP_Tool` tab/page) is phase 3b — see
+the spec's Outcome for what is still open.
+
+| Object              | Purpose                                                                                                                                 | Key fields                                                                                                                                                                                                               |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RFP_Project__c`    | One customer RFP: the uploaded lane file, its lanes, bids and prices                                                                    | `Customer__c` (Account lookup), `Status__c`, `Due_Date__c`, `Default_Margin__c`, roll-ups `Lane_Count__c` / `Costed_Count__c` / `Sold_Count__c`                                                                          |
+| `RFP_Lane__c`       | One spreadsheet row of a project: the lane as the customer wrote it, the resolved places, the history snapshot and the chosen cost/sell | `RFP_Project__c` (master-detail), `Origin_Place__c` / `Destination_Place__c` (`Pricing_Place__c` lookups), `Mode__c`, `Equipment_Category__c`, `Cost__c` / `Margin__c` / `Sell__c`, `Has_Cost__c` / `Has_Sell__c`        |
+| `Benchmark_Rate__c` | A carrier bid for a lane, captured without a Load                                                                                       | `RFP_Lane__c` / `RFP_Project__c` lookups, `Carrier__c` / `Carrier_Name__c`, `Rate__c`, `Valid_From__c` / `Expires_On__c`, `City_Lane__c` / `State_Lane__c` / `Zip3_Lane__c`, formulas `Status__c` / `Carrier_Display__c` |
+
+**Lane keys.** A bid carries none of `City_Lane__c` / `State_Lane__c` /
+`Zip3_Lane__c` from the browser. `BenchmarkRateService.save` copies them from
+the lane's resolved `Pricing_Place__c` records (`Origin_Place__r` /
+`Destination_Place__r`: city, province, postal prefix, geolocation) into the
+same `"City, ST:City, ST"` / `"ST:ST"` / `"XXX:XXX"` format `PlaceNormalizer`
+writes for Loads, so a bid matches a CITY-precision search through
+`PlaceNormalizer.cityLaneVariants` exactly as a Load does.
+
+**Permission sets.**
+
+- `RFP_Tool_User` — the pricing team's access: create/read/edit on the three
+  RFP objects, read on `Pricing_Place__c` and `Account`, and Apex class access
+  to `RfpController`, `BenchmarkRateService`, `LaneBenchmarkController`,
+  `LaneBenchmarkPlaceService`, `LaneSearchService`, `MapboxGeocoder`.
+- `Lane_Benchmark_User` gains object read on `Benchmark_Rate__c` and field read
+  on all of its fields (no create/edit — bids are entered through the RFP
+  tool, not Lane Benchmark).
+- Formula and roll-up fields need their own explicit read `fieldPermissions`
+  entry, same as any other field: `WITH USER_MODE` reports a field the running
+  user cannot read as "No such column", identical to a genuinely missing
+  field, even though the field is never editable. This bit `Carrier_Display__c`
+  / `Status__c` on `Benchmark_Rate__c` and `Lane_Count__c` / `Costed_Count__c`
+  / `Sold_Count__c` on `RFP_Project__c` during 3a; both are now granted
+  read-only.
+
+**Lane Benchmark "Source" filter.** A radio group — All / Loads only / Bids
+only, default All. "Bids only" is the only setting that also returns expired
+bids; every other setting keeps the active-window `Expires_On__c >= TODAY`
+condition. A bid row shows a "Bid" badge next to the carrier name and its
+expiry in place of Accepted/Declined; an expired bid's entire row is greyed
+out. The CSV export gains a "Source" column (`Load` / `Bid`) first.
+
+**Customer Account component.** `rfpProjectsForAccount` (label "RFP Projects
+(customer)") lists a customer's RFP projects, file names and bid counts; a row
+click opens the project. It renders nothing on a non-customer record type.
+Trans-Pro Customer accounts use Revenova's managed page
+`rtms__Account_TMS_Record_Default` (template "Header and Left Sidebar"), and
+App Builder can only save a clone of a managed page, never edit it in place.
+To place the component:
+
+1. Open a Customer account → the Setup gear → **Edit Page**. App Builder
+   offers to save a clone.
+2. Drag **RFP Projects (customer)** into the left sidebar, under the
+   Activity/Chatter/Files tabs (or wherever the admin prefers).
+3. **Save**, then **Activation** → choose the scope: org default for Account,
+   or an App/Record Type/Profile assignment scoped to the Trans-Pro app and
+   the Customer record type.
+4. Note the clone's API name (App Builder proposed
+   `Account_TMS_Record_Default14` when this was scoped) for future reference.
+
+This step was not performed in 3a — activating a clone changes the Account
+page for the whole org, an admin decision on a shared sandbox — so the
+component is deployed but not yet visible on any Account page.
 
 ## Known issues worth fixing
 

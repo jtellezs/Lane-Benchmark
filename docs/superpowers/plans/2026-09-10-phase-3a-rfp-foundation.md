@@ -35,6 +35,17 @@
 8. Bid rows never dedupe (their fingerprint includes the bid Id). `truncated` is true if the quote query or the bid query hit its limit, or the merged list exceeded `rowLimit`.
 9. Bid lane keys are built from the lane's resolved places (`Origin_Place__r`, `Destination_Place__r`: `City__c`, `Province__c`, `Postal_Prefix__c`, geolocation), never from spreadsheet text, so CITY precision matches through `PlaceNormalizer.cityLaneVariants`.
 
+> **Defects found in this plan's verbatim code during execution:**
+>
+> - Task 1's field generator emitted a `<summarizedField>` on a COUNT roll-up; Salesforce rejects it ("bad value for restricted picklist field: Id"). Fixed to omit the element entirely for `summaryOperation = count`.
+> - Task 5's brief named the merge method `BidSearchService.merge`, but `MERGE` is a reserved Apex identifier; the method is `mergeRows`.
+> - Task 5's brief always ran the quote query; with `sourceFilter = BIDS` it must be skipped entirely, since `LaneSearchQueryBuilder` has no `RowSource` concept.
+> - Task 4's `BidSearchQueryBuilderTest.filtersAndSourceRules` asserted `!soql.contains('Expires_On__c')`, which can never pass against the required `SELECT_CLAUSE`; narrowed to `!soql.contains('Expires_On__c >= TODAY')`.
+> - Task 5's `BidSearchServiceTest` hard-coded an Id literal, which PMD's `AvoidHardcodingId` flags; replaced with a `mockRateId()` helper.
+> - Task 1's field generator set `formulaTreatBlanksAs = BlankAsZero` on every formula, including the checkbox formulas `Has_Cost__c`/`Has_Sell__c`, which makes `NOT(ISBLANK(...))` always true; fixed to `BlankAsBlank`.
+> - Task 1's generated `fieldPermissions` for `RFP_Tool_User` omitted every Summary and formula field of the three objects and every `Pricing_Place__c` field; `WITH USER_MODE` queries need explicit read access on those too.
+> - Task 1's field-count note: the generator's actual output is 10/42/35 (`RFP_Project__c`/`RFP_Lane__c`/`Benchmark_Rate__c`), not the 10/40/37 this plan's self-review table states.
+
 ---
 
 ## File structure

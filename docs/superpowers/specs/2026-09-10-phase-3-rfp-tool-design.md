@@ -54,19 +54,19 @@ records a defect.
 
 ### `RFP_Project__c`
 
-| Field                 | Type                                             | Notes                                                                    |
-| --------------------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
-| `Name`                | Text(80)                                         | Project name, for example "Costco Q4 2026"                               |
-| `Customer__c`         | Lookup(Account)                                  | Lookup filter: record type in (Customer, New_Customer)                   |
-| `Status__c`           | Picklist: Draft, Pricing, Sent, Awarded, Lost    | Default Draft                                                            |
-| `Due_Date__c`         | Date                                             |                                                                          |
-| `Default_Margin__c`   | Percent(5,2)                                     | Default 15; copied to each lane on import                                |
-| `Column_Mapping__c`   | LongTextArea(32768)                              | JSON `{ "originCity": "Origin City", ... }` as chosen on the last import |
-| `Source_File_Name__c` | Text(255)                                        | The uploaded file's name; the file itself is a ContentDocumentLink       |
-| `Lane_Count__c`       | Roll-up COUNT(RFP_Lane__c)                       |                                                                          |
-| `Costed_Count__c`     | Roll-up COUNT(RFP_Lane__c WHERE Cost__c != null) |                                                                          |
-| `Sold_Count__c`       | Roll-up COUNT(RFP_Lane__c WHERE Sell__c != null) |                                                                          |
-| `Notes__c`            | LongTextArea(32768)                              |                                                                          |
+| Field                 | Type                                                | Notes                                                                    |
+| --------------------- | --------------------------------------------------- | ------------------------------------------------------------------------ |
+| `Name`                | Text(80)                                            | Project name, for example "Costco Q4 2026"                               |
+| `Customer__c`         | Lookup(Account)                                     | Lookup filter: record type in (Customer, New_Customer)                   |
+| `Status__c`           | Picklist: Draft, Pricing, Sent, Awarded, Lost       | Default Draft                                                            |
+| `Due_Date__c`         | Date                                                |                                                                          |
+| `Default_Margin__c`   | Percent(5,2)                                        | Default 15; copied to each lane on import                                |
+| `Column_Mapping__c`   | LongTextArea(32768)                                 | JSON `{ "originCity": "Origin City", ... }` as chosen on the last import |
+| `Source_File_Name__c` | Text(255)                                           | The uploaded file's name; the file itself is a ContentDocumentLink       |
+| `Lane_Count__c`       | Roll-up COUNT(RFP_Lane__c)                          |                                                                          |
+| `Costed_Count__c`     | Roll-up COUNT(RFP_Lane__c WHERE Has_Cost__c = true) | Filters on the checkbox formula, not "Cost\_\_c != null" (see ruling 7)  |
+| `Sold_Count__c`       | Roll-up COUNT(RFP_Lane__c WHERE Has_Sell__c = true) | Filters on the checkbox formula, not "Sell\_\_c != null" (see ruling 7)  |
+| `Notes__c`            | LongTextArea(32768)                                 |                                                                          |
 
 Sharing: private is not needed; keep Public Read/Write (the org's default for
 pricing data). Files: the workbook is uploaded with `lightning-file-upload`
@@ -93,7 +93,7 @@ the fact when someone edits the margin.
 | Links     | `RFP_Lane__c` Lookup(RFP_Lane__c), `RFP_Project__c` Lookup(RFP_Project__c) (copied from the lane on insert), `Name` auto-number `B-{000000}`                                                                                                                                                                                                                                                                                        |
 | Carrier   | `Carrier__c` Lookup(Account) filtered to record types (Carrier, New_Carrier); `Carrier_Name__c` Text(255); `Contact_Name__c` Text(120); `Contact_Email__c` Email; `Contact_Phone__c` Phone. Validation rule `Carrier_Or_Name_Required`: `ISBLANK(Carrier__c) && ISBLANK(Carrier_Name__c)` is an error. Formula `Carrier_Display__c` = `IF(ISBLANK(Carrier__c), Carrier_Name__c, Carrier__r.Name)`                                   |
 | Price     | `Rate__c` Currency(16,2) required, `CurrencyIsoCode`, `Fuel_Surcharge__c` Currency(16,2), `FSC_Included__c` Checkbox, `Transit_Days__c` Number(3,0), `Valid_From__c` Date (default today), `Expires_On__c` Date (default today + 30), `Status__c` formula Text: `IF(Expires_On__c < TODAY(), "Expired", "Active")`, `Notes__c` LongTextArea(4000)                                                                                   |
-| Lane      | `Mode__c` Text(40), `Equipment_Type__c` Text(80), `Hazmat__c` Checkbox                                                                                                                                                                                                                                                                                                                                                              |
+| Lane      | `Mode__c` Text(40), `Equipment_Category__c` Text(40) (ruling 3, copied from the lane so the equipment-category filter applies to bids), `Equipment_Type__c` Text(80), `Hazmat__c` Checkbox                                                                                                                                                                                                                                          |
 | Lane keys | Copied from the lane on insert by `BenchmarkRateService`: `Origin_City__c`, `Origin_Province__c`, `Origin_Country__c`, `Origin_Postal__c`, `Origin_Place__c`, `Origin_Geolocation__c` (Geolocation, from the place), and the `Destination_` set; `City_Lane__c` Text(255) `"City, ST:City, ST"`, `State_Lane__c` Text(20) `"ST:ST"`, `Zip3_Lane__c` Text(20) `"XXX:XXX"` in exactly the format `PlaceNormalizer` produces for Loads |
 
 Bids are records with real DML by pricing users; the RFP objects are created
@@ -119,10 +119,10 @@ unlike the phase 1 search which stays system mode by documented design.
 | `RfpImportService`               | Turns mapped rows into `RFP_Lane__c` records: trims, normalizes province/country through `PlaceNormalizer`, resolves `Pricing_Place__c` keys (city+province+country first, postal prefix second), sets `*_Resolved__c`, copies `Default_Margin__c`, stores `Raw_Row__c`                                                                                                              |
 | `RfpHistoryService`              | For each lane builds a `LaneSearchRequest` (origin/destination place keys, precision, lookback, mode/equipment when mapped, `source = LOADS`), calls `LaneSearchService.search`, writes the snapshot fields; falls back to RADIUS 50 km when CITY returns 0 rows and records `Hist_Precision__c = 'RADIUS-50KM'`                                                                     |
 | `BenchmarkRateService`           | Validates and inserts/updates bids, copies lane keys and geolocations from the lane and its places, sets `RFP_Project__c`, returns the saved bid with `Carrier_Display__c`                                                                                                                                                                                                           |
-| `LaneSearchRequest` (phase 1)    | New field `source` enum `Source { ALL, LOADS, BIDS }`, default ALL; `applyDefaults()` sets it                                                                                                                                                                                                                                                                                        |
-| `LaneSearchService` (phase 1)    | When `source != LOADS`, runs `BidSearchQueryBuilder` and merges bid rows (`isBid = true`, `expiresOn`, `bidStatus`, `carrier` filled from the bid) into `LaneSearchResult.rows`, ordered by date descending, before dedupe and stats                                                                                                                                                 |
-| `BidSearchQueryBuilder`          | Builds the `Benchmark_Rate__c` SOQL with the same precision semantics as `LaneSearchQueryBuilder` (city-lane LIKE variants, state lane, zip3 lane, `DISTANCE()` on the copied geolocations), `Valid_From__c <= TODAY`, `Expires_On__c >= TODAY` unless `source == BIDS` (then expired bids are returned with `bidStatus = 'Expired'`), lookback on `CreatedDate`                     |
-| `LaneSearchResult.Row` (phase 1) | New fields `isBid` Boolean, `expiresOn` Date, `bidStatus` String, `source` String ('Load' / 'Bid')                                                                                                                                                                                                                                                                                   |
+| `LaneSearchRequest` (phase 1)    | New field `sourceFilter` enum `RowSource { ALL, LOADS, BIDS }` (not `source`/`Source` — a field named like its enum type fails to compile, ruling 1), default ALL; `applyDefaults()` sets it                                                                                                                                                                                         |
+| `LaneSearchService` (phase 1)    | When `sourceFilter != LOADS`, runs `BidSearchQueryBuilder` and merges the bid rows into `LaneSearchResult.rows` via `BidSearchService.mergeRows` (linear merge by `createdDate` descending, capped at `rowLimit`), before dedupe and stats; when `sourceFilter == BIDS` the quote query is skipped entirely                                                                          |
+| `BidSearchQueryBuilder`          | Builds the `Benchmark_Rate__c` SOQL with the same precision semantics as `LaneSearchQueryBuilder` (city-lane LIKE variants, state lane, zip3 lane, `DISTANCE()` on the copied geolocations), `Valid_From__c <= TODAY`, `Expires_On__c >= TODAY` unless `sourceFilter == BIDS` (then expired bids are returned too, `Status__c = 'Expired'`), lookback on `CreatedDate`               |
+| `LaneSearchResult.Row` (phase 1) | New field `bid` — one nested `@AuraEnabled BidDetail` (`rateId`, `expiresOn`, `status`, `transitDays`, `fuelSurcharge`, `fscIncluded`), null for a Load, not four flat fields (ruling 2, to stay under the `TooManyFields` limit)                                                                                                                                                    |
 | `RfpTestDataFactory`             | Builders: `createProject(account)`, `createLane(project, originPlace, destPlace)`, `createBid(lane, rate)`; reuses `PricingTestDataFactory` for places, accounts and quotes                                                                                                                                                                                                          |
 
 ### LWC
@@ -270,3 +270,120 @@ deployed to PostProduc; all Apex tests green with the full `-t` list; Jest,
 ESLint, Prettier and PMD clean; the manual checks above recorded in an
 `## Outcome` section here; README section "RFP Tool (phase 3)"; roadmap phase
 3 marked done.
+
+## Outcome — 3a (2026-09-11)
+
+Branch `phase-3a/foundation`, commits `7575be6..e53994e` (`b47776e`,
+`dc3255f`, `e4ad045`, `844a94c`, `33169a3`, `65b1997`, `5c198f9`, `e53994e`).
+This section and its docs commit land on the same branch, after `e53994e`.
+The tab/page/app, import, history, workbench and export named in "3b —
+workbench" above are not part of 3a; only the foundation goal ("After 3a a
+bid created through the record page already appears in Lane Benchmark") was
+targeted.
+
+**Deploys** (all to `sandbox`/PostProduc; ids and counts from the task
+reports):
+
+| Task                                                                       | Deploy id                                                                                                 | Tests        |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------ |
+| 1 — objects, validation rule, permission sets                              | validate `0AfbZ00000Cont3SAB`, deploy `0AfbZ00000ConwHSAR`                                                | 60/60        |
+| 2 — `RfpTestDataFactory`                                                   | `0AfbZ00000CooM5SAJ`                                                                                      | 61/61        |
+| 3 — `BenchmarkRateService`                                                 | `0AfbZ00000CooxBSAR`; fix round 1 `0AfbZ00000CoprdSAB`                                                    | 65/65; 69/69 |
+| 4 — `sourceFilter`, `Row.bid`, `BidSearchQueryBuilder`                     | `0AfbZ00000CopjZSAR` (first attempt `0AfbZ00000CopRpSAJ` failed 68/69 on the test-assertion defect below) | 69/69        |
+| 5 — `BidSearchService`, merge into `LaneSearchService`                     | `0AfbZ00000Coq69SAB`                                                                                      | 73/73        |
+| 6 — Lane Benchmark Source filter, bid rows, CSV (LWC only, no Apex deploy) | —                                                                                                         | Jest 66/66   |
+| 7 — `RfpController`, `rfpProjectsForAccount`                               | `0AfbZ00000CorBtSAJ`                                                                                      | 74/74        |
+
+Final state: **74/74** Apex tests across thirteen classes, **Jest 68/68**,
+PMD (quickstart, priority 3, `--fail-on-violation`) exit 0 on every task,
+ESLint/Prettier clean.
+
+**Adaptations from the plan and spec.**
+
+Rulings recorded in the plan header (applied as written; see the plan's
+"Rulings that amend the spec" for the full text):
+
+1. `sourceFilter` of enum `RowSource { ALL, LOADS, BIDS }`, not `source` of
+   enum `Source`. `ALL` compiled without needing the `ALL_SOURCES` fallback.
+2. `LaneSearchResult.Row.bid` is one nested `BidDetail` (`rateId`,
+   `expiresOn`, `status`, `transitDays`, `fuelSurcharge`, `fscIncluded`), not
+   four flat fields.
+3. `Benchmark_Rate__c.Equipment_Category__c` Text(40) added, copied from the
+   lane, so the equipment-category filter applies to bids.
+4. For bids, `marketTestOnly = true` and `acceptedFilter` ACCEPTED/DECLINED
+   return no bids.
+5. `RfpController` ships with `projectsForAccount` only in 3a.
+6. No Account FlexiPage is edited; `rfpProjectsForAccount` renders nothing off
+   the Customer/New_Customer record types; the App Builder placement is a
+   recorded manual step (below), not done in 3a.
+7. `RFP_Project__c` roll-ups filter on the checkbox formulas `Has_Cost__c` /
+   `Has_Sell__c`, not on "field not blank".
+8. Bid rows never dedupe (their fingerprint includes the bid Id);
+   `truncated` covers both the quote query and the bid query.
+9. Bid lane keys are built from the lane's resolved places, never from
+   spreadsheet text.
+
+Additional rulings the ledger recorded during implementation (plan defects,
+not spec decisions):
+
+- A COUNT roll-up's `<summarizedField>` is rejected by Salesforce ("bad value
+  for restricted picklist field: Id"); the field generator omits it for
+  `summaryOperation = count` (Task 1).
+- `merge` is a reserved Apex identifier (the `MERGE` DML statement); the
+  method is `BidSearchService.mergeRows` (Task 5).
+- With `sourceFilter = BIDS` the quote query must be skipped entirely —
+  `LaneSearchQueryBuilder` has no `RowSource` concept — so
+  `LaneSearchService.search` guards it; this is the spec's own intent ("Bids
+  only") (Task 5).
+- `BidSearchQueryBuilderTest.filtersAndSourceRules`'s
+  `!soql.contains('Expires_On__c')` assertion can never pass, since the
+  column is always in the SELECT list; narrowed to
+  `!soql.contains('Expires_On__c >= TODAY')` (Task 4).
+- A hard-coded Id literal in `BidSearchServiceTest` was replaced by a
+  `mockRateId()` helper to satisfy PMD's `AvoidHardcodingId` — same value,
+  built without a literal (Task 5).
+- `RFP_Tool_User` was missing read `fieldPermissions` on every
+  `Pricing_Place__c` custom field except `Key__c`, needed by
+  `BenchmarkRateService.loadLane`'s `WITH USER_MODE` query; added (Task 3 fix
+  round 1).
+- `RFP_Tool_User`'s generated `fieldPermissions` excluded every Summary and
+  formula field, but a `WITH USER_MODE` query needs read access on roll-ups
+  and formulas too — `Carrier_Display__c`/`Status__c` (Task 3),
+  `Lane_Count__c`/`Costed_Count__c`/`Sold_Count__c` (Task 7). Rule: grant
+  `readable=true`/`editable=false` on every roll-up/formula field of the
+  three objects.
+- The field generator set `formulaTreatBlanksAs = BlankAsZero` on every
+  formula, which makes `NOT(ISBLANK(Cost__c))` always evaluate true;
+  `Has_Cost__c`/`Has_Sell__c` now use `BlankAsBlank`, the correct setting for
+  an `ISBLANK`-based checkbox formula, so `Costed_Count__c`/`Sold_Count__c`
+  count correctly (Task 7).
+- `cityLane()` applies `PlaceNormalizer.provinceCode` to a place's
+  `Province__c` while `cityLaneVariants` uses `Province__c` as stored;
+  dictionary places already store the 2-letter code, so the two agree today.
+  A place that ever carried a long province name would be missed at CITY
+  precision (found at PROVINCE) — accepted rather than changed, since it
+  matches how Revenova writes Loads (pre-Task-1 ruling).
+- App Builder placement: not done. Trans-Pro Customer accounts use
+  Revenova's managed page `rtms__Account_TMS_Record_Default` (template
+  "Header and Left Sidebar"); App Builder can only save a clone of a managed
+  page (it proposed the API name `Account_TMS_Record_Default14`), and
+  activating that clone changes the Account page for the whole org (or a
+  chosen app/record type/profile scope) — an admin decision on a shared
+  sandbox, not a controller ruling. Nothing was saved. See the README's "RFP
+  Tool (phase 3a)" section for the exact steps (Task 7).
+
+**Deferred.**
+
+- No Apex test runs `System.runAs` a user restricted to only `RFP_Tool_User`;
+  every deploy's tests pass because the deploying/test-running user also
+  holds `Lane_Benchmark_User` (and other permission sets), which can mask a
+  missing grant. Recommended for 3b: an in-test `PermissionSetAssignment`
+  under `runAs`.
+- App Builder placement of `rfpProjectsForAccount` is pending the admin's
+  choice of activation scope (org default for Account, vs. an App/Record
+  Type/Profile assignment) — see the README.
+- The comment on `sourceFilter` in `LaneSearchRequest` overstates the
+  name-collision reason it documents (cosmetic; Task 4).
+- `laneBenchmarkResults`'s detail row renders a trailing " · " for Load rows,
+  since `transitText`/`fscText` are empty strings for a Load, not a bid
+  (cosmetic; Task 6).
