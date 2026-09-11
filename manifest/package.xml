@@ -4,11 +4,13 @@
     <types>
         <members>Pricing_Department</members>
         <members>Lane_Benchmark</members>
+        <members>RFP_Tool</members>
         <name>FlexiPage</name>
     </types>
     <types>
         <members>Pricing_Department</members>
         <members>Lane_Benchmark</members>
+        <members>RFP_Tool</members>
         <name>CustomTab</name>
     </types>
     <types>
@@ -30,7 +32,27 @@
         <members>laneBenchmarkMap</members>
         <members>laneBenchmark</members>
         <members>rfpProjectsForAccount</members>
+        <members>rfpTool</members>
+        <members>rfpAccountPicker</members>
+        <members>rfpBatch</members>
+        <members>rfpBidForm</members>
+        <members>rfpColumnMapper</members>
+        <members>rfpExport</members>
+        <members>rfpHeaderGuess</members>
+        <members>rfpLanePanel</members>
+        <members>rfpLaneTable</members>
+        <members>rfpMath</members>
+        <members>rfpPricing</members>
+        <members>rfpProjectList</members>
+        <members>rfpSheet</members>
+        <members>rfpSheetLoader</members>
+        <members>rfpUpload</members>
+        <members>rfpWorkbook</members>
         <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>sheetJs</members>
+        <name>StaticResource</name>
     </types>
     <!-- Apex -->
     <types>

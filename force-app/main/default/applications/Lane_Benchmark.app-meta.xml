@@ -12,5 +12,6 @@
     <label>Lane Benchmark</label>
     <navType>Standard</navType>
     <tabs>Lane_Benchmark</tabs>
+    <tabs>RFP_Tool</tabs>
     <uiType>Lightning</uiType>
 </CustomApplication>

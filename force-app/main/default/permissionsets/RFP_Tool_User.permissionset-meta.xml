@@ -4,6 +4,10 @@
     <description
   >Create RFP projects, lanes and carrier bids. Assign this to the pricing team.</description>
     <hasActivationRequired>false</hasActivationRequired>
+    <applicationVisibilities>
+        <application>Lane_Benchmark</application>
+        <visible>true</visible>
+    </applicationVisibilities>
     <classAccesses>
         <apexClass>BenchmarkRateService</apexClass>
         <enabled>true</enabled>
@@ -581,4 +585,12 @@
         <field>Pricing_Place__c.Spellings__c</field>
         <readable>true</readable>
     </fieldPermissions>
+    <tabSettings>
+        <tab>Lane_Benchmark</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>RFP_Tool</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
 </PermissionSet>
