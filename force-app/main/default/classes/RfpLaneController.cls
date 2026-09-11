@@ -117,7 +117,7 @@ public with sharing class RfpLaneController {
       ];
       RFP_Lane__c lane = new RFP_Lane__c(
         Id = laneId,
-        Hist_Status__c = 'Pending'
+        Hist_Status__c = nextHistStatus(laneId, side)
       );
       if (side == 'origin') {
         lane.Origin_City__c = place.City__c;
@@ -150,6 +150,24 @@ public with sharing class RfpLaneController {
         'The place could not be applied. ' + RfpUserError.safe(e)
       );
     }
+  }
+
+  /**
+   * 'Pending' only once BOTH ends are resolved (the side being fixed now, plus whatever the
+   * other side already is on the stored lane); otherwise the lane stays 'Unresolved', same rule
+   * RfpImportService applies on import.
+   */
+  private static String nextHistStatus(Id laneId, String side) {
+    RFP_Lane__c current = [
+      SELECT Origin_Resolved__c, Destination_Resolved__c
+      FROM RFP_Lane__c
+      WHERE Id = :laneId
+      WITH USER_MODE
+    ];
+    Boolean otherSideResolved = side == 'origin'
+      ? current.Destination_Resolved__c
+      : current.Origin_Resolved__c;
+    return otherSideResolved ? 'Pending' : 'Unresolved';
   }
 
   private static RFP_Lane__c one(Id laneId) {

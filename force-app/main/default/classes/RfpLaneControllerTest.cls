@@ -117,6 +117,33 @@ private class RfpLaneControllerTest {
     }
   }
 
+  @IsTest
+  static void resolveLaneEndKeepsHistStatusUnresolvedUntilBothEndsAreResolved() {
+    Fx f = fx();
+    f.lane.Destination_Place__c = null;
+    f.lane.Destination_Resolved__c = false;
+    f.lane.Hist_Status__c = 'Unresolved';
+    update f.lane;
+    RFP_Lane__c afterOrigin = RfpLaneController.resolveLaneEnd(
+      f.lane.Id,
+      'origin',
+      'montreal|qc|ca'
+    );
+    System.assertEquals(true, afterOrigin.Origin_Resolved__c);
+    System.assertEquals(
+      'Unresolved',
+      afterOrigin.Hist_Status__c,
+      'destination is still unresolved'
+    );
+    RFP_Lane__c afterDestination = RfpLaneController.resolveLaneEnd(
+      f.lane.Id,
+      'destination',
+      'toronto|on|ca'
+    );
+    System.assertEquals(true, afterDestination.Destination_Resolved__c);
+    System.assertEquals('Pending', afterDestination.Hist_Status__c);
+  }
+
   // The methods below are not in the brief: they exist to satisfy the org's 75%-per-class
   // deployment gate, which the three brief tests above do not reach for RfpLaneController
   // (74.0%: the destination branch of resolveLaneEnd and every try/catch wrapper were
