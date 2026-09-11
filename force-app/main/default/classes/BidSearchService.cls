@@ -93,14 +93,14 @@ public without sharing class BidSearchService {
       Boolean takeQuote =
         j >= bids.size() ||
         (i < quotes.size() &&
-        !isBefore(bids[j].createdDate, quotes[i].createdDate));
+        !isNewer(bids[j].createdDate, quotes[i].createdDate));
       out.add(takeQuote ? quotes[i++] : bids[j++]);
     }
     return out;
   }
 
   /** true when a is strictly newer than b (null sorts last). */
-  private static Boolean isBefore(Datetime a, Datetime b) {
+  private static Boolean isNewer(Datetime a, Datetime b) {
     if (a == null) {
       return false;
     }

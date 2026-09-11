@@ -138,6 +138,25 @@ private class BidSearchQueryBuilderTest {
   }
 
   @IsTest
+  static void blankProvinceOrPostalPrefixLeavesTheEndUnconstrained() {
+    Map<String, Pricing_Place__c> withBlankProvince = places();
+    withBlankProvince.get('montreal|qc|ca').Province__c = null;
+    LaneSearchRequest r = req();
+    r.originPrecision = LaneSearchRequest.Precision.PROVINCE;
+    Map<String, Object> binds = new Map<String, Object>();
+    String soql = BidSearchQueryBuilder.buildSoql(r, binds, withBlankProvince);
+    System.assert(!soql.contains('State_Lane__c'), soql);
+
+    Map<String, Pricing_Place__c> withBlankPrefix = places();
+    withBlankPrefix.get('toronto|on|ca').Postal_Prefix__c = null;
+    r = req();
+    r.destinationPrecision = LaneSearchRequest.Precision.ZIP3;
+    binds = new Map<String, Object>();
+    soql = BidSearchQueryBuilder.buildSoql(r, binds, withBlankPrefix);
+    System.assert(!soql.contains('Zip3_Lane__c'), soql);
+  }
+
+  @IsTest
   static void defaultsApplySourceAll() {
     LaneSearchRequest r = (LaneSearchRequest) JSON.deserialize(
       '{"originKey":"montreal|qc|ca"}',

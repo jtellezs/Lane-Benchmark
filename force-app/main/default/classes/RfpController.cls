@@ -27,6 +27,9 @@ public with sharing class RfpController {
 
   @AuraEnabled(cacheable=true)
   public static List<ProjectSummary> projectsForAccount(Id accountId) {
+    if (accountId == null) {
+      return new List<ProjectSummary>();
+    }
     try {
       Map<Id, ProjectSummary> byId = new Map<Id, ProjectSummary>();
       for (RFP_Project__c p : [

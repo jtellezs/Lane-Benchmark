@@ -38,8 +38,9 @@ def checkbox(obj, name, label, default=False):
     w(obj, name, f"    <label>{label}</label>\n    <type>Checkbox</type>\n"
                  f"    <defaultValue>{'true' if default else 'false'}</defaultValue>\n")
 
-def date(obj, name, label):
-    w(obj, name, f"    <label>{label}</label>\n    <type>Date</type>\n    <required>false</required>\n")
+def date(obj, name, label, default=None):
+    d = f"    <defaultValue>{default}</defaultValue>\n" if default is not None else ""
+    w(obj, name, f"    <label>{label}</label>\n    <type>Date</type>\n    <required>false</required>\n{d}")
 
 def datetime_(obj, name, label):
     w(obj, name, f"    <label>{label}</label>\n    <type>DateTime</type>\n    <required>false</required>\n")
@@ -73,10 +74,10 @@ def master_detail(obj, name, label, target, relname, rellabel):
                  f"    <relationshipOrder>0</relationshipOrder>\n    <reparentableMasterDetail>false</reparentableMasterDetail>\n"
                  f"    <writeRequiresMasterRead>false</writeRequiresMasterRead>\n")
 
-def formula(obj, name, label, ftype, expr, extra=""):
+def formula(obj, name, label, ftype, expr, extra="", blanks="BlankAsZero"):
     esc = expr.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     w(obj, name, f"    <label>{label}</label>\n    <type>{ftype}</type>\n    <formula>{esc}</formula>\n"
-                 f"    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>\n{extra}")
+                 f"    <formulaTreatBlanksAs>{blanks}</formulaTreatBlanksAs>\n{extra}")
 
 def rollup(obj, name, label, child_obj, child_field, relname, filter_field=None):
     flt = (f"    <summaryFilterItems>\n        <field>{filter_field}</field>\n        <operation>equals</operation>\n"
@@ -141,8 +142,8 @@ lookup(L, "Selected_Bid__c", "Selected bid", B, "Selected_For_Lanes", "Selected 
 percent(L, "Margin__c", "Margin %")
 currency(L, "Sell__c", "Sell")
 longtext(L, "Notes__c", "Notes", 4000, 3)
-formula(L, "Has_Cost__c", "Has cost", "Checkbox", "NOT(ISBLANK(Cost__c))")
-formula(L, "Has_Sell__c", "Has sell", "Checkbox", "NOT(ISBLANK(Sell__c))")
+formula(L, "Has_Cost__c", "Has cost", "Checkbox", "NOT(ISBLANK(Cost__c))", blanks="BlankAsBlank")
+formula(L, "Has_Sell__c", "Has sell", "Checkbox", "NOT(ISBLANK(Sell__c))", blanks="BlankAsBlank")
 
 # ---- Benchmark_Rate__c
 lookup(B, "RFP_Lane__c", "RFP Lane", L, "Benchmark_Rates", "Benchmark Rates")
@@ -159,8 +160,8 @@ currency(B, "Rate__c", "Rate", required=True)
 currency(B, "Fuel_Surcharge__c", "Fuel surcharge")
 checkbox(B, "FSC_Included__c", "FSC included")
 number(B, "Transit_Days__c", "Transit days", 3, 0)
-date(B, "Valid_From__c", "Valid from")
-date(B, "Expires_On__c", "Expires on")
+date(B, "Valid_From__c", "Valid from", default="TODAY()")
+date(B, "Expires_On__c", "Expires on", default="TODAY() + 30")
 formula(B, "Status__c", "Status", "Text", 'IF(Expires_On__c < TODAY(), "Expired", "Active")')
 longtext(B, "Notes__c", "Notes", 4000, 3)
 text(B, "Mode__c", "Mode", 40)

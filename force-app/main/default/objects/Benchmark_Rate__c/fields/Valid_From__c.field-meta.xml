@@ -4,4 +4,5 @@
     <label>Valid from</label>
     <type>Date</type>
     <required>false</required>
+    <defaultValue>TODAY()</defaultValue>
 </CustomField>

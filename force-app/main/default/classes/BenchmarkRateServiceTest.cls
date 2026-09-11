@@ -115,6 +115,90 @@ private class BenchmarkRateServiceTest {
   }
 
   @IsTest
+  static void plainInsertIsStampedByTheTrigger() {
+    Fx f = fx();
+    Benchmark_Rate__c bid = RfpTestDataFactory.buildBid(f.lane, 1000);
+    Test.startTest();
+    insert bid;
+    Test.stopTest();
+    Benchmark_Rate__c b = [
+      SELECT
+        RFP_Project__c,
+        City_Lane__c,
+        State_Lane__c,
+        Zip3_Lane__c,
+        Origin_Place__c,
+        Origin_Geolocation__Latitude__s,
+        Destination_Geolocation__Longitude__s,
+        Valid_From__c,
+        Expires_On__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :bid.Id
+    ];
+    System.assertEquals(f.project.Id, b.RFP_Project__c);
+    System.assertEquals('Montréal, QC:Toronto, ON', b.City_Lane__c);
+    System.assertEquals('QC:ON', b.State_Lane__c);
+    System.assertEquals('H1A:M5V', b.Zip3_Lane__c);
+    System.assertEquals(f.mtl.Id, b.Origin_Place__c);
+    System.assertEquals(45.5019, b.Origin_Geolocation__Latitude__s);
+    System.assertEquals(-79.3832, b.Destination_Geolocation__Longitude__s);
+    System.assertEquals(Date.today(), b.Valid_From__c);
+    System.assertEquals(Date.today().addDays(30), b.Expires_On__c);
+  }
+
+  @IsTest
+  static void bulkInsertStampsEveryBidWithOneLaneQuery() {
+    Fx f = fx();
+    List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
+    for (Integer i = 0; i < 200; i++) {
+      bids.add(RfpTestDataFactory.buildBid(f.lane, 1000 + i));
+    }
+    Test.startTest();
+    Integer before = Limits.getQueries();
+    insert bids;
+    Integer after = Limits.getQueries();
+    Test.stopTest();
+    System.assert(
+      after - before <= 3,
+      'expected the trigger to run one lane query for the whole batch, used ' +
+      (after - before)
+    );
+    System.assertEquals(
+      200,
+      [
+        SELECT COUNT()
+        FROM Benchmark_Rate__c
+        WHERE City_Lane__c = 'Montréal, QC:Toronto, ON'
+      ]
+    );
+  }
+
+  @IsTest
+  static void updateKeepsAManuallyChangedEquipmentTypeAndStillFixesKeys() {
+    Fx f = fx();
+    Benchmark_Rate__c bid = RfpTestDataFactory.buildBid(f.lane, 1000);
+    insert bid;
+    Benchmark_Rate__c toUpdate = [
+      SELECT Id, Equipment_Type__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :bid.Id
+    ];
+    toUpdate.Equipment_Type__c = 'Reefer 53\'';
+    Test.startTest();
+    update toUpdate;
+    Test.stopTest();
+    Benchmark_Rate__c b = [
+      SELECT Equipment_Type__c, City_Lane__c, State_Lane__c, Zip3_Lane__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :bid.Id
+    ];
+    System.assertEquals('Reefer 53\'', b.Equipment_Type__c);
+    System.assertEquals('Montréal, QC:Toronto, ON', b.City_Lane__c);
+    System.assertEquals('QC:ON', b.State_Lane__c);
+    System.assertEquals('H1A:M5V', b.Zip3_Lane__c);
+  }
+
+  @IsTest
   static void laneKeyHelpersMatchTheLoadFormat() {
     Pricing_Place__c o = new Pricing_Place__c(
       City__c = 'Laval',

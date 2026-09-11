@@ -147,12 +147,12 @@ public with sharing class BidSearchQueryBuilder {
     String bindSuffix,
     String raw
   ) {
+    // A place with nothing to match at this precision (no province, no postal prefix) leaves this
+    // end unconstrained rather than failing the whole search - same call as
+    // LaneSearchQueryBuilder.addEnd falling through to "no constraint" when places.get(e.key) is
+    // null.
     if (String.isBlank(raw)) {
-      throw new LaneSearchException(
-        'Place ' +
-          e.key +
-          ' has no postal prefix or province for this precision'
-      );
+      return;
     }
     binds.put(e.bindPrefix + bindSuffix, pattern(e, raw));
     conditions.add(field + ' LIKE :' + e.bindPrefix + bindSuffix);

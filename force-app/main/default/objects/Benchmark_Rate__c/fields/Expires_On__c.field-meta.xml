@@ -4,4 +4,5 @@
     <label>Expires on</label>
     <type>Date</type>
     <required>false</required>
+    <defaultValue>TODAY() + 30</defaultValue>
 </CustomField>

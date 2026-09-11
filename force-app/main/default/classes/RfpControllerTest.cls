@@ -59,4 +59,9 @@ private class RfpControllerTest {
       RfpController.projectsForAccount(g.vendor.Id).size()
     );
   }
+
+  @IsTest
+  static void projectsForAccountReturnsEmptyForNullAccount() {
+    System.assertEquals(0, RfpController.projectsForAccount(null).size());
+  }
 }

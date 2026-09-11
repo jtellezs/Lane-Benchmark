@@ -72,6 +72,10 @@
         <name>ApexClass</name>
     </types>
     <types>
+        <members>BenchmarkRateTrigger</members>
+        <name>ApexTrigger</name>
+    </types>
+    <types>
         <members>Pricing_Department_Setting__mdt</members>
         <members>Pricing_Place__c</members>
         <members>RFP_Project__c</members>
@@ -89,6 +93,10 @@
         <members>Lane_Benchmark_User</members>
         <members>RFP_Tool_User</members>
         <name>PermissionSet</name>
+    </types>
+    <types>
+        <members>RFP_Tool</members>
+        <name>CustomPermission</name>
     </types>
     <types>
         <members>Mapbox_API</members>

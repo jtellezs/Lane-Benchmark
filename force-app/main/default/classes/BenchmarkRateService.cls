@@ -1,19 +1,18 @@
 /**
- * Saves carrier bids (Benchmark_Rate__c) in user mode and stamps the lane keys Lane Benchmark
- * searches on. The keys come from the lane's resolved Pricing_Place__c records (canonical City__c,
- * Province__c, Postal_Prefix__c and coordinates), never from spreadsheet text, so a CITY-precision
- * search matches a bid through PlaceNormalizer.cityLaneVariants exactly as it matches a Load.
+ * Saves carrier bids (Benchmark_Rate__c) in user mode. Validates the rate, inserts/updates and
+ * reloads - nothing else. The lane keys Lane Benchmark searches on (city lane, state lane, zip3
+ * lane, geolocations, project, mode/equipment/hazmat) are stamped by BenchmarkRateTrigger's
+ * before-insert/before-update call into applyLanes below, not by save(): RFP_Tool_User marks those
+ * fields editable=false (they are service-maintained, never user-entered), so the user-mode
+ * insert/update here must not set them - only a system-context trigger can. This also means a bid
+ * created directly on the record page (bypassing save() entirely) still gets stamped, which a
+ * save()-only implementation could never do.
  */
 public with sharing class BenchmarkRateService {
   public static Benchmark_Rate__c save(Benchmark_Rate__c bid) {
     if (bid.Rate__c == null) {
       throw new LaneSearchException('A bid needs a rate.');
     }
-    if (bid.RFP_Lane__c != null) {
-      applyLane(bid, loadLane(bid.RFP_Lane__c));
-    }
-    bid.Valid_From__c = bid.Valid_From__c ?? Date.today();
-    bid.Expires_On__c = bid.Expires_On__c ?? Date.today().addDays(30);
     if (bid.Id == null) {
       Database.insert(bid, AccessLevel.USER_MODE);
     } else {
@@ -22,8 +21,37 @@ public with sharing class BenchmarkRateService {
     return reload(bid.Id);
   }
 
-  private static RFP_Lane__c loadLane(Id laneId) {
-    List<RFP_Lane__c> lanes = [
+  /** Called by BenchmarkRateTrigger (before insert/update) for every bid in the trigger batch. */
+  public static void applyLanes(List<Benchmark_Rate__c> bids) {
+    Map<Id, RFP_Lane__c> lanesById = loadLanes(bids);
+    for (Benchmark_Rate__c bid : bids) {
+      RFP_Lane__c lane = bid.RFP_Lane__c == null
+        ? null
+        : lanesById.get(bid.RFP_Lane__c);
+      if (lane != null) {
+        applyLane(bid, lane);
+      }
+      bid.Valid_From__c = bid.Valid_From__c ?? Date.today();
+      bid.Expires_On__c = bid.Expires_On__c ?? Date.today().addDays(30);
+    }
+  }
+
+  // System-mode SOQL: this only ever runs from BenchmarkRateTrigger, which is already a
+  // system-context call (before insert/update), so there is no running user's FLS/CRUD to check -
+  // the trigger reads every referenced lane once per batch to copy its keys onto the bids.
+  @SuppressWarnings('PMD.ApexCRUDViolation')
+  private static Map<Id, RFP_Lane__c> loadLanes(List<Benchmark_Rate__c> bids) {
+    Set<Id> laneIds = new Set<Id>();
+    for (Benchmark_Rate__c bid : bids) {
+      if (bid.RFP_Lane__c != null) {
+        laneIds.add(bid.RFP_Lane__c);
+      }
+    }
+    Map<Id, RFP_Lane__c> lanesById = new Map<Id, RFP_Lane__c>();
+    if (laneIds.isEmpty()) {
+      return lanesById;
+    }
+    for (RFP_Lane__c lane : [
       SELECT
         Id,
         RFP_Project__c,
@@ -52,23 +80,20 @@ public with sharing class BenchmarkRateService {
         Destination_Place__r.Geolocation__Latitude__s,
         Destination_Place__r.Geolocation__Longitude__s
       FROM RFP_Lane__c
-      WHERE Id = :laneId
-      WITH USER_MODE
-    ];
-    if (lanes.isEmpty()) {
-      throw new LaneSearchException(
-        'The RFP lane for this bid no longer exists.'
-      );
+      WHERE Id IN :laneIds
+    ]) {
+      lanesById.put(lane.Id, lane);
     }
-    return lanes[0];
+    return lanesById;
   }
 
   private static void applyLane(Benchmark_Rate__c bid, RFP_Lane__c lane) {
     bid.RFP_Project__c = lane.RFP_Project__c;
-    bid.Mode__c = lane.Mode__c;
-    bid.Equipment_Category__c = lane.Equipment_Category__c;
-    bid.Equipment_Type__c = lane.Equipment_Type__c;
-    bid.Hazmat__c = lane.Hazmat__c;
+    bid.Mode__c = bid.Mode__c ?? lane.Mode__c;
+    bid.Equipment_Category__c = bid.Equipment_Category__c ??
+      lane.Equipment_Category__c;
+    bid.Equipment_Type__c = bid.Equipment_Type__c ?? lane.Equipment_Type__c;
+    bid.Hazmat__c = bid.Hazmat__c ?? lane.Hazmat__c;
     applyOrigin(bid, lane);
     applyDestination(bid, lane);
     Pricing_Place__c o = lane.Origin_Place__r;
