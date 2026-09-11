@@ -52,6 +52,14 @@
       onchange={handleFlags}
     ></lightning-checkbox-group>
     <lightning-radio-group
+      data-id="source"
+      label="Source"
+      type="button"
+      options={sourceOptions}
+      value={value.sourceFilter}
+      onchange={handleSource}
+    ></lightning-radio-group>
+    <lightning-radio-group
       data-id="accepted"
       label="Quote status"
       type="button"

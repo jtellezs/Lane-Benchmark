@@ -140,6 +140,7 @@ describe("c-lane-benchmark", () => {
       currencyIsoCode: "CAD",
       modes: ["LTL"]
     });
+    expect(sent.sourceFilter).toBe("ALL");
     expect(
       el.shadowRoot.querySelector("c-lane-benchmark-results").rows.length
     ).toBe(1);

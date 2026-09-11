@@ -32,7 +32,7 @@
           </thead>
           <tbody>
             <template for:each={viewRows} for:item="r">
-              <tr key={r.quoteId} data-index={r.index}>
+              <tr key={r.quoteId} data-index={r.index} class={r.bidClass}>
                 <td>
                   <button
                     data-id="expand"
@@ -58,6 +58,13 @@
                   >
                     {r.carrierName}
                   </button>
+                  <template lwc:if={r.isBid}
+                    ><span
+                      data-id="bid-badge"
+                      class="slds-badge slds-m-left_x-small"
+                      >Bid</span
+                    ></template
+                  >
                 </td>
                 <td class="slds-cell-wrap">{r.equipment}</td>
                 <td data-id="mode" class={r.modeClass}>{r.mode}</td>
@@ -65,14 +72,19 @@
                 <td class="slds-text-align_right">{r.total}</td>
                 <td>{r.quoteDate}</td>
                 <td class="slds-cell-wrap">{r.loadStatus}</td>
-                <td class="slds-cell-wrap">{r.hazmatText} {r.acceptedText}</td>
+                <td data-id="flags" class="slds-cell-wrap">
+                  <span class={r.bidClass}
+                    >{r.hazmatText} {r.acceptedText} {r.bidExpiry}</span
+                  >
+                </td>
               </tr>
               <template lwc:if={r.isExpanded}>
                 <tr key={r.detailKey} data-detail={r.index} class="detail">
                   <td colspan="12">
                     <div class="slds-p-around_x-small">
                       <strong>Quote {r.quoteName}</strong> · Contact:
-                      {r.contactName} · Comments: {r.opsComments}
+                      {r.contactName} · Comments: {r.opsComments} ·
+                      {r.transitText} {r.fscText}
                     </div>
                   </td>
                 </tr>

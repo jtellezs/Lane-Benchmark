@@ -15,7 +15,8 @@ const DEFAULTS = {
   equipmentTypes: [],
   hazmatOnly: false,
   marketTestOnly: false,
-  acceptedFilter: "ANY_STATUS"
+  acceptedFilter: "ANY_STATUS",
+  sourceFilter: "ALL"
 };
 
 async function mount(value = DEFAULTS) {
@@ -101,6 +102,23 @@ describe("c-lane-benchmark-filters", () => {
       handler.mock.calls[handler.mock.calls.length - 1][0].detail.lookbackDays
     ).toBe(90);
     expect(input.value).toBe(90);
+  });
+
+  it("emits the source filter and defaults it to ALL", async () => {
+    const el = await mount();
+    expect(el.shadowRoot.querySelector('[data-id="source"]').value).toBe("ALL");
+    const handler = jest.fn();
+    el.addEventListener("filterschange", handler);
+    change(el, "source", "BIDS");
+    await flush();
+    expect(handler.mock.calls[0][0].detail.sourceFilter).toBe("BIDS");
+  });
+
+  it("restores a saved value without sourceFilter as ALL", async () => {
+    const { sourceFilter, ...legacy } = DEFAULTS;
+    expect(sourceFilter).toBe("ALL");
+    const el = await mount(legacy);
+    expect(el.shadowRoot.querySelector('[data-id="source"]').value).toBe("ALL");
   });
 
   it("apply, reset and clear-saved raise their events; reset restores defaults", async () => {
