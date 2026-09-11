@@ -1,0 +1,99 @@
+import { slug } from "c/laneBenchmarkCsv";
+
+export const OUR_COLUMNS = [
+  "Cost",
+  "Currency",
+  "Margin %",
+  "Sell",
+  "Fuel surcharge",
+  "FSC included",
+  "Transit days",
+  "Bid carrier",
+  "Notes"
+];
+const BID_HEADER = [
+  "Lane row",
+  "Carrier",
+  "Contact",
+  "Email",
+  "Phone",
+  "Rate",
+  "Currency",
+  "Fuel surcharge",
+  "FSC included",
+  "Transit days",
+  "Valid from",
+  "Expires on",
+  "Status",
+  "Notes"
+];
+
+const cell = (v) => (v === null || v === undefined ? "" : v);
+const yesNo = (b) => (b ? "Yes" : "No");
+
+export function buildSheets(lanes, rawRows, bidsByLaneId) {
+  const rawById = {};
+  (rawRows || []).forEach((r) => {
+    try {
+      rawById[r.Id] = JSON.parse(r.Raw_Row__c || "{}");
+    } catch {
+      rawById[r.Id] = {};
+    }
+  });
+  const ordered = [...(lanes || [])].sort(
+    (a, b) => (a.Row_Number__c || 0) - (b.Row_Number__c || 0)
+  );
+  const headers = [];
+  ordered.forEach((l) =>
+    Object.keys(rawById[l.Id] || {}).forEach((h) => {
+      if (!headers.includes(h)) headers.push(h);
+    })
+  );
+  const laneSheet = [[...headers, ...OUR_COLUMNS]];
+  const bidSheet = [BID_HEADER];
+  ordered.forEach((l) => {
+    const raw = rawById[l.Id] || {};
+    const best = (bidsByLaneId?.[l.Id] || []).find(
+      (b) => b.Id === l.Selected_Bid__c
+    );
+    laneSheet.push([
+      ...headers.map((h) => cell(raw[h])),
+      cell(l.Cost__c),
+      l.Cost__c === null || l.Cost__c === undefined
+        ? ""
+        : cell(l.CurrencyIsoCode),
+      cell(l.Margin__c),
+      cell(l.Sell__c),
+      cell(best?.Fuel_Surcharge__c),
+      best ? yesNo(best.FSC_Included__c) : "",
+      cell(best?.Transit_Days__c),
+      cell(l.Selected_Bid__r?.Carrier_Display__c),
+      cell(l.Notes__c)
+    ]);
+    (bidsByLaneId?.[l.Id] || []).forEach((b) => {
+      bidSheet.push([
+        l.Row_Number__c,
+        cell(b.Carrier_Display__c),
+        cell(b.Contact_Name__c),
+        cell(b.Contact_Email__c),
+        cell(b.Contact_Phone__c),
+        cell(b.Rate__c),
+        cell(b.CurrencyIsoCode),
+        cell(b.Fuel_Surcharge__c),
+        yesNo(b.FSC_Included__c),
+        cell(b.Transit_Days__c),
+        cell(b.Valid_From__c),
+        cell(b.Expires_On__c),
+        cell(b.Status__c),
+        cell(b.Notes__c)
+      ]);
+    });
+  });
+  return { lanes: laneSheet, bids: bidSheet };
+}
+
+export function exportFileName(customerName, projectName, date) {
+  const d = date || new Date();
+  const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+  return `${slug(customerName)}-${slug(projectName)}-${ymd}.xlsx`;
+}

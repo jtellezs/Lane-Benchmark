@@ -25,7 +25,7 @@ export function toCsv(rows, columns) {
   return `﻿${[header, ...body].join("\r\n")}`;
 }
 
-function slug(label) {
+export function slug(label) {
   const s = String(label || "")
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
