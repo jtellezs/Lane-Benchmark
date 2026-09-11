@@ -70,6 +70,11 @@
         <members>RfpController</members>
         <members>RfpControllerTest</members>
         <members>RfpSecurityTest</members>
+        <members>RfpImportService</members>
+        <members>RfpImportServiceTest</members>
+        <members>RfpLaneController</members>
+        <members>RfpLaneControllerTest</members>
+        <members>RfpUserError</members>
         <name>ApexClass</name>
     </types>
     <types>
