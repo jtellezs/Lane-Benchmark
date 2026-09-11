@@ -7,9 +7,14 @@ public with sharing class RfpProjectController {
     @AuraEnabled
     public String city;
   }
-  private static final String PROJECT_FIELDS =
+  // listProjects() renders up to 200 rows at once, so it deliberately excludes the two long-text
+  // fields (Column_Mapping__c, Notes__c) that only a single project's detail view needs;
+  // DETAIL_FIELDS adds them back for one()/getProject()/saveProject()'s return.
+  private static final String LIST_FIELDS =
     'Id, Name, Customer__c, Customer__r.Name, Status__c, Due_Date__c, Default_Margin__c, CurrencyIsoCode, ' +
-    'Lane_Count__c, Costed_Count__c, Sold_Count__c, Source_File_Name__c, LastModifiedDate, Column_Mapping__c, Notes__c';
+    'Lane_Count__c, Costed_Count__c, Sold_Count__c, Source_File_Name__c, LastModifiedDate';
+  private static final String DETAIL_FIELDS =
+    LIST_FIELDS + ', Column_Mapping__c, Notes__c';
   private static final Integer MAX_BASE64 = 4200000;
 
   @AuraEnabled
@@ -17,7 +22,7 @@ public with sharing class RfpProjectController {
     try {
       return Database.queryWithBinds(
         'SELECT ' +
-          PROJECT_FIELDS +
+          LIST_FIELDS +
           ' FROM RFP_Project__c ORDER BY LastModifiedDate DESC LIMIT 200',
         new Map<String, Object>(),
         AccessLevel.USER_MODE
@@ -185,7 +190,7 @@ public with sharing class RfpProjectController {
 
   private static RFP_Project__c one(Id projectId) {
     return (RFP_Project__c) Database.queryWithBinds(
-      'SELECT ' + PROJECT_FIELDS + ' FROM RFP_Project__c WHERE Id = :projectId',
+      'SELECT ' + DETAIL_FIELDS + ' FROM RFP_Project__c WHERE Id = :projectId',
       new Map<String, Object>{ 'projectId' => projectId },
       AccessLevel.USER_MODE
     )[0];

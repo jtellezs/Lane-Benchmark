@@ -22,7 +22,17 @@ private class RfpProjectControllerTest {
       again.Name,
       'partial JSON keeps other fields'
     );
-    System.assertEquals(1, RfpProjectController.listProjects().size());
+    List<RFP_Project__c> listed = RfpProjectController.listProjects();
+    System.assertEquals(1, listed.size());
+    System.assert(
+      !listed[0].isSet('Column_Mapping__c'),
+      'listProjects excludes long-text fields'
+    );
+    System.assertEquals(
+      '{"originCity":"From"}',
+      RfpProjectController.getProject(p.Id).Column_Mapping__c,
+      'getProject still returns the mapping'
+    );
     System.assertEquals(
       '{"originCity":"From"}',
       RfpProjectController.columnMappingFor(g.customer.Id)
