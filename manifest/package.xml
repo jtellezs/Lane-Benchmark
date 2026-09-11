@@ -78,6 +78,10 @@
         <members>RfpHistoryController</members>
         <members>RfpHistoryService</members>
         <members>RfpHistoryServiceTest</members>
+        <members>RfpProjectController</members>
+        <members>RfpProjectControllerTest</members>
+        <members>RfpBidController</members>
+        <members>RfpBidControllerTest</members>
         <name>ApexClass</name>
     </types>
     <types>
