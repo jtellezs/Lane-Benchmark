@@ -60,6 +60,8 @@
         <members>LaneBenchmarkPlaceServiceTest</members>
         <members>RfpTestDataFactory</members>
         <members>RfpTestDataFactoryTest</members>
+        <members>BenchmarkRateService</members>
+        <members>BenchmarkRateServiceTest</members>
         <name>ApexClass</name>
     </types>
     <types>
@@ -78,6 +80,7 @@
     <types>
         <members>Pricing_Department_User</members>
         <members>Lane_Benchmark_User</members>
+        <members>RFP_Tool_User</members>
         <name>PermissionSet</name>
     </types>
     <types>

@@ -4,10 +4,7 @@
     <description
   >Create RFP projects, lanes and carrier bids. Assign this to the pricing team.</description>
     <hasActivationRequired>false</hasActivationRequired>
-    <classAccesses>
-        <apexClass>RfpController</apexClass>
-        <enabled>true</enabled>
-    </classAccesses>
+    <!-- RfpController does not exist until Task 7; restored there. -->
     <classAccesses>
         <apexClass>BenchmarkRateService</apexClass>
         <enabled>true</enabled>
@@ -304,6 +301,11 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
+        <editable>false</editable>
+        <field>Benchmark_Rate__c.Carrier_Display__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
         <editable>true</editable>
         <field>Benchmark_Rate__c.Carrier_Name__c</field>
         <readable>true</readable>
@@ -311,6 +313,11 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>Benchmark_Rate__c.Carrier__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Benchmark_Rate__c.Status__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
