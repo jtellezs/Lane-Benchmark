@@ -20,11 +20,52 @@ public with sharing class RfpHistoryService {
     for (RFP_Lane__c lane : lanes) {
       updates.add(snapshot(lane, precision, days));
     }
-    Database.update(
-      Security.stripInaccessible(AccessType.UPDATABLE, updates).getRecords(),
+    saveSnapshots(updates);
+    return RfpLaneController.lanesByIds(laneIds);
+  }
+
+  /**
+   * allOrNone=false: one lane's DML failure (an out-of-range Hist_Lookback_Days__c, a validation
+   * rule, ...) never discards every other lane's snapshot in the same chunk - a per-record
+   * failure lands in that record's SaveResult instead of aborting the whole statement. Each
+   * failed record then gets a best-effort second, minimal update (also allOrNone=false, user
+   * mode) that flips only Hist_Status__c to 'Failed', so the UI still sees it; a lane that saved
+   * keeps its full snapshot untouched. If that minimal update itself fails, it is ignored - best
+   * effort only, per review ruling.
+   */
+  private static void saveSnapshots(List<RFP_Lane__c> updates) {
+    List<RFP_Lane__c> toUpdate = Security.stripInaccessible(
+        AccessType.UPDATABLE,
+        updates
+      )
+      .getRecords();
+    List<Database.SaveResult> results = Database.update(
+      toUpdate,
+      false,
       AccessLevel.USER_MODE
     );
-    return RfpLaneController.lanesByIds(laneIds);
+    List<RFP_Lane__c> failed = new List<RFP_Lane__c>();
+    for (Integer i = 0; i < results.size(); i++) {
+      if (!results[i].isSuccess()) {
+        failed.add(
+          new RFP_Lane__c(Id = toUpdate[i].Id, Hist_Status__c = 'Failed')
+        );
+      }
+    }
+    if (failed.isEmpty()) {
+      return;
+    }
+    try {
+      Database.update(failed, false, AccessLevel.USER_MODE);
+    } catch (Exception e) {
+      // Best effort only: a lane that failed the real snapshot update just keeps whatever
+      // Hist_Status__c it already had.
+      System.debug(
+        LoggingLevel.WARN,
+        'RfpHistoryService: could not flag failed lanes as Failed: ' +
+        e.getMessage()
+      );
+    }
   }
 
   private static RFP_Lane__c snapshot(
@@ -40,14 +81,17 @@ public with sharing class RfpHistoryService {
       Hist_Min__c = null,
       Hist_Median__c = null,
       Hist_Average__c = null,
-      Hist_Max__c = null
+      Hist_Max__c = null,
+      // Reset here (not left unset) so a LaneSearchException/generic-exception catch below never
+      // leaves a stale precision from an earlier run sitting next to a No match/Failed status;
+      // the success path below sets the real value after this.
+      Hist_Precision__c = null
     );
     if (
       lane.Origin_Place__r?.Key__c == null ||
       lane.Destination_Place__r?.Key__c == null
     ) {
       u.Hist_Status__c = 'Unresolved';
-      u.Hist_Precision__c = null;
       return u;
     }
     try {

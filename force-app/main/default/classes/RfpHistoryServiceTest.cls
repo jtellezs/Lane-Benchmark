@@ -114,10 +114,91 @@ private class RfpHistoryServiceTest {
     }
   }
 
-  // RfpHistoryController's generic catch: a non-LaneSearchException (here, a DmlException from
-  // Database.update writing an out-of-range Hist_Lookback_Days__c - precision 5, scale 0, so
-  // 999999 does not fit) surfaces as the fixed "could not be loaded" sentence, not the raw
-  // platform error.
+  // Review round 1, finding 1: Database.update(allOrNone=false) plus a best-effort second pass
+  // (RfpHistoryService.saveSnapshots) means a DML failure on a lane (here: an out-of-range
+  // Hist_Lookback_Days__c - precision 5, scale 0, so 999999 does not fit either lane) marks that
+  // lane Hist_Status__c = 'Failed' and both lanes still come back from run(), instead of the old
+  // all-or-nothing Database.update aborting the whole call with an uncaught DmlException and
+  // discarding every lane's snapshot in the chunk.
+  @IsTest
+  static void dmlFailureMarksLanesFailedInsteadOfThrowing() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c mtl = RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    Pricing_Place__c tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c a = RfpTestDataFactory.createLane(p, mtl, tor);
+    RFP_Lane__c b = RfpTestDataFactory.createLane(p, mtl, tor);
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ a.Id, b.Id },
+      'CITY',
+      999999
+    );
+    Map<Id, RFP_Lane__c> byId = new Map<Id, RFP_Lane__c>(out);
+    System.assertEquals(
+      2,
+      out.size(),
+      'lanes are still returned, not discarded'
+    );
+    System.assertEquals('Failed', byId.get(a.Id).Hist_Status__c);
+    System.assertEquals('Failed', byId.get(b.Id).Hist_Status__c);
+  }
+
+  // Review round 1, finding 2: a search that legitimately returns zero rows (no exception, no
+  // CITY-only fallback since precision is PROVINCE) must land on 'No match' through the ternary
+  // in snapshot(), not through a caught exception. 'Nowhere, ZZ' has no coordinates, which
+  // PROVINCE never needs, so no exception is possible either.
+  @IsTest
+  static void noMatchAtProvinceNeedsNoCoordinatesAndNoFallback() {
+    Pricing_Place__c nowhere = RfpTestDataFactory.createPlace(
+      'Nowhere',
+      'ZZ',
+      'CA',
+      null,
+      null,
+      'Z9Z'
+    );
+    Pricing_Place__c tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(p, nowhere, tor);
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ lane.Id },
+      'PROVINCE',
+      90
+    );
+    RFP_Lane__c result = out[0];
+    System.assertEquals('No match', result.Hist_Status__c);
+    System.assertEquals(0, result.Hist_Count__c);
+    System.assertEquals('PROVINCE', result.Hist_Precision__c);
+  }
+
+  // RfpHistoryController's generic catch: a non-LaneSearchException (here, a lane read/update
+  // denied by CRUD under AccessLevel.USER_MODE for a user holding only Lane_Benchmark_User,
+  // which grants no RFP_Lane__c access at all) surfaces as the fixed "could not be loaded"
+  // sentence, not the raw platform error. Same restrictedUser() shape as RfpSecurityTest.
   @IsTest
   static void controllerWrapsAnUnexpectedFailureAsGenericUserError() {
     PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
@@ -140,14 +221,59 @@ private class RfpHistoryServiceTest {
     PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
     RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
     RFP_Lane__c lane = RfpTestDataFactory.createLane(p, mtl, tor);
-    try {
-      RfpHistoryController.loadHistory(new List<Id>{ lane.Id }, 'CITY', 999999);
-      System.assert(false, 'expected an error');
-    } catch (AuraHandledException e) {
-      System.assertEquals(
-        'History could not be loaded for this chunk.',
-        e.getMessage()
+    User viewer = restrictedUser('Lane_Benchmark_User');
+    if (viewer == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    System.runAs(viewer) {
+      try {
+        RfpHistoryController.loadHistory(new List<Id>{ lane.Id }, 'CITY', 90);
+        System.assert(false, 'expected an error');
+      } catch (AuraHandledException e) {
+        System.assertEquals(
+          'History could not be loaded for this chunk.',
+          e.getMessage()
+        );
+      }
+    }
+  }
+
+  /** Same shape as RfpSecurityTest.restrictedUser: a user holding only the named permission
+   * set. Returns null when the org has no usable profile. */
+  private static User restrictedUser(String permSetName) {
+    List<Profile> profiles = [
+      SELECT Id
+      FROM Profile
+      WHERE Name IN ('Standard User', 'Minimum Access - Salesforce')
+      ORDER BY Name DESC
+      LIMIT 1
+    ];
+    if (profiles.isEmpty()) {
+      return null;
+    }
+    User u = new User(
+      ProfileId = profiles[0].Id,
+      Username = 'rfphist.' + System.currentTimeMillis() + '@example.invalid',
+      Email = 'rfphist@example.invalid',
+      LastName = 'RfpHist',
+      Alias = 'rfphist',
+      TimeZoneSidKey = 'America/Toronto',
+      LocaleSidKey = 'en_CA',
+      EmailEncodingKey = 'UTF-8',
+      LanguageLocaleKey = 'en_US'
+    );
+    PermissionSet ps = [SELECT Id FROM PermissionSet WHERE Name = :permSetName];
+    System.runAs(new User(Id = UserInfo.getUserId())) {
+      insert u;
+      insert new PermissionSetAssignment(
+        AssigneeId = u.Id,
+        PermissionSetId = ps.Id
       );
     }
+    return u;
   }
 }
