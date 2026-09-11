@@ -62,6 +62,8 @@
         <members>RfpTestDataFactoryTest</members>
         <members>BenchmarkRateService</members>
         <members>BenchmarkRateServiceTest</members>
+        <members>BidSearchQueryBuilder</members>
+        <members>BidSearchQueryBuilderTest</members>
         <name>ApexClass</name>
     </types>
     <types>

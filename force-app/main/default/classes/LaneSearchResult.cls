@@ -45,6 +45,10 @@ public class LaneSearchResult {
     public Datetime createdDate;
     @AuraEnabled
     public CarrierDetail carrier = new CarrierDetail();
+    // Phase 3: set only on rows that come from Benchmark_Rate__c (bids); null for loads. No
+    // initializer, unlike carrier above, so the LWC can treat bid != null as "this is a bid".
+    @AuraEnabled
+    public BidDetail bid;
   }
 
   // Grouped off Row (Task 3 review ruling) to keep Row under PMD's TooManyFields threshold:
@@ -60,6 +64,23 @@ public class LaneSearchResult {
     public Decimal loadCount;
     @AuraEnabled
     public String attention;
+  }
+
+  // Phase 3: set only on rows that come from Benchmark_Rate__c (bids). Grouped, like CarrierDetail,
+  // so Row stays under PMD's TooManyFields threshold; the LWC treats bid != null as "this is a bid".
+  public class BidDetail {
+    @AuraEnabled
+    public Id rateId;
+    @AuraEnabled
+    public Date expiresOn;
+    @AuraEnabled
+    public String status;
+    @AuraEnabled
+    public Decimal transitDays;
+    @AuraEnabled
+    public Decimal fuelSurcharge;
+    @AuraEnabled
+    public Boolean fscIncluded;
   }
 
   public class Stats {
