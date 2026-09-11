@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Origin_Resolved__c</fullName>
+    <label>Origin resolved</label>
+    <type>Checkbox</type>
+    <defaultValue>false</defaultValue>
+</CustomField>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Selected_Bid__c</fullName>
+    <label>Selected bid</label>
+    <type>Lookup</type>
+    <referenceTo>Benchmark_Rate__c</referenceTo>
+    <relationshipName>Selected_For_Lanes</relationshipName>
+    <relationshipLabel>Selected for lanes</relationshipLabel>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <required>false</required>
+</CustomField>

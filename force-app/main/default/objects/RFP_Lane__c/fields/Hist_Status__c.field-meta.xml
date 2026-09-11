@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Hist_Status__c</fullName>
+    <label>History status</label>
+    <type>Picklist</type>
+    <required>false</required>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Pending</fullName><default>true</default><label
+        >Pending</label></value>
+            <value><fullName>Done</fullName><default>false</default><label
+        >Done</label></value>
+            <value><fullName>Failed</fullName><default>false</default><label
+        >Failed</label></value>
+            <value><fullName>No match</fullName><default>false</default><label
+        >No match</label></value>
+            <value><fullName>Unresolved</fullName><default>false</default><label
+        >Unresolved</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

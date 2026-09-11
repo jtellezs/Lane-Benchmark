@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>RFP Project</label>
+    <pluralLabel>RFP Projects</pluralLabel>
+    <nameField>
+        <label>Project name</label>
+        <type>Text</type>
+    </nameField>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <sharingModel>ReadWrite</sharingModel>
+    <enableActivities>false</enableActivities>
+    <enableHistory>false</enableHistory>
+    <enableReports>true</enableReports>
+    <enableSearch>true</enableSearch>
+    <description
+  >One customer RFP: the uploaded lane file, its lanes, bids and prices. Phase 3 of the Pricing Department project.</description>
+</CustomObject>

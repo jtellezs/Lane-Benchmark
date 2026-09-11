@@ -28,6 +28,12 @@ public class LaneSearchRequest {
     ACCEPTED,
     DECLINED
   }
+  /** Which rows a search returns: Loads' carrier quotes, phase 3 bids (Benchmark_Rate__c), or both. */
+  public enum RowSource {
+    ALL,
+    LOADS,
+    BIDS
+  }
 
   public String originKey;
   public String destinationKey;
@@ -50,6 +56,9 @@ public class LaneSearchRequest {
   // renamed the field to acceptedFilter, matching the originPrecision/radiusUnit naming pattern.
   // Tasks 6-7/phase 2 must reference req.acceptedFilter, not req.accepted.
   public Accepted acceptedFilter = Accepted.ANY_STATUS;
+  // Field is sourceFilter, not source: a field named like its enum type (RowSource) does not
+  // compile, the same collision documented above for acceptedFilter/Accepted.
+  public RowSource sourceFilter = RowSource.ALL;
   public Integer rowLimit = 2000;
   public Boolean includeStopGeolocation = true;
 
@@ -90,6 +99,7 @@ public class LaneSearchRequest {
     destinationPrecision = destinationPrecision ?? Precision.CITY;
     radiusUnit = radiusUnit ?? Unit.MI;
     acceptedFilter = acceptedFilter ?? Accepted.ANY_STATUS;
+    sourceFilter = sourceFilter ?? RowSource.ALL;
     rowLimit = rowLimit ?? 2000;
     includeStopGeolocation = includeStopGeolocation ?? true;
     hazmatOnly = hazmatOnly ?? false;

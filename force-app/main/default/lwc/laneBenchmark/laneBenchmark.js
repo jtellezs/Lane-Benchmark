@@ -176,6 +176,7 @@ export default class LaneBenchmark extends LightningElement {
       hazmatOnly: r.hazmatOnly,
       marketTestOnly: r.marketTestOnly,
       acceptedFilter: r.acceptedFilter,
+      sourceFilter: r.sourceFilter,
       rowLimit: 2000,
       includeStopGeolocation: true
     };

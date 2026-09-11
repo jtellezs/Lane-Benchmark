@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Origin_Place__c</fullName>
+    <label>Origin place</label>
+    <type>Lookup</type>
+    <referenceTo>Pricing_Place__c</referenceTo>
+    <relationshipName>Benchmark_Rates_Origin</relationshipName>
+    <relationshipLabel>Benchmark Rates (Origin)</relationshipLabel>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <required>false</required>
+</CustomField>

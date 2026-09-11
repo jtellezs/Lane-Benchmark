@@ -10,6 +10,9 @@
 .detail td {
   background: #fafaf9;
 }
+.bid-expired td {
+  opacity: 0.6;
+}
 .modal-wrapper {
   position: fixed;
   inset: 0;

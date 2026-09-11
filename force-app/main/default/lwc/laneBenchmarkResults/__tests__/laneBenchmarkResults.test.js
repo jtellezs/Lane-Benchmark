@@ -52,6 +52,39 @@ const ROWS = [
     accepted: false,
     loadStatus: "Quotes Received",
     opsComments: null
+  },
+  {
+    quoteId: "b1",
+    quoteName: "B-000001",
+    origin: "Montréal, QC",
+    destination: "Toronto, ON",
+    mode: "Truckload",
+    equipment: "Dry Van 53'",
+    carrierName: "New Carrier Inc",
+    contactName: "Sam Bid",
+    carrier: {
+      contactEmail: "sam@new.test",
+      contactPhone: null,
+      risk: null,
+      loadCount: null,
+      attention: ""
+    },
+    currencyIsoCode: "CAD",
+    carrierTotal: 1200,
+    quoteDate: "2026-09-10",
+    createdDate: "2026-09-10T10:00:00.000Z",
+    hazmat: false,
+    accepted: null,
+    loadStatus: "Bid",
+    opsComments: null,
+    bid: {
+      rateId: "b1",
+      expiresOn: "2026-10-10",
+      status: "Active",
+      transitDays: 2,
+      fuelSurcharge: 100,
+      fscIncluded: true
+    }
   }
 ];
 
@@ -75,12 +108,28 @@ describe("c-lane-benchmark-results", () => {
   it("renders one row per quote with mode class and flags", async () => {
     const el = await mount();
     const rows = el.shadowRoot.querySelectorAll("tbody tr[data-index]");
-    expect(rows.length).toBe(2);
+    expect(rows.length).toBe(3);
     expect(rows[1].querySelector('[data-id="mode"]').className).toContain(
       "ltl-cell"
     );
     expect(rows[1].textContent).toContain("Hazmat");
     expect(rows[0].textContent).toContain("Accepted");
+  });
+
+  it("marks bid rows with a badge and their expiry instead of accepted/declined", async () => {
+    const el = await mount();
+    const rows = el.shadowRoot.querySelectorAll("tbody tr[data-index]");
+    const bidRow = rows[2];
+    expect(bidRow.querySelector('[data-id="bid-badge"]').textContent).toBe(
+      "Bid"
+    );
+    expect(bidRow.querySelector('[data-id="flags"]').textContent).toContain(
+      "Expires 2026-10-10"
+    );
+    expect(bidRow.querySelector('[data-id="flags"]').textContent).not.toContain(
+      "Declined"
+    );
+    expect(rows[0].querySelector('[data-id="bid-badge"]')).toBeNull();
   });
 
   it("expands a row to show comments and opens/closes the carrier popup", async () => {
@@ -139,10 +188,43 @@ describe("c-lane-benchmark-results", () => {
       reader.onerror = () => reject(reader.error);
       reader.readAsText(blob);
     });
-    expect(textOf.startsWith("Origin,Destination,Carrier")).toBe(true);
+    expect(textOf.startsWith("Source,Origin,Destination,Carrier")).toBe(true);
     expect(textOf).toContain('"Beta ""Cold"""');
     expect(clicks).toHaveBeenCalledTimes(1);
     expect(revoke).toHaveBeenCalledWith("blob:x");
+  });
+
+  // The brief's illustrative assertions (`toMatch(/^"Source",/)`, `toContain('"Bid",')`)
+  // assume every CSV cell is quoted. laneBenchmarkCsv's toCsv only quotes a cell that
+  // contains a comma/quote/newline (see laneBenchmarkCsv.js), so plain values like
+  // "Source", "Bid", "Load" and "Expires on" come through unquoted here; the
+  // assertions below check for that actual, unquoted output instead.
+  it("exports a Source column and the expiry", async () => {
+    const el = await mount();
+    const createUrl = jest.fn(() => "blob:x");
+    const revoke = jest.fn();
+    global.URL.createObjectURL = createUrl;
+    global.URL.revokeObjectURL = revoke;
+    jest
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    jest.useFakeTimers();
+    el.shadowRoot.querySelector('[data-id="export"]').click();
+    await flush();
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+    const blob = createUrl.mock.calls[0][0];
+    const csv = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(blob);
+    });
+    const header = csv.split("\n")[0];
+    expect(header.startsWith("Source,")).toBe(true);
+    expect(csv).toContain("Bid,");
+    expect(csv).toContain("Load,");
+    expect(header.replace(/\r$/, "").endsWith("Expires on")).toBe(true);
   });
 
   it("shows nothing but a hint when there are no rows", async () => {

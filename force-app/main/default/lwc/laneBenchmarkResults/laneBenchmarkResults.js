@@ -7,6 +7,7 @@ const MODE_CLASS = {
   "Freight Forwarding": "freight-cell"
 };
 export const CSV_COLUMNS = [
+  { label: "Source", field: "source" },
   { label: "Origin", field: "origin" },
   { label: "Destination", field: "destination" },
   { label: "Carrier", field: "carrierName" },
@@ -22,7 +23,8 @@ export const CSV_COLUMNS = [
   { label: "Hazmat", field: "hazmat" },
   { label: "Accepted", field: "accepted" },
   { label: "Quote", field: "quoteName" },
-  { label: "Comments", field: "opsComments" }
+  { label: "Comments", field: "opsComments" },
+  { label: "Expires on", field: "bid.expiresOn" }
 ];
 
 export default class LaneBenchmarkResults extends LightningElement {
@@ -58,7 +60,21 @@ export default class LaneBenchmarkResults extends LightningElement {
           ? ""
           : Number(r.carrierTotal).toFixed(2),
       hazmatText: r.hazmat ? "Hazmat" : "",
-      acceptedText: r.accepted ? "Accepted" : "Declined"
+      acceptedText: r.bid ? "" : r.accepted ? "Accepted" : "Declined",
+      isBid: !!r.bid,
+      bidExpiry: r.bid ? `Expires ${r.bid.expiresOn}` : "",
+      bidClass:
+        r.bid && r.bid.status === "Expired"
+          ? "slds-text-color_weak bid-expired"
+          : "",
+      transitText:
+        r.bid && r.bid.transitDays != null
+          ? `${r.bid.transitDays} d transit`
+          : "",
+      fscText:
+        r.bid && r.bid.fuelSurcharge != null
+          ? `FSC ${Number(r.bid.fuelSurcharge).toFixed(2)}${r.bid.fscIncluded ? " (included)" : ""}`
+          : ""
     }));
   }
   get selectedFlags() {
@@ -86,7 +102,10 @@ export default class LaneBenchmarkResults extends LightningElement {
   }
 
   handleExport() {
-    const csv = toCsv(this._rows, CSV_COLUMNS);
+    const csv = toCsv(
+      this._rows.map((r) => ({ ...r, source: r.bid ? "Bid" : "Load" })),
+      CSV_COLUMNS
+    );
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

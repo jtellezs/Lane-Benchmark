@@ -8,7 +8,8 @@ export const DEFAULT_FILTERS = Object.freeze({
   equipmentTypes: [],
   hazmatOnly: false,
   marketTestOnly: false,
-  acceptedFilter: "ANY_STATUS"
+  acceptedFilter: "ANY_STATUS",
+  sourceFilter: "ALL"
 });
 
 export function cloneDefaults() {
@@ -38,6 +39,11 @@ export default class LaneBenchmarkFilters extends LightningElement {
     { label: "All", value: "ANY_STATUS" },
     { label: "Accepted", value: "ACCEPTED" },
     { label: "Declined", value: "DECLINED" }
+  ];
+  sourceOptions = [
+    { label: "All", value: "ALL" },
+    { label: "Loads only", value: "LOADS" },
+    { label: "Bids only", value: "BIDS" }
   ];
   flagOptions = [
     { label: "Hazmat only", value: "hazmatOnly" },
@@ -115,6 +121,9 @@ export default class LaneBenchmarkFilters extends LightningElement {
   }
   handleAccepted(event) {
     this.update({ acceptedFilter: event.detail.value });
+  }
+  handleSource(event) {
+    this.update({ sourceFilter: event.detail.value });
   }
   handleFlags(event) {
     const set = new Set(event.detail.value);
