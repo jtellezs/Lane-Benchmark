@@ -58,6 +58,8 @@
         <members>MapboxGeocoderTest</members>
         <members>MapboxResponseParser</members>
         <members>LaneBenchmarkPlaceServiceTest</members>
+        <members>RfpTestDataFactory</members>
+        <members>RfpTestDataFactoryTest</members>
         <name>ApexClass</name>
     </types>
     <types>

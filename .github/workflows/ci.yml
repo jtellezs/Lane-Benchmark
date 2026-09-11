@@ -55,7 +55,7 @@ jobs:
           --manifest manifest/package.xml
           --post-destructive-changes manifest/destructiveChangesPost.xml
           --test-level RunSpecifiedTests
-          --tests PricingDepartmentControllerTest PlaceNormalizerTest PricingTestDataFactoryTest PlaceBuilderBatchTest LaneSearchServiceTest MapboxGeocoderTest LaneBenchmarkControllerTest LaneBenchmarkPlaceServiceTest
+          --tests PricingDepartmentControllerTest PlaceNormalizerTest PricingTestDataFactoryTest PlaceBuilderBatchTest LaneSearchServiceTest MapboxGeocoderTest LaneBenchmarkControllerTest LaneBenchmarkPlaceServiceTest RfpTestDataFactoryTest
           --target-org sandbox
           --wait 30
 
