@@ -1,5 +1,6 @@
 import { createElement } from "lwc";
 import RfpUpload from "c/rfpUpload";
+import { loadScript } from "lightning/platformResourceLoader";
 import attachFile from "@salesforce/apex/RfpProjectController.attachFile";
 
 jest.mock(
@@ -82,5 +83,42 @@ describe("c-rfp-upload", () => {
       el.shadowRoot.querySelector('[data-id="error"]').textContent
     ).toContain("3 MB");
     expect(attachFile).not.toHaveBeenCalled();
+    expect(input.value).toBe("");
+  });
+
+  it("retries loading sheetjs after a failed load attempt", async () => {
+    delete window.XLSX;
+    loadScript.mockRejectedValueOnce(new Error("network down"));
+    loadScript.mockImplementationOnce(() => {
+      window.XLSX = {
+        read: jest.fn(() => WB),
+        utils: { sheet_to_json: jest.fn(() => AOA) }
+      };
+      return Promise.resolve();
+    });
+    const el = mount("a0P1");
+    const input = el.shadowRoot.querySelector('input[type="file"]');
+
+    Object.defineProperty(input, "files", {
+      value: [fileWithBuffer([1, 2, 3], "lanes.xlsx")],
+      configurable: true
+    });
+    input.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    await flush();
+    await flush();
+    expect(loadScript).toHaveBeenCalledTimes(1);
+    expect(el.shadowRoot.querySelector('[data-id="error"]')).not.toBeNull();
+
+    Object.defineProperty(input, "files", {
+      value: [fileWithBuffer([1, 2, 3], "lanes2.xlsx")],
+      configurable: true
+    });
+    input.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    await flush();
+    await flush();
+    expect(loadScript).toHaveBeenCalledTimes(2);
+    expect(el.shadowRoot.querySelector('[data-id="error"]')).toBeNull();
   });
 });

@@ -17,15 +17,16 @@ export default class RfpUpload extends LightningElement {
   }
 
   async handleFile(event) {
-    const file = event.target.files && event.target.files[0];
+    const input = event.target;
+    const file = input.files && input.files[0];
     if (!file) return;
     this.error = null;
-    if (file.size > MAX_BYTES) {
-      this.error =
-        "The file is larger than 3 MB. Split it and upload the parts.";
-      return;
-    }
     try {
+      if (file.size > MAX_BYTES) {
+        this.error =
+          "The file is larger than 3 MB. Split it and upload the parts.";
+        return;
+      }
       this.status = "Reading…";
       const buffer = await this.readBuffer(file);
       await this.ensureSheetJs();
@@ -55,6 +56,9 @@ export default class RfpUpload extends LightningElement {
       this.status = "";
       this.error =
         e?.body?.message || e?.message || "The file could not be read.";
+    } finally {
+      // Reset so choosing the same file again still fires a change event.
+      input.value = "";
     }
   }
 
@@ -70,7 +74,12 @@ export default class RfpUpload extends LightningElement {
 
   ensureSheetJs() {
     if (window.XLSX) return Promise.resolve();
-    if (!this.sheetReady) this.sheetReady = loadScript(this, sheetJs);
+    if (!this.sheetReady) {
+      this.sheetReady = loadScript(this, sheetJs).catch((e) => {
+        this.sheetReady = null;
+        throw e;
+      });
+    }
     return this.sheetReady;
   }
 }

@@ -14,9 +14,13 @@ export default class RfpColumnMapper extends LightningElement {
   }
 
   get options() {
+    // A blank header names no column, so it is dropped here rather than
+    // colliding with the "— none —" sentinel's empty value.
     return [
       { label: "— none —", value: "" },
-      ...(this.headers || []).map((h) => ({ label: h, value: h }))
+      ...(this.headers || [])
+        .filter((h) => h !== "")
+        .map((h) => ({ label: h, value: h }))
     ];
   }
   get targets() {

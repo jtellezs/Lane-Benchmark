@@ -54,4 +54,17 @@ describe("c-rfp-column-mapper", () => {
       destinationCity: "To"
     });
   });
+
+  it("excludes blank headers from the combobox options", () => {
+    const el = mount({
+      headers: ["From", "", "To"],
+      sampleRows: [],
+      mapping: {}
+    });
+    const options = el.shadowRoot.querySelector(
+      '[data-target="originCity"]'
+    ).options;
+    expect(options.length).toBe(3);
+    expect(options.filter((o) => o.value === "").length).toBe(1);
+  });
 });
