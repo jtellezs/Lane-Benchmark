@@ -87,4 +87,89 @@ describe("rfpWorkbook", () => {
       exportFileName("Costco Canada", "Q4 Lanes", new Date(2026, 8, 11))
     ).toBe("costco-canada-q4-lanes-20260911.xlsx");
   });
+
+  it("takes the fuel surcharge, FSC and transit days from the selected bid, not just any bid on the lane", () => {
+    const selectedLanes = [
+      {
+        Id: "l9",
+        Row_Number__c: 1,
+        Cost__c: 800,
+        Sell__c: 900,
+        Margin__c: 12.5,
+        CurrencyIsoCode: "CAD",
+        Notes__c: "",
+        Selected_Bid__c: "b2",
+        Selected_Bid__r: { Carrier_Display__c: "Beta" }
+      },
+      {
+        Id: "l10",
+        Row_Number__c: 2,
+        Cost__c: null,
+        Sell__c: null,
+        Margin__c: null,
+        CurrencyIsoCode: "CAD",
+        Notes__c: "",
+        Selected_Bid__c: null
+      }
+    ];
+    const selectedRaw = [
+      {
+        Id: "l9",
+        Row_Number__c: 1,
+        Raw_Row__c: JSON.stringify({ From: "Montreal", To: "Toronto" })
+      },
+      {
+        Id: "l10",
+        Row_Number__c: 2,
+        Raw_Row__c: JSON.stringify({ From: "Laval", To: "Ottawa" })
+      }
+    ];
+    const selectedBids = {
+      l9: [
+        {
+          Id: "b1",
+          Rate__c: 700,
+          Fuel_Surcharge__c: 10,
+          FSC_Included__c: true,
+          Transit_Days__c: 5
+        },
+        {
+          Id: "b2",
+          Rate__c: 800,
+          Fuel_Surcharge__c: 25,
+          FSC_Included__c: false,
+          Transit_Days__c: 3
+        }
+      ],
+      // l10 has bids on file, but none is selected — the lane row must
+      // still show blank fuel surcharge/FSC/transit-days cells rather than
+      // picking one anyway.
+      l10: [
+        {
+          Id: "b3",
+          Rate__c: 500,
+          Fuel_Surcharge__c: 40,
+          FSC_Included__c: true,
+          Transit_Days__c: 1
+        }
+      ]
+    };
+    const { lanes: sheet } = buildSheets(
+      selectedLanes,
+      selectedRaw,
+      selectedBids
+    );
+    const headerCount = sheet[0].length - OUR_COLUMNS.length;
+    const fuelIdx = headerCount + OUR_COLUMNS.indexOf("Fuel surcharge");
+    const fscIdx = headerCount + OUR_COLUMNS.indexOf("FSC included");
+    const transitIdx = headerCount + OUR_COLUMNS.indexOf("Transit days");
+
+    expect(sheet[1][fuelIdx]).toBe(25);
+    expect(sheet[1][fscIdx]).toBe("No");
+    expect(sheet[1][transitIdx]).toBe(3);
+
+    expect(sheet[2][fuelIdx]).toBe("");
+    expect(sheet[2][fscIdx]).toBe("");
+    expect(sheet[2][transitIdx]).toBe("");
+  });
 });
