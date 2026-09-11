@@ -142,10 +142,22 @@ private class RfpSecurityTest {
     }
     Test.startTest();
     Benchmark_Rate__c saved;
+    Benchmark_Rate__c resaved;
     System.runAs(pricing) {
       saved = BenchmarkRateService.save(
         RfpTestDataFactory.buildBid(f.lane, 900)
       );
+      // RFP_Tool_User grants read on these service-maintained keys but editable=false;
+      // resubmitting a record that carries them is exactly what an unhardened save() fails on
+      // for a restricted user (FLS is checked against every populated field, not just changed
+      // ones), and exactly what Security.stripInaccessible must clear before the DML.
+      Benchmark_Rate__c queried = [
+        SELECT Id, Rate__c, City_Lane__c, State_Lane__c, Zip3_Lane__c
+        FROM Benchmark_Rate__c
+        WHERE Id = :saved.Id
+      ];
+      queried.Rate__c = 950;
+      resaved = BenchmarkRateService.save(queried);
     }
     Integer seen;
     System.runAs(viewer) {
@@ -165,5 +177,7 @@ private class RfpSecurityTest {
       .City_Lane__c
     );
     System.assertEquals(1, seen);
+    System.assertEquals(950, resaved.Rate__c);
+    System.assertEquals('Montréal, QC:Toronto, ON', resaved.City_Lane__c);
   }
 }
