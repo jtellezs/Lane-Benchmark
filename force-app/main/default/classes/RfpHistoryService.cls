@@ -141,18 +141,22 @@ public with sharing class RfpHistoryService {
     return req;
   }
 
+  /**
+   * Only the lane's own currency bucket is ever written (ruling R19). Falling back to the first
+   * bucket used to stamp, say, a USD median onto a CAD lane - a number the pricer would then
+   * mark up as if it were CAD. With no bucket for the lane's currency the count still records
+   * that rows were found and the status is still 'Done'; min/median/average/max stay null, which
+   * rfpLaneTable already renders as "N · no median".
+   */
   private static void fill(
     RFP_Lane__c u,
     LaneSearchResult r,
     String currencyCode
   ) {
     u.Hist_Count__c = r.rows.size();
-    if (r.statsByCurrency.isEmpty()) {
-      return;
-    }
     LaneSearchResult.Stats s = r.statsByCurrency.get(currencyCode);
     if (s == null) {
-      s = r.statsByCurrency.values()[0];
+      return;
     }
     u.Hist_Min__c = s.min;
     u.Hist_Median__c = s.median;

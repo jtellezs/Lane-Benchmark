@@ -18,6 +18,12 @@ const hasCost = (lane) => Number(lane.Cost__c) > 0;
 
 export default class RfpExport extends LightningElement {
   @api project;
+  /**
+   * True while the container runs a chunked import or history pass. The lane
+   * set is still moving then, so the button is down for that too — not only
+   * for an export of our own already under way.
+   */
+  @api parentBusy = false;
 
   _lanes = [];
   @api
@@ -40,7 +46,7 @@ export default class RfpExport extends LightningElement {
     return this._lanes.some(hasCost);
   }
   get disabled() {
-    return this.busy;
+    return this.busy || !!this.parentBusy;
   }
 
   handleExport() {

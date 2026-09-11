@@ -39,18 +39,16 @@ export default class RfpUpload extends LightningElement {
       if (rows.length > MAX_ROWS) {
         throw new Error("Split the file; the workbench handles 2,000 lanes");
       }
-      this.status = "Attaching…";
-      await attachFile({
-        projectId: this.projectId,
-        fileName: file.name,
-        base64: toBase64(buffer)
-      });
+      // The rows go out first: a good parse is the point of the upload, and an
+      // attach that fails (a storage limit, a file-permission error) must not
+      // throw it away — the file is a convenience copy on the project record.
       this.status = `${file.name}: ${rows.length} rows`;
       this.dispatchEvent(
         new CustomEvent("parsed", {
           detail: { fileName: file.name, headers, rows }
         })
       );
+      await this.attach(file.name, buffer);
     } catch (e) {
       this.status = "";
       this.error =
@@ -58,6 +56,24 @@ export default class RfpUpload extends LightningElement {
     } finally {
       // Reset so choosing the same file again still fires a change event.
       input.value = "";
+    }
+  }
+
+  /**
+   * Files the project keeps a copy of. A failure here is reported as a warning
+   * and never rethrown, so the rows already on their way to the mapper stand.
+   */
+  async attach(fileName, buffer) {
+    try {
+      await attachFile({
+        projectId: this.projectId,
+        fileName,
+        base64: toBase64(buffer)
+      });
+    } catch (e) {
+      const why =
+        e?.body?.message || e?.message || "the upload was not accepted.";
+      this.error = `The file was read but could not be attached to the project: ${why}`;
     }
   }
 

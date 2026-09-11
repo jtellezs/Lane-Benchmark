@@ -195,6 +195,64 @@ private class RfpHistoryServiceTest {
     System.assertEquals('PROVINCE', result.Hist_Precision__c);
   }
 
+  // Final review I4 / ruling R19: fill() used to fall back to the first currency bucket when the
+  // lane's own currency had none, so a USD median landed on a CAD lane and the pricer marked up a
+  // US-dollar number as if it were Canadian. Only the lane's own bucket is read now: the rows are
+  // still counted and the status is still 'Done', but every statistic stays null - which
+  // rfpLaneTable already shows as "N · no median".
+  @IsTest
+  static void aForeignCurrencyBucketNeverFillsTheLaneStats() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c mtl = RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    Pricing_Place__c tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    RFP_Project__c p = RfpTestDataFactory.createProject(g.customer); // CAD
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(p, mtl, tor); // CAD
+    Test.startTest();
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    insert PricingTestDataFactory.buildQuote(g, load, 2500, 'USD');
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ lane.Id },
+      'CITY',
+      90
+    );
+    Test.stopTest();
+    RFP_Lane__c result = out[0];
+    System.assertEquals(
+      'Done',
+      result.Hist_Status__c,
+      'a row was found, so the snapshot is done'
+    );
+    System.assertEquals(1, result.Hist_Count__c);
+    System.assertEquals('CITY', result.Hist_Precision__c);
+    System.assertEquals(
+      null,
+      result.Hist_Median__c,
+      'no CAD bucket, so no median is stored'
+    );
+    System.assertEquals(null, result.Hist_Min__c);
+    System.assertEquals(null, result.Hist_Average__c);
+    System.assertEquals(null, result.Hist_Max__c);
+  }
+
   // RfpHistoryController's generic catch: a non-LaneSearchException (here, a lane read/update
   // denied by CRUD under AccessLevel.USER_MODE for a user holding only Lane_Benchmark_User,
   // which grants no RFP_Lane__c access at all) surfaces as the fixed "could not be loaded"

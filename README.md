@@ -427,6 +427,14 @@ radius on a CITY miss) → price each lane (from a bid, the history median, or
 a manual cost, plus margin) → record carrier bids → export the customer's
 file back with our prices and the selected bid filled in.
 
+A second upload into the same project continues the row numbering where the
+lanes already there left off, so the two sheets never share a row number.
+Cells longer than the field they land in are cut to the field's length on
+import (mode 40, equipment category 40, equipment type 80, quantity unit 20,
+commodity 255, postal 12), and a row the platform still refuses is counted
+into the import summary as `failed N` instead of taking its whole 200-row
+chunk with it.
+
 **Limits.**
 
 - Upload: 3 MB per file, 2,000 lanes per project.

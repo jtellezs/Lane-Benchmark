@@ -116,7 +116,7 @@ describe("c-rfp-bid-form", () => {
     });
   });
 
-  it("emits save with the picked carrier id and no Carrier_Name__c", async () => {
+  it("emits save with the picked carrier id and a null Carrier_Name__c", async () => {
     const el = await mount();
     const handler = jest.fn();
     el.addEventListener("save", handler);
@@ -133,7 +133,9 @@ describe("c-rfp-bid-form", () => {
     expect(handler).toHaveBeenCalledTimes(1);
     const { bid } = handler.mock.calls[0][0].detail;
     expect(bid.Carrier__c).toBe("001Acme");
-    expect(bid.Carrier_Name__c).toBeUndefined();
+    // Sent as an explicit null, not left out: editing a free-text bid onto a
+    // real Account has to clear the name the bid was saved with.
+    expect(bid.Carrier_Name__c).toBeNull();
     expect(bid.Rate__c).toBe(2100.5);
   });
 
@@ -159,6 +161,36 @@ describe("c-rfp-bid-form", () => {
     el.addEventListener("cancel", handler);
     field(el, "cancel").click();
     expect(handler).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the typed name when an edited free-text bid moves onto a real carrier", async () => {
+    const el = await mount({
+      bid: {
+        Id: "a0B00000001",
+        Carrier__c: null,
+        Carrier_Name__c: "Speedy Lines",
+        Rate__c: 1750,
+        CurrencyIsoCode: "CAD"
+      }
+    });
+    expect(field(el, "new-carrier").checked).toBe(true);
+    change(el, "new-carrier", { checked: false });
+    await flush();
+    el.shadowRoot.querySelector("c-rfp-account-picker").dispatchEvent(
+      new CustomEvent("accountchange", {
+        detail: { id: "001Acme", name: "Acme Transport" }
+      })
+    );
+    await flush();
+    const handler = jest.fn();
+    el.addEventListener("save", handler);
+    save(el);
+    await flush();
+
+    const { bid } = handler.mock.calls[0][0].detail;
+    expect(bid.Id).toBe("a0B00000001");
+    expect(bid.Carrier__c).toBe("001Acme");
+    expect(bid.Carrier_Name__c).toBeNull();
   });
 
   it("clears back to a blank bid when the panel switches to Add", async () => {

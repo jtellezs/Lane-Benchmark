@@ -119,6 +119,20 @@ export default class RfpTool extends LightningElement {
   get progressText() {
     return `${this.progress.done} of ${this.progress.total}`;
   }
+  /**
+   * A second upload into the same project continues the sheet's numbering
+   * instead of restarting at 1 and colliding with the lanes already there
+   * (ruling R20). The lanes on screen are the ones `loadLanes` last returned,
+   * so they carry the highest `Row_Number__c` the project holds.
+   */
+  get nextRowNumber() {
+    return (
+      this.lanes.reduce(
+        (max, lane) => Math.max(max, Number(lane.Row_Number__c) || 0),
+        0
+      ) + 1
+    );
+  }
 
   handleBack() {
     this.view = "list";
@@ -198,6 +212,11 @@ export default class RfpTool extends LightningElement {
   }
 
   async handleImport(event) {
+    // The mapper's Import button is disabled while `busy`, so this is the
+    // belt-and-braces half: a second event can never import every row twice.
+    if (this.busy) {
+      return;
+    }
     const mapping = event.detail.mapping;
     this.mapping = mapping;
     this.stopRequested = false;
@@ -206,21 +225,22 @@ export default class RfpTool extends LightningElement {
     this.mappingNote = "";
     const total = this.rows.length;
     this.progress = { done: 0, total };
-    const totals = { imported: 0, skipped: 0, unresolvedEnds: 0 };
+    const totals = { imported: 0, skipped: 0, unresolvedEnds: 0, failed: 0 };
+    // Fixed before the first call: `loadLanes` below moves it on, and every
+    // chunk of this file must number from where the project already ended.
+    const startRow = this.nextRowNumber;
     try {
       await series(chunk(this.rows, IMPORT_CHUNK), (rows, index) =>
-        this.importChunk(totals, rows, index * IMPORT_CHUNK, total)
+        this.importChunk(totals, rows, index * IMPORT_CHUNK, startRow, total)
       );
+      // A failed chunk still leaves the earlier chunks' lanes in the project,
+      // so the workbench opens either way rather than hiding rows that exist.
       if (this.error) {
-        return;
+        this.error = `${this.error} — imported ${totals.imported} of ${total} rows before failing.`;
+      } else {
+        this.summary = this.importSummary(totals);
+        await this.rememberMapping(mapping);
       }
-      // A Stop leaves the rows it never reached out of the counts, so the
-      // summary says how far the import actually got.
-      const stopped = this.stopRequested
-        ? `stopped after ${this.progress.done} rows; `
-        : "";
-      this.summary = `${stopped}imported ${totals.imported}, skipped ${totals.skipped}, unresolved ends ${totals.unresolvedEnds}`;
-      await this.rememberMapping(mapping);
       await this.loadLanes();
       this.view = "workbench";
     } catch (e) {
@@ -230,8 +250,21 @@ export default class RfpTool extends LightningElement {
     }
   }
 
+  /**
+   * A Stop leaves the rows it never reached out of the counts, so the summary
+   * says how far the import actually got; `failed` (rows the insert refused
+   * one at a time) only appears when there were any.
+   */
+  importSummary(totals) {
+    const stopped = this.stopRequested
+      ? `stopped after ${this.progress.done} rows; `
+      : "";
+    const failed = totals.failed ? `, failed ${totals.failed}` : "";
+    return `${stopped}imported ${totals.imported}, skipped ${totals.skipped}, unresolved ends ${totals.unresolvedEnds}${failed}`;
+  }
+
   /** One importLanes call; a chunk that fails stops the rest of the import. */
-  async importChunk(totals, rows, start, total) {
+  async importChunk(totals, rows, offset, startRow, total) {
     if (this.stopRequested) {
       return;
     }
@@ -239,7 +272,7 @@ export default class RfpTool extends LightningElement {
       const summary = await importLanes({
         projectId: this.projectId,
         rowsJson: JSON.stringify(
-          toImportRows(this.headers, rows, this.mapping, start + 1)
+          toImportRows(this.headers, rows, this.mapping, startRow + offset)
         )
       });
       Object.keys(totals).forEach((key) => {
@@ -250,7 +283,7 @@ export default class RfpTool extends LightningElement {
       this.stopRequested = true;
       return;
     }
-    this.progress = { done: Math.min(start + IMPORT_CHUNK, total), total };
+    this.progress = { done: Math.min(offset + IMPORT_CHUNK, total), total };
   }
 
   /** A mapping that imported once is the starting point for the next file. */
@@ -287,6 +320,12 @@ export default class RfpTool extends LightningElement {
    * cost the whole sheet; "Retry failed" picks them up afterwards.
    */
   async runHistory(lanes) {
+    // The three history buttons are disabled while `busy`; this also stops a
+    // click that slipped through (a keyboard repeat, a stale render) from
+    // starting a second run on top of the one already going.
+    if (this.busy) {
+      return;
+    }
     const laneIds = lanes.map((l) => l.Id);
     this.stopRequested = false;
     this.busy = true;

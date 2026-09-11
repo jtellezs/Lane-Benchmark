@@ -457,8 +457,9 @@ from the controller's ledger
 | 9 — `RFP_Tool` tab/page/app entries, vendored `sheetJs` static resource, manifest LWC registration | `0AfbZ00000CpJ89SAF` / `0AfbZ00000CpJEbSAN` rolled back ("Invalid reference sheetJs of type resourceUrl"); after the unblock: `0AfbZ00000CpJphSAF` (NoTestRun, 230/230 components), `0AfbZ00000CpH7ySAF` | —; 102/102        |
 | Browser fix wave (B1–B5, cross-task, before the final review)                                      | `0AfbZ00000CpKtpSAF`                                                                                                                                                                                     | 102/102; Jest 187 |
 | 10 — docs and outcome (this task)                                                                  | — (docs only)                                                                                                                                                                                            | —                 |
+| Final fix wave (C1, I1–I5 and two minors, after the final review)                                  | `0AfbZ00000CpG74SAF`                                                                                                                                                                                     | 105/105; Jest 193 |
 
-Final state: **102/102** Apex tests across nineteen classes, **Jest 187**
+Final state: **105/105** Apex tests across nineteen classes, **Jest 193**
 (from 77 at the start of the LWC-only tasks), PMD clean on every commit,
 ESLint/Prettier clean.
 
@@ -496,7 +497,7 @@ plan's "Rulings that amend the spec"):
 12. `rfpProjectsForAccount` retargets its row click to `standard__navItemPage` `{ apiName: "RFP_Tool", state: { c__projectId } }`; `rfpTool` reads it from `CurrentPageReference`.
 13. runAs tests build a test-only user under `System.runAs(new User(Id = UserInfo.getUserId()))`, profile `Standard User` else `Minimum Access - Salesforce`, skipped (and ledgered) if neither exists or no license is free.
 
-**Rulings recorded during implementation** (ledger R1–R17, controller
+**Rulings recorded during implementation** (ledger R1–R20, controller
 decisions on review findings — full text in the ledger):
 
 - **R1** — `RfpUserError` (`of`/`safe`) is a shared helper for Tasks 2–4;
@@ -548,6 +549,22 @@ decisions on review findings — full text in the ledger):
 - **R17** — the LWC bundles from Tasks 5–8 were never registered in
   `manifest/package.xml` (only Apex was); Task 9 registers all 16, and the
   README now notes that every new bundle must be added to the manifest.
+- **R18** — the separate docs review was folded into the final review: one
+  pass over code and docs together, rather than a docs-only round after the
+  code review had already closed.
+- **R19** — history statistics are read only from the lane's own
+  `CurrencyIsoCode` bucket. `RfpHistoryService.fill` used to fall back to the
+  first bucket in `statsByCurrency` when the lane's currency had none, so a
+  USD-only quote set stamped a USD median on a CAD lane, which the pricer
+  would then mark up as if it were Canadian. With no bucket for the lane's
+  currency, `Hist_Min/Median/Average/Max__c` stay null while `Hist_Count__c`
+  still records the rows found and the status is still `Done` — `rfpLaneTable`
+  already renders that as "N · no median".
+- **R20** — a second upload into the same project continues the row
+  numbering instead of restarting at 1. `rfpTool` starts the new file at
+  `max(existing lanes' Row_Number__c) + 1`, taken from the lanes it already
+  holds (the upload step is only ever reached from a project whose lanes are
+  loaded), and every chunk of that file numbers from there.
 
 **Browser checks (B1–B5), fixed in one cross-task wave before the final
 review** (commits `b2eeaf1..cf251b7`, deploy `0AfbZ00000CpKtpSAF` 102/102,
@@ -582,6 +599,36 @@ status line is clean; no file visibly landed only because that Chrome
 profile has "Ask where to save each file" enabled — a native OS Save dialog
 the browser automation cannot see or click, unrelated to the code (see
 "Open items" below).
+
+**Not verified in the browser.** Four paths are covered by tests only; none
+was exercised by hand in the org, and each is listed here so the next browser
+pass knows where to start:
+
+- The Lane Benchmark "Bids only" source filter. Covered by
+  `RfpSecurityTest.bidIsFoundAtEveryPrecision` plus a SOQL read of the
+  stamped lane keys, never clicked in the UI.
+- Pricing a lane from a bid, and pricing it from a manual cost. Only the
+  history-median path was walked in the browser.
+- Recording a bid against an existing carrier Account. Only the new
+  (free-text) carrier path was walked.
+- Opening the exported workbook in Excel. The download itself is blocked by
+  the tester's "Ask where to save each file" Chrome setting (above), so the
+  bytes were never opened.
+
+**Final fix wave (C1, I1–I5 and two minors, after the final review).**
+Commit: the one commit on `phase-3b/workbench` after `6962830` ("Harden the RFP import, guard busy actions and record the unverified checks"); deploy `0AfbZ00000CpG74SAF` (105/105),
+Jest 193. C1: `RfpImportService.toLane` cut every free-text field to its
+schema length and the insert moved to `allOrNone = false` with a new
+`Summary.failed`. I1: the container's action buttons and the mapper's
+"Import lanes" are disabled while `busy`, and `runHistory`/`handleImport`
+refuse a re-entrant call. I2: a failed import chunk still loads the lanes it
+did land and opens the workbench, with "imported N of M rows before failing"
+on the error. I3: ruling R20's row numbering. I4: ruling R19's currency
+bucket. I5: `rfpUpload` dispatches `parsed` before attaching the file, so an
+attach failure is a warning rather than a discarded parse. Minors:
+`rfpBidForm` always sends `Carrier_Name__c` (null included), and
+`RfpBidController` trims a DML message to 160 characters behind a
+`getNumDml() > 0` guard.
 
 **Deferred (minor findings, from the ledger, not fixed in 3b).**
 

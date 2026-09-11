@@ -34,6 +34,9 @@ public with sharing class RfpImportService {
     public Integer skipped = 0;
     @AuraEnabled
     public Integer unresolvedEnds = 0;
+    /** Rows the insert refused one by one (allOrNone = false); the rest still land. */
+    @AuraEnabled
+    public Integer failed = 0;
   }
   private static final List<String> COUNTRY_ORDER = new List<String>{
     'CA',
@@ -41,6 +44,16 @@ public with sharing class RfpImportService {
     'MX'
   };
   private static final Integer MAX_ROWS = 200;
+  // Spreadsheet cells are arbitrarily long; every free-text field is cut to its own schema
+  // length before the insert, so one 60-character "mode" cannot STRING_TOO_LONG the whole chunk.
+  private static final Integer MODE_MAX = 40;
+  private static final Integer EQUIPMENT_CATEGORY_MAX = 40;
+  private static final Integer EQUIPMENT_TYPE_MAX = 80;
+  private static final Integer COMMODITY_MAX = 255;
+  private static final Integer QUANTITY_UNIT_MAX = 20;
+  private static final Integer RAW_ROW_MAX = 32768;
+  private static final Integer POSTAL_MAX = 12;
+  private static final Integer CITY_MAX = 80;
 
   public static Summary importRows(Id projectId, List<ImportRow> rows) {
     if (rows.size() > MAX_ROWS) {
@@ -71,14 +84,35 @@ public with sharing class RfpImportService {
         : 'Unresolved';
       lanes.add(lane);
     }
+    save(s, lanes);
+    return s;
+  }
+
+  /**
+   * allOrNone = false: a row the platform still refuses (a number outside its field's range, a
+   * validation rule, ...) lands in its own SaveResult and is counted into Summary.failed, instead
+   * of a single bad cell aborting the statement and discarding all 200 rows of the chunk. The
+   * caller shows "failed N" next to "imported N"; the rows that saved keep their lanes.
+   */
+  private static void save(Summary s, List<RFP_Lane__c> lanes) {
     List<SObject> clean = Security.stripInaccessible(
         AccessType.CREATABLE,
         lanes
       )
       .getRecords();
-    Database.insert(clean, AccessLevel.USER_MODE);
-    s.imported = clean.size();
-    return s;
+    for (
+      Database.SaveResult sr : Database.insert(
+        clean,
+        false,
+        AccessLevel.USER_MODE
+      )
+    ) {
+      if (sr.isSuccess()) {
+        s.imported++;
+      } else {
+        s.failed++;
+      }
+    }
   }
 
   private static Boolean isEmpty(RowEnd e) {
@@ -89,13 +123,16 @@ public with sharing class RfpImportService {
     return new RFP_Lane__c(
       RFP_Project__c = project.Id,
       Row_Number__c = r.rowNumber,
-      Raw_Row__c = r.raw,
-      Mode__c = r.mode,
-      Equipment_Category__c = r.equipmentCategory,
-      Equipment_Type__c = r.equipmentType,
-      Commodity__c = r.commodity,
+      Raw_Row__c = trimmed(r.raw, RAW_ROW_MAX),
+      Mode__c = trimmed(r.mode, MODE_MAX),
+      Equipment_Category__c = trimmed(
+        r.equipmentCategory,
+        EQUIPMENT_CATEGORY_MAX
+      ),
+      Equipment_Type__c = trimmed(r.equipmentType, EQUIPMENT_TYPE_MAX),
+      Commodity__c = trimmed(r.commodity, COMMODITY_MAX),
       Quantity__c = r.quantity,
-      Quantity_Unit__c = r.quantityUnit,
+      Quantity_Unit__c = trimmed(r.quantityUnit, QUANTITY_UNIT_MAX),
       Shipments_Per_Year__c = r.shipmentsPerYear,
       Customer_Fuel_Surcharge__c = r.fuelSurcharge,
       Customer_FSC_Included__c = r.fscIncluded == true,
@@ -113,16 +150,16 @@ public with sharing class RfpImportService {
     Boolean isOrigin
   ) {
     Pricing_Place__c place = resolver.resolve(e);
-    String city = place != null ? place.City__c : trimmed(e?.city);
+    String city = place != null ? place.City__c : trimmed(e?.city, CITY_MAX);
     String province = place != null
       ? place.Province__c
-      : PlaceNormalizer.provinceCode(trimmed(e?.province));
+      : PlaceNormalizer.provinceCode(trimmed(e?.province, CITY_MAX));
     String country = place != null
       ? place.Country__c
-      : PlaceNormalizer.countryCode(trimmed(e?.country));
+      : PlaceNormalizer.countryCode(trimmed(e?.country, CITY_MAX));
     String postal = place != null && String.isBlank(e?.postal)
       ? place.Postal_Prefix__c
-      : trimmed(e?.postal);
+      : trimmed(e?.postal, POSTAL_MAX);
     if (isOrigin) {
       lane.Origin_City__c = city;
       lane.Origin_Province__c = province;
@@ -141,8 +178,9 @@ public with sharing class RfpImportService {
     return place == null ? 1 : 0;
   }
 
-  private static String trimmed(String s) {
-    return s == null ? null : s.trim().left(80);
+  /** Trimmed and cut to `cap`, the field's own schema length. */
+  private static String trimmed(String s, Integer cap) {
+    return s == null ? null : s.trim().left(cap);
   }
 
   /** Two bulk queries per import call: all candidate city keys, then all postal prefixes. */

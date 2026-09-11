@@ -4,6 +4,8 @@ import { TARGETS, missingRequired } from "c/rfpHeaderGuess";
 export default class RfpColumnMapper extends LightningElement {
   @api headers = [];
   @api sampleRows = [];
+  /** The container owns the chunked import; Import stays down until it is done. */
+  @api busy = false;
   _mapping = {};
   @api
   get mapping() {
@@ -50,7 +52,7 @@ export default class RfpColumnMapper extends LightningElement {
       : "";
   }
   get cannotImport() {
-    return this.missing.length > 0;
+    return this.missing.length > 0 || !!this.busy;
   }
 
   handleChange(event) {

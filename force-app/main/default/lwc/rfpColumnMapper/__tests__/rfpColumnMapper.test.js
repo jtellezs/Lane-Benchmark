@@ -55,6 +55,27 @@ describe("c-rfp-column-mapper", () => {
     });
   });
 
+  it("keeps Import down while the container is busy importing", async () => {
+    const el = mount({
+      headers: ["From", "To"],
+      sampleRows: [],
+      mapping: { originCity: "From", destinationCity: "To" }
+    });
+    expect(el.shadowRoot.querySelector('[data-id="import"]').disabled).toBe(
+      false
+    );
+    el.busy = true;
+    await flush();
+    expect(el.shadowRoot.querySelector('[data-id="import"]').disabled).toBe(
+      true
+    );
+    el.busy = false;
+    await flush();
+    expect(el.shadowRoot.querySelector('[data-id="import"]').disabled).toBe(
+      false
+    );
+  });
+
   it("excludes blank headers from the combobox options", () => {
     const el = mount({
       headers: ["From", "", "To"],

@@ -92,6 +92,7 @@
           headers={headers}
           sample-rows={sampleRows}
           mapping={mapping}
+          busy={busy}
           onmappingchange={handleMappingChange}
           onimport={handleImport}
         ></c-rfp-column-mapper>
@@ -112,6 +113,7 @@
             <lightning-button
               data-id="upload-more"
               label="Upload a file"
+              disabled={busy}
               onclick={handleUploadMore}
             ></lightning-button>
           </div>
@@ -138,6 +140,7 @@
               data-id="load-history"
               variant="brand"
               label="Load history"
+              disabled={busy}
               onclick={handleLoadHistory}
             ></lightning-button>
           </div>
@@ -145,6 +148,7 @@
             <lightning-button
               data-id="refresh-history"
               label="Refresh history"
+              disabled={busy}
               onclick={handleRefreshHistory}
             ></lightning-button>
           </div>
@@ -152,11 +156,16 @@
             <lightning-button
               data-id="retry-failed"
               label="Retry failed"
+              disabled={busy}
               onclick={handleRetryFailed}
             ></lightning-button>
           </div>
           <div class="slds-col">
-            <c-rfp-export project={project} lanes={lanes}></c-rfp-export>
+            <c-rfp-export
+              project={project}
+              lanes={lanes}
+              parent-busy={busy}
+            ></c-rfp-export>
           </div>
         </div>
 

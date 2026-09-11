@@ -194,6 +194,9 @@ export default class RfpBidForm extends LightningElement {
     const bid = {
       RFP_Lane__c: this.laneId,
       Carrier__c: this.newCarrier ? null : this.carrierId,
+      // Always sent, null included: editing a free-text bid onto a real Account
+      // has to clear the typed name, or Carrier_Display__c keeps showing it.
+      Carrier_Name__c: typed,
       Contact_Name__c: trimmed(this.contactName),
       Contact_Email__c: trimmed(this.contactEmail),
       Contact_Phone__c: trimmed(this.contactPhone),
@@ -206,9 +209,6 @@ export default class RfpBidForm extends LightningElement {
       Expires_On__c: this.expiresOn || null,
       Notes__c: trimmed(this.notes)
     };
-    if (typed) {
-      bid.Carrier_Name__c = typed;
-    }
     if (this.bidId) {
       bid.Id = this.bidId;
     }

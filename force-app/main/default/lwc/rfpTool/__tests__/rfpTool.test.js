@@ -311,11 +311,12 @@ describe("c-rfp-tool", () => {
       expect(child(el, "c-rfp-lane-table")).not.toBeNull();
     });
 
-    it("stops the import on a failed chunk and keeps the message", async () => {
+    it("stops on a failed chunk but still shows the lanes it did import", async () => {
       const el = await toMapStep(450);
       importLanes
         .mockResolvedValueOnce({ imported: 200, skipped: 0, unresolvedEnds: 0 })
         .mockRejectedValueOnce({ body: { message: "row 240 is bad" } });
+      getLanes.mockResolvedValue(lanes(200));
       child(el, "c-rfp-column-mapper").dispatchEvent(
         new CustomEvent("import", {
           detail: { mapping: { originCity: "From" } }
@@ -324,7 +325,71 @@ describe("c-rfp-tool", () => {
       await settle(14);
       expect(importLanes).toHaveBeenCalledTimes(2);
       expect(field(el, "error").textContent).toContain("row 240 is bad");
-      expect(child(el, "c-rfp-lane-table")).toBeNull();
+      expect(field(el, "error").textContent).toContain(
+        "imported 200 of 450 rows before failing"
+      );
+      // The 200 lanes the first chunk landed exist in the project, so the
+      // workbench opens on them instead of leaving the user on the mapper.
+      expect(child(el, "c-rfp-lane-table")).not.toBeNull();
+      expect(child(el, "c-rfp-lane-table").lanes.length).toBe(200);
+      // A half-finished import is no endorsement of the mapping.
+      expect(saveProject).not.toHaveBeenCalled();
+    });
+
+    it("counts the rows Apex refused into the summary line", async () => {
+      const el = await toMapStep(3);
+      importLanes.mockResolvedValue({
+        imported: 2,
+        skipped: 0,
+        unresolvedEnds: 0,
+        failed: 1
+      });
+      getLanes.mockResolvedValue(lanes(2));
+      child(el, "c-rfp-column-mapper").dispatchEvent(
+        new CustomEvent("import", {
+          detail: { mapping: { originCity: "From" } }
+        })
+      );
+      await settle(14);
+      expect(field(el, "summary").textContent).toContain(
+        "imported 2, skipped 0, unresolved ends 0, failed 1"
+      );
+    });
+
+    it("continues the row numbering into a second upload", async () => {
+      const el = await openFromUrl(lanes(22));
+      field(el, "upload-more").click();
+      await settle();
+      child(el, "c-rfp-upload").dispatchEvent(
+        new CustomEvent("parsed", {
+          detail: {
+            fileName: "more-lanes.xlsx",
+            headers: ["From", "To"],
+            rows: Array.from({ length: 250 }, (_, i) => [
+              `City ${i + 1}`,
+              "Toronto"
+            ])
+          }
+        })
+      );
+      await settle();
+      importLanes.mockResolvedValue({
+        imported: 200,
+        skipped: 0,
+        unresolvedEnds: 0
+      });
+      child(el, "c-rfp-column-mapper").dispatchEvent(
+        new CustomEvent("import", {
+          detail: { mapping: { originCity: "From", destinationCity: "To" } }
+        })
+      );
+      await settle(14);
+
+      const starts = importLanes.mock.calls.map(
+        (c) => JSON.parse(c[0].rowsJson)[0].rowNumber
+      );
+      // 22 lanes are already in the project, so the new sheet starts at 23.
+      expect(starts).toEqual([23, 223]);
     });
 
     it("keeps the mapping-failure note visible after the lanes load", async () => {
@@ -494,6 +559,26 @@ describe("c-rfp-tool", () => {
       field(el, "refresh-history").click();
       await settle(8);
       expect(loadHistory.mock.calls[0][0].laneIds).toEqual(["a0L1", "a0L2"]);
+    });
+
+    it("ignores a Load history click while a run already owns the page", async () => {
+      const el = await openFromUrl(lanes(23));
+      loadHistory.mockImplementation(async ({ laneIds }) => {
+        await flush();
+        expect(field(el, "load-history").disabled).toBe(true);
+        expect(field(el, "refresh-history").disabled).toBe(true);
+        expect(field(el, "retry-failed").disabled).toBe(true);
+        expect(field(el, "upload-more").disabled).toBe(true);
+        expect(child(el, "c-rfp-export").parentBusy).toBe(true);
+        // A click that gets through anyway (a keyboard repeat, a stale render)
+        // must not start a second pass over the same 23 lanes.
+        field(el, "load-history").click();
+        return done(laneIds);
+      });
+      field(el, "load-history").click();
+      await settle(16);
+      expect(loadHistory).toHaveBeenCalledTimes(3);
+      expect(field(el, "load-history").disabled).toBe(false);
     });
 
     it("stops between chunks when Stop is pressed", async () => {

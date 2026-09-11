@@ -92,6 +92,33 @@ describe("c-rfp-upload", () => {
     );
     expect(parsed.mock.calls[0][0].detail.headers).toEqual(["From", "To"]);
     expect(parsed.mock.calls[0][0].detail.rows.length).toBe(1);
+    expect(el.shadowRoot.querySelector('[data-id="error"]')).toBeNull();
+  });
+
+  it("keeps a good parse when the file cannot be attached", async () => {
+    attachFile.mockRejectedValue({ body: { message: "storage limit" } });
+    const el = mount("a0P1");
+    const parsed = jest.fn();
+    el.addEventListener("parsed", parsed);
+    const input = el.shadowRoot.querySelector('input[type="file"]');
+    Object.defineProperty(input, "files", {
+      value: [fileWithBuffer([1, 2, 3], "lanes.xlsx")]
+    });
+    input.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    await flush();
+    await flush();
+
+    // The rows are dispatched before the attach is even attempted, so a failed
+    // attach costs a warning and nothing else.
+    expect(parsed).toHaveBeenCalledTimes(1);
+    expect(parsed.mock.calls[0][0].detail.rows.length).toBe(1);
+    const error = el.shadowRoot.querySelector('[data-id="error"]');
+    expect(error.textContent).toContain("could not be attached to the project");
+    expect(error.textContent).toContain("storage limit");
+    expect(
+      el.shadowRoot.querySelector('[data-id="status"]').textContent
+    ).toContain("lanes.xlsx: 1 rows");
   });
 
   it("reads a BOM-less UTF-8 CSV as codepage 65001", async () => {

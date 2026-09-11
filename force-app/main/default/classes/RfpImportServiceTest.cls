@@ -82,6 +82,7 @@ private class RfpImportServiceTest {
     Test.stopTest();
     System.assertEquals(3, s.imported);
     System.assertEquals(1, s.skipped);
+    System.assertEquals(0, s.failed);
     System.assertEquals(1, s.unresolvedEnds);
     List<RFP_Lane__c> lanes = [
       SELECT
@@ -126,6 +127,138 @@ private class RfpImportServiceTest {
     );
     System.assertEquals(false, lanes[2].Origin_Resolved__c);
     System.assertEquals('Unresolved', lanes[2].Hist_Status__c);
+  }
+
+  /**
+   * Final review C1: a spreadsheet cell is as long as the customer made it, and toLane used to
+   * copy it verbatim into fields narrower than the data - a 60-character mode threw
+   * STRING_TOO_LONG and, with an all-or-nothing insert, took the whole 200-row chunk with it.
+   * Every free-text field is now cut to its own schema length.
+   */
+  @IsTest
+  static void cutsOverLongCellsToTheFieldLength() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
+    String mode60 = 'M'.repeat(60);
+    String category60 = 'C'.repeat(60);
+    String equipment100 = 'E'.repeat(100);
+    String commodity300 = 'X'.repeat(300);
+    String unit30 = 'U'.repeat(30);
+    String postal20 = 'H1A 1B2 EXTRA LONG!!'; // 20 characters; the field holds 12
+    RfpImportService.ImportRow r = row(
+      1,
+      'Montreal',
+      'QC',
+      'CA',
+      postal20,
+      'Toronto',
+      'ON',
+      'CA',
+      null
+    );
+    r.mode = mode60;
+    r.equipmentCategory = category60;
+    r.equipmentType = equipment100;
+    r.commodity = commodity300;
+    r.quantityUnit = unit30;
+    Test.startTest();
+    RfpImportService.Summary s = RfpImportService.importRows(
+      p.Id,
+      new List<RfpImportService.ImportRow>{ r }
+    );
+    Test.stopTest();
+    System.assertEquals(1, s.imported, 'the over-long row still imports');
+    System.assertEquals(0, s.failed);
+    RFP_Lane__c lane = [
+      SELECT
+        Mode__c,
+        Equipment_Category__c,
+        Equipment_Type__c,
+        Commodity__c,
+        Quantity_Unit__c,
+        Origin_Postal__c
+      FROM RFP_Lane__c
+      WHERE RFP_Project__c = :p.Id
+    ];
+    System.assertEquals(mode60.left(40), lane.Mode__c, 'Mode__c is Text(40)');
+    System.assertEquals(40, lane.Mode__c.length());
+    System.assertEquals(category60.left(40), lane.Equipment_Category__c);
+    System.assertEquals(equipment100.left(80), lane.Equipment_Type__c);
+    System.assertEquals(commodity300.left(255), lane.Commodity__c);
+    System.assertEquals(unit30.left(20), lane.Quantity_Unit__c);
+    System.assertEquals(
+      postal20.left(12),
+      lane.Origin_Postal__c,
+      'Origin_Postal__c is Text(12)'
+    );
+  }
+
+  /**
+   * Final review C1, second half: the insert runs allOrNone = false, so a row the platform still
+   * refuses (here Quantity__c = 10^18 against a Number(12,2) field, a per-row
+   * NUMBER_OUTSIDE_VALID_RANGE) is counted into Summary.failed while its neighbours land.
+   */
+  @IsTest
+  static void countsARefusedRowAndKeepsTheRest() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
+    List<RfpImportService.ImportRow> rows = new List<RfpImportService.ImportRow>{
+      row(1, 'Montreal', 'QC', 'CA', null, 'Toronto', 'ON', 'CA', null),
+      row(2, 'Montreal', 'QC', 'CA', null, 'Toronto', 'ON', 'CA', null),
+      row(3, 'Montreal', 'QC', 'CA', null, 'Toronto', 'ON', 'CA', null)
+    };
+    rows[1].quantity = 1000000000000000000L;
+    Test.startTest();
+    RfpImportService.Summary s = RfpImportService.importRows(p.Id, rows);
+    Test.stopTest();
+    System.assertEquals(2, s.imported, 'the good rows still land');
+    System.assertEquals(1, s.failed);
+    System.assertEquals(0, s.skipped);
+    List<RFP_Lane__c> lanes = [
+      SELECT Row_Number__c
+      FROM RFP_Lane__c
+      WHERE RFP_Project__c = :p.Id
+      ORDER BY Row_Number__c
+    ];
+    System.assertEquals(2, lanes.size());
+    System.assertEquals(1, lanes[0].Row_Number__c);
+    System.assertEquals(
+      3,
+      lanes[1].Row_Number__c,
+      'row 2 failed on its own, row 3 was not discarded with it'
+    );
   }
 
   @IsTest
