@@ -9,8 +9,10 @@ import { series } from "c/rfpBatch";
 const PAGE = 500;
 /** One getBids round trip per lane, so past this many the Bids sheet is capped. */
 const MAX_BID_LANES = 200;
-const XLSX_MIME =
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+// Lightning Web Security rejects a Blob whose type it does not allow ("Unsupported
+// MIME type"), the spreadsheetml type among them; the .xlsx download name is what
+// tells Excel what the bytes are.
+const XLSX_MIME = "application/octet-stream";
 
 const hasCost = (lane) => Number(lane.Cost__c) > 0;
 

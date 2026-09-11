@@ -7,6 +7,10 @@ jest.mock("@salesforce/resourceUrl/sheetJs", () => "/sheetjs", {
   virtual: true
 });
 
+// c/rfpSheet sniffs the CSV encoding with TextDecoder, which jsdom lacks and
+// both the browser and LWS provide.
+global.TextDecoder = require("util").TextDecoder;
+
 // The SheetJS loader (c/rfpSheetLoader) caches its load promise in module scope,
 // so every test takes a fresh copy of the module graph — and an unused loadScript
 // mock — instead of inheriting whatever the test before it left cached.
@@ -88,6 +92,56 @@ describe("c-rfp-upload", () => {
     );
     expect(parsed.mock.calls[0][0].detail.headers).toEqual(["From", "To"]);
     expect(parsed.mock.calls[0][0].detail.rows.length).toBe(1);
+  });
+
+  it("reads a BOM-less UTF-8 CSV as codepage 65001", async () => {
+    const el = mount("a0P1");
+    const input = el.shadowRoot.querySelector('input[type="file"]');
+    // "Rivi<e-grave>res" in UTF-8: SheetJS would otherwise decode it as 1252.
+    const file = fileWithBuffer(
+      [0x52, 0x69, 0x76, 0x69, 0xc3, 0xa8, 0x72, 0x65, 0x73],
+      "lanes.csv"
+    );
+    Object.defineProperty(input, "files", { value: [file] });
+    input.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    await flush();
+    await flush();
+    expect(window.XLSX.read.mock.calls[0][1]).toEqual({
+      type: "array",
+      codepage: 65001
+    });
+  });
+
+  it("reads a Windows-1252 CSV as codepage 1252", async () => {
+    const el = mount("a0P1");
+    const input = el.shadowRoot.querySelector('input[type="file"]');
+    const file = fileWithBuffer(
+      [0x52, 0x69, 0x76, 0x69, 0xe8, 0x72, 0x65, 0x73],
+      "LANES.CSV"
+    );
+    Object.defineProperty(input, "files", { value: [file] });
+    input.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    await flush();
+    await flush();
+    expect(window.XLSX.read.mock.calls[0][1]).toEqual({
+      type: "array",
+      codepage: 1252
+    });
+  });
+
+  it("asks for no codepage on a workbook, which carries its own encoding", async () => {
+    const el = mount("a0P1");
+    const input = el.shadowRoot.querySelector('input[type="file"]');
+    Object.defineProperty(input, "files", {
+      value: [fileWithBuffer([1, 2, 3], "lanes.xlsx")]
+    });
+    input.dispatchEvent(new CustomEvent("change"));
+    await flush();
+    await flush();
+    await flush();
+    expect(window.XLSX.read.mock.calls[0][1]).toEqual({ type: "array" });
   });
 
   it("refuses a file over 3 MB without calling Apex", async () => {

@@ -1,9 +1,11 @@
 import { LightningElement, api } from "lwc";
 import attachFile from "@salesforce/apex/RfpProjectController.attachFile";
-import { parse, MAX_ROWS } from "c/rfpSheet";
+import { parse, csvCodepage, MAX_ROWS } from "c/rfpSheet";
 import { ensureSheetJs } from "c/rfpSheetLoader";
 
 const MAX_BYTES = 3 * 1024 * 1024;
+/** Text files SheetJS decodes with a codepage rather than reading as a zip. */
+const TEXT_FILE = /\.(csv|txt)$/i;
 
 export default class RfpUpload extends LightningElement {
   @api projectId;
@@ -28,9 +30,8 @@ export default class RfpUpload extends LightningElement {
       this.status = "Reading…";
       const buffer = await this.readBuffer(file);
       await ensureSheetJs(this);
-      const workbook = window.XLSX.read(new Uint8Array(buffer), {
-        type: "array"
-      });
+      const bytes = new Uint8Array(buffer);
+      const workbook = window.XLSX.read(bytes, this.readOptions(file, bytes));
       const { headers, rows } = parse(
         workbook,
         window.XLSX.utils.sheet_to_json
@@ -58,6 +59,19 @@ export default class RfpUpload extends LightningElement {
       // Reset so choosing the same file again still fires a change event.
       input.value = "";
     }
+  }
+
+  /**
+   * A CSV has no encoding of its own, so SheetJS falls back to Windows-1252 and
+   * mangles UTF-8 accents; the bytes are sniffed instead. Workbooks carry their
+   * own encoding, so they are read exactly as before.
+   */
+  readOptions(file, bytes) {
+    const options = { type: "array" };
+    if (TEXT_FILE.test(file.name || "")) {
+      options.codepage = csvCodepage(bytes);
+    }
+    return options;
   }
 
   readBuffer(file) {

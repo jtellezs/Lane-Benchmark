@@ -136,9 +136,8 @@ describe("c-rfp-export", () => {
     });
     expect(createUrl).toHaveBeenCalledTimes(1);
     const blob = createUrl.mock.calls[0][0];
-    expect(blob.type).toBe(
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
+    // Lightning Web Security refuses the spreadsheetml MIME type outright.
+    expect(blob.type).toBe("application/octet-stream");
     expect(clicks).toHaveBeenCalledTimes(1);
     expect(downloadName).toMatch(/^costco-wholesale-costco-q4-\d{8}\.xlsx$/);
     expect(revoke).toHaveBeenCalledWith("blob:x");

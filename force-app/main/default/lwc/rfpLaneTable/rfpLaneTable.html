@@ -31,25 +31,39 @@
             <td class="slds-cell-wrap">
               <span data-id="origin">{r.originText}</span>
               <template lwc:if={r.originUnresolved}>
-                <c-lane-benchmark-place-picker
-                  data-lane-id={r.id}
-                  data-side="origin"
-                  label="Origin"
-                  value={r.originKey}
-                  onplacechange={handlePlaceChange}
-                ></c-lane-benchmark-place-picker>
+                <div
+                  data-id="picker-cell"
+                  class="picker-cell"
+                  onclick={stopRowSelect}
+                  onkeydown={stopRowSelect}
+                >
+                  <c-lane-benchmark-place-picker
+                    data-lane-id={r.id}
+                    data-side="origin"
+                    label="Origin"
+                    value={r.originKey}
+                    onplacechange={handlePlaceChange}
+                  ></c-lane-benchmark-place-picker>
+                </div>
               </template>
             </td>
             <td class="slds-cell-wrap">
               <span data-id="destination">{r.destinationText}</span>
               <template lwc:if={r.destinationUnresolved}>
-                <c-lane-benchmark-place-picker
-                  data-lane-id={r.id}
-                  data-side="destination"
-                  label="Destination"
-                  value={r.destinationKey}
-                  onplacechange={handlePlaceChange}
-                ></c-lane-benchmark-place-picker>
+                <div
+                  data-id="picker-cell"
+                  class="picker-cell"
+                  onclick={stopRowSelect}
+                  onkeydown={stopRowSelect}
+                >
+                  <c-lane-benchmark-place-picker
+                    data-lane-id={r.id}
+                    data-side="destination"
+                    label="Destination"
+                    value={r.destinationKey}
+                    onplacechange={handlePlaceChange}
+                  ></c-lane-benchmark-place-picker>
+                </div>
               </template>
             </td>
             <td>{r.mode}</td>

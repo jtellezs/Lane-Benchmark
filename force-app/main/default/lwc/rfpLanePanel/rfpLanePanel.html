@@ -48,7 +48,7 @@
         <div class="slds-col slds-size_1-of-3 slds-align-bottom">
           <p class="slds-form-element__static">
             Sell <span data-id="sell" class="sell">{sellText}</span>
-            {currency}
+            &nbsp;{currency}
           </p>
         </div>
       </div>
@@ -151,11 +151,17 @@
           Only the first 500 loads are shown.
         </p>
       </template>
-      <c-lane-benchmark-results
-        rows={historyRows}
-        origin-label={originLabel}
-        destination-label={destinationLabel}
-      ></c-lane-benchmark-results>
+      <!-- The panel column is far narrower than the results table, which would
+           otherwise wrap to one character per line; it scrolls sideways instead. -->
+      <div data-id="history-scroll" class="history-scroll">
+        <div class="history-scroll__inner">
+          <c-lane-benchmark-results
+            rows={historyRows}
+            origin-label={originLabel}
+            destination-label={destinationLabel}
+          ></c-lane-benchmark-results>
+        </div>
+      </div>
     </div>
   </template>
   <template lwc:else>

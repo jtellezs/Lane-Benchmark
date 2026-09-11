@@ -196,6 +196,27 @@ describe("c-rfp-lane-table", () => {
     expect(handler).toHaveBeenCalledTimes(2);
   });
 
+  it("does not select the row when the click lands in the inline picker", async () => {
+    const el = await mount();
+    const handler = jest.fn();
+    el.addEventListener("select", handler);
+    const row = rowsOf(el)[1];
+
+    // Selecting the row here would re-render the panel, shrink the page and
+    // scroll the option list the user is still clicking in off the screen.
+    row
+      .querySelector("c-lane-benchmark-place-picker")
+      .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(handler).not.toHaveBeenCalled();
+
+    // the rest of the row still selects it
+    row.click();
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler.mock.calls[0][0].detail).toEqual({
+      laneId: "a0L00000002"
+    });
+  });
+
   it("marks the selected row for assistive technology", async () => {
     const el = await mount({ selectedId: "a0L00000002" });
     const rows = rowsOf(el);

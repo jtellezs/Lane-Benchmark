@@ -11,6 +11,11 @@
   outline: 2px solid #0176d3;
   outline-offset: -2px;
 }
+/* The inline picker is not a row-select target, so it does not borrow the
+   row's pointer cursor. */
+.picker-cell {
+  cursor: default;
+}
 .w-3 {
   width: 3rem;
 }

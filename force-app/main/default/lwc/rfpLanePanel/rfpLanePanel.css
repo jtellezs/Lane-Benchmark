@@ -1,5 +1,17 @@
 .lane-panel {
   position: relative;
+  /* Switching lanes must not shrink the page: a shorter panel would drop the
+     page height, scroll the browser to the top and move the lane table out from
+     under the pointer mid-click. */
+  min-height: 480px;
+}
+/* The results table needs its natural column widths; the panel column is too
+   narrow for them, so it scrolls horizontally inside the panel instead. */
+.history-scroll {
+  overflow-x: auto;
+}
+.history-scroll__inner {
+  min-width: 900px;
 }
 .sell {
   font-weight: 700;

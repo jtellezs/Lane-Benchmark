@@ -126,6 +126,15 @@ export default class RfpLaneTable extends LightningElement {
     this.emitSelect(event.currentTarget);
   }
 
+  /**
+   * Everything the inline place picker does stays inside the picker. Selecting
+   * the row would re-render the panel, change the page height and scroll the
+   * browser away underneath the option list the user is still clicking in.
+   */
+  stopRowSelect(event) {
+    event.stopPropagation();
+  }
+
   emitSelect(row) {
     this.dispatchEvent(
       new CustomEvent("select", { detail: { laneId: row.dataset.laneId } })

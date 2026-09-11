@@ -1,5 +1,25 @@
 export const MAX_ROWS = 2000;
 
+/** UTF-8 (SheetJS `codepage`), and the Windows-1252 fallback SheetJS defaults to. */
+const UTF8 = 65001;
+const WINDOWS_1252 = 1252;
+
+/**
+ * Which codepage SheetJS should read a text file (CSV/TXT) with. SheetJS assumes
+ * Windows-1252 for a CSV with no BOM, so a UTF-8 accented city name comes back
+ * mojibaked (e-grave read as two Latin-1 characters) and resolves to the wrong
+ * dictionary entry. A strict UTF-8 decode answers the question: bytes that
+ * decode cleanly are UTF-8, anything that throws is left on the 1252 default.
+ */
+export function csvCodepage(bytes) {
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return UTF8;
+  } catch {
+    return WINDOWS_1252;
+  }
+}
+
 const isEmptyRow = (r) => !r || r.every((c) => String(c ?? "").trim() === "");
 
 export function parse(workbook, sheetToJson) {

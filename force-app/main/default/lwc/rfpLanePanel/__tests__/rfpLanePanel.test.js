@@ -134,6 +134,15 @@ describe("c-rfp-lane-panel", () => {
     expect(results.rows[0].quoteId).toBe("0Q1");
   });
 
+  it("wraps the history results in a horizontal scroller", async () => {
+    const el = await mount();
+    // The panel column is narrower than the results table; without the wrapper
+    // the table renders one character per line.
+    const scroller = field(el, "history-scroll");
+    expect(scroller).not.toBeNull();
+    expect(scroller.querySelector("c-lane-benchmark-results")).not.toBeNull();
+  });
+
   it("asks for a 50 km radius on both ends when the lane fell back to RADIUS-50KM", async () => {
     await mount({
       lane: {
@@ -168,6 +177,10 @@ describe("c-rfp-lane-panel", () => {
     change(el, "margin", { value: "15" });
     await flush();
     expect(field(el, "sell").textContent.trim()).toBe("2300.00");
+    // The amount and the currency need a space between them (\u00a0 counts).
+    expect(
+      field(el, "sell").parentElement.textContent.replace(/\s+/g, " ").trim()
+    ).toBe("Sell 2300.00 CAD");
 
     field(el, "save-price").click();
     expect(handler).toHaveBeenCalledTimes(1);
