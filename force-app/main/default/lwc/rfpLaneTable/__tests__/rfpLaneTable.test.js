@@ -134,6 +134,75 @@ describe("c-rfp-lane-table", () => {
     expect(pickers[0].dataset.laneId).toBe("a0L00000002");
   });
 
+  it("keeps the unresolved city on screen next to its picker", async () => {
+    const el = await mount();
+    const row = rowsOf(el)[1];
+    expect(row.querySelector('[data-id="origin"]').textContent).toContain(
+      "Laval"
+    );
+    expect(row.querySelector("c-lane-benchmark-place-picker")).not.toBeNull();
+    // the resolved destination keeps its text and gets no picker
+    expect(row.querySelector('[data-id="destination"]').textContent).toContain(
+      "Calgary"
+    );
+  });
+
+  it("says so when a Done snapshot found loads but no median", async () => {
+    const el = await mount({
+      lanes: [
+        {
+          ...RESOLVED_LANE,
+          Hist_Count__c: 3,
+          Hist_Median__c: null
+        }
+      ]
+    });
+    expect(
+      rowsOf(el)[0].querySelector('[data-id="hist"]').textContent.trim()
+    ).toBe("3 · no median");
+  });
+
+  it("selects a row from the keyboard without stealing the picker's keys", async () => {
+    const el = await mount();
+    const handler = jest.fn();
+    el.addEventListener("select", handler);
+    const row = rowsOf(el)[1];
+    expect(row.getAttribute("tabindex")).toBe("0");
+
+    row.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", cancelable: true })
+    );
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler.mock.calls[0][0].detail).toEqual({
+      laneId: "a0L00000002"
+    });
+
+    row.dispatchEvent(
+      new KeyboardEvent("keydown", { key: " ", cancelable: true })
+    );
+    expect(handler).toHaveBeenCalledTimes(2);
+
+    row.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "a", cancelable: true })
+    );
+    expect(handler).toHaveBeenCalledTimes(2);
+
+    // a key pressed inside the inline picker must not select the row
+    row
+      .querySelector("c-lane-benchmark-place-picker")
+      .dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      );
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it("marks the selected row for assistive technology", async () => {
+    const el = await mount({ selectedId: "a0L00000002" });
+    const rows = rowsOf(el);
+    expect(rows[0].getAttribute("aria-selected")).toBe("false");
+    expect(rows[1].getAttribute("aria-selected")).toBe("true");
+  });
+
   it("emits select with the lane id when a row is clicked", async () => {
     const el = await mount();
     const handler = jest.fn();

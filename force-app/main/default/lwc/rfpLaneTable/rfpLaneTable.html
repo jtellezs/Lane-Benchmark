@@ -22,35 +22,32 @@
             data-id="lane-row"
             data-lane-id={r.id}
             class={r.rowClass}
+            tabindex="0"
+            aria-selected={r.ariaSelected}
             onclick={handleRowClick}
+            onkeydown={handleRowKey}
           >
             <td>{r.rowNumber}</td>
             <td class="slds-cell-wrap">
-              <template lwc:if={r.originResolved}>
-                <span data-id="origin">{r.originText}</span>
-              </template>
-              <template lwc:else>
+              <span data-id="origin">{r.originText}</span>
+              <template lwc:if={r.originUnresolved}>
                 <c-lane-benchmark-place-picker
                   data-lane-id={r.id}
                   data-side="origin"
                   label="Origin"
                   value={r.originKey}
-                  value-label={r.originText}
                   onplacechange={handlePlaceChange}
                 ></c-lane-benchmark-place-picker>
               </template>
             </td>
             <td class="slds-cell-wrap">
-              <template lwc:if={r.destinationResolved}>
-                <span data-id="destination">{r.destinationText}</span>
-              </template>
-              <template lwc:else>
+              <span data-id="destination">{r.destinationText}</span>
+              <template lwc:if={r.destinationUnresolved}>
                 <c-lane-benchmark-place-picker
                   data-lane-id={r.id}
                   data-side="destination"
                   label="Destination"
                   value={r.destinationKey}
-                  value-label={r.destinationText}
                   onplacechange={handlePlaceChange}
                 ></c-lane-benchmark-place-picker>
               </template>

@@ -56,6 +56,9 @@ export default class RfpBidForm extends LightningElement {
   }
   set bid(value) {
     this._bid = value || null;
+    // Always from a clean slate: the panel reuses one form for "Add carrier
+    // rate" and for editing, so an edited bid must not leak into the next add.
+    this.reset();
     if (!value) {
       return;
     }
@@ -98,6 +101,26 @@ export default class RfpBidForm extends LightningElement {
   error = null;
 
   currencyOptions = CURRENCIES;
+
+  reset() {
+    this.bidId = null;
+    this.carrierId = null;
+    this.carrierLabel = "";
+    this.newCarrier = false;
+    this.typedName = "";
+    this.contactName = "";
+    this.contactEmail = "";
+    this.contactPhone = "";
+    this.rate = null;
+    this.currencyIso = this._currency;
+    this.fsc = null;
+    this.fscIncluded = false;
+    this.transitDays = null;
+    this.validFrom = isoDate(new Date());
+    this.expiresOn = inDays(DEFAULT_VALID_DAYS);
+    this.notes = "";
+    this.error = null;
+  }
 
   get saveLabel() {
     return this.bidId ? "Update bid" : "Save bid";

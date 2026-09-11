@@ -212,6 +212,88 @@ describe("c-rfp-lane-panel", () => {
     expect(field(el, "save-price").disabled).toBe(false);
   });
 
+  it("will not save a cost the bids have not produced yet", async () => {
+    // the lane already points at a bid, but getBids came back empty (or failed),
+    // so there is no rate behind "Bid" and saving would null out the stored cost
+    getBids.mockResolvedValue([]);
+    const el = await mount({
+      lane: {
+        ...LANE,
+        Cost_Source__c: "Bid",
+        Selected_Bid__c: "a0B00000001",
+        Cost__c: 1800
+      }
+    });
+    const handler = jest.fn();
+    el.addEventListener("pricingchange", handler);
+
+    expect(field(el, "cost").value).toBeNull();
+    expect(field(el, "save-price").disabled).toBe(true);
+    field(el, "save-price").click();
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("will not save an empty manual cost either", async () => {
+    const el = await mount({ lane: { ...LANE, Cost__c: null } });
+    const handler = jest.fn();
+    el.addEventListener("pricingchange", handler);
+    expect(field(el, "save-price").disabled).toBe(true);
+    field(el, "save-price").click();
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("drops the previous lane's bids and history when the lane changes", async () => {
+    getBids.mockResolvedValue([CHEAP_BID]);
+    const el = await mount();
+    expect(el.shadowRoot.querySelectorAll('[data-id="bid-row"]').length).toBe(
+      1
+    );
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-results").rows.length
+    ).toBe(1);
+
+    // the next lane's loads never resolve during this tick, so anything on
+    // screen right after the switch would be the old lane's
+    let releaseBids;
+    getBids.mockReturnValue(
+      new Promise((resolve) => {
+        releaseBids = resolve;
+      })
+    );
+    search.mockReturnValue(new Promise(() => {}));
+    el.lane = { ...LANE, Id: "a0L00000002", Name: "RL-0002" };
+    await flush();
+
+    expect(el.shadowRoot.querySelectorAll('[data-id="bid-row"]').length).toBe(
+      0
+    );
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-results").rows.length
+    ).toBe(0);
+    releaseBids([]);
+  });
+
+  it("drops a response that lands after the panel moved to another lane", async () => {
+    let releaseSearch;
+    search.mockReturnValueOnce(
+      new Promise((resolve) => {
+        releaseSearch = resolve;
+      })
+    );
+    const el = await mount();
+
+    // the next lane has an unresolved end, so it runs no search of its own
+    el.lane = { ...LANE, Id: "a0L00000002", Destination_Place__r: undefined };
+    await flush();
+
+    releaseSearch(HISTORY);
+    await flush();
+    await flush();
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-results").rows.length
+    ).toBe(0);
+  });
+
   it("hints at a cheaper active bid only when it beats the current cost", async () => {
     getBids.mockResolvedValue([CHEAP_BID]);
     const el = await mount();
@@ -264,6 +346,45 @@ describe("c-rfp-lane-panel", () => {
       laneId: "a0L00000001"
     });
     expect(el.shadowRoot.querySelector("c-rfp-bid-form")).toBeNull();
+  });
+
+  it("opens the form on an existing bid when its row is clicked", async () => {
+    getBids.mockResolvedValue([CHEAP_BID]);
+    const el = await mount();
+    field(el, "bid-row").click();
+    await flush();
+    const form = el.shadowRoot.querySelector("c-rfp-bid-form");
+    expect(form).not.toBeNull();
+    expect(form.bid).toEqual(CHEAP_BID);
+    expect(form.laneId).toBe("a0L00000001");
+
+    // switching to Add clears the edited bid out of the same form
+    field(el, "add-bid").click();
+    await flush();
+    expect(el.shadowRoot.querySelector("c-rfp-bid-form").bid).toBeNull();
+  });
+
+  it("does not report a saved bid when the refresh fails", async () => {
+    const el = await mount();
+    const handler = jest.fn();
+    el.addEventListener("bidsaved", handler);
+    field(el, "add-bid").click();
+    await flush();
+
+    getBids.mockRejectedValue({
+      body: { message: "The bids could not be loaded." }
+    });
+    el.shadowRoot
+      .querySelector("c-rfp-bid-form")
+      .dispatchEvent(new CustomEvent("save", { detail: { bid: {} } }));
+    await flush();
+    await flush();
+
+    expect(saveBid).toHaveBeenCalledTimes(1);
+    expect(handler).not.toHaveBeenCalled();
+    expect(field(el, "panel-error").textContent).toContain(
+      "could not be loaded"
+    );
   });
 
   it("shows the Apex message when a bid cannot be saved", async () => {

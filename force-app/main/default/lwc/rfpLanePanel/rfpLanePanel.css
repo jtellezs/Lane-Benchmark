@@ -8,3 +8,12 @@
   color: #0176d3;
   text-decoration: underline;
 }
+.bid-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.25rem 0;
+}
+.bid-row:hover {
+  background: #f3f3f3;
+}

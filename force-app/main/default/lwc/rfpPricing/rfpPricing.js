@@ -44,7 +44,11 @@ export function bidRows(bids) {
   return (bids || []).map((b) => ({
     ...b,
     rateText: `${money(b.Rate__c)} ${b.CurrencyIsoCode}`,
-    rowClass: b.Status__c === "Expired" ? "slds-text-color_weak" : ""
+    rowClass: b.Status__c === "Expired" ? "slds-text-color_weak" : "",
+    buttonClass:
+      b.Status__c === "Expired"
+        ? "slds-button slds-button_reset bid-row slds-text-color_weak"
+        : "slds-button slds-button_reset bid-row"
   }));
 }
 

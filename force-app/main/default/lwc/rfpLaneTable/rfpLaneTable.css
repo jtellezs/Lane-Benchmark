@@ -7,6 +7,10 @@
 .lane-row_selected {
   background: #ecebea;
 }
+.lane-row:focus {
+  outline: 2px solid #0176d3;
+  outline-offset: -2px;
+}
 .w-3 {
   width: 3rem;
 }

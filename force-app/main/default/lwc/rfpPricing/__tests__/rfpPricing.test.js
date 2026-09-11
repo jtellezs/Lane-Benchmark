@@ -91,6 +91,8 @@ describe("rfpPricing", () => {
     expect(expired.rateText).toBe("1200.00 CAD");
     expect(expired.rowClass).toBe("slds-text-color_weak");
     expect(expired.Carrier_Display__c).toBe("Old Lines");
+    expect(active.buttonClass).toBe("slds-button slds-button_reset bid-row");
+    expect(expired.buttonClass).toContain("slds-text-color_weak");
   });
 
   it("hints at the best bid only when it beats a real cost", () => {

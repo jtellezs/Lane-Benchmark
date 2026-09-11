@@ -23,7 +23,8 @@ function historyText(lane) {
   }
   const count = lane.Hist_Count__c || 0;
   const median = money(lane.Hist_Median__c);
-  return median ? `${count} · median ${median}` : `${count}`;
+  // A Done snapshot with no median means matches were found but none priced.
+  return median ? `${count} · median ${median}` : `${count} · no median`;
 }
 
 function historyTitle(lane) {
@@ -73,10 +74,13 @@ export default class RfpLaneTable extends LightningElement {
       rowNumber: l.Row_Number__c,
       rowClass:
         l.Id === this.selectedId ? "lane-row lane-row_selected" : "lane-row",
-      originResolved: !!l.Origin_Resolved__c,
+      ariaSelected: l.Id === this.selectedId ? "true" : "false",
+      // The spreadsheet text stays on screen next to the picker, so the user can
+      // see which city failed to resolve while they fix it.
+      originUnresolved: !l.Origin_Resolved__c,
       originText: placeText(l.Origin_City__c, l.Origin_Province__c),
       originKey: l.Origin_Place__r ? l.Origin_Place__r.Key__c : null,
-      destinationResolved: !!l.Destination_Resolved__c,
+      destinationUnresolved: !l.Destination_Resolved__c,
       destinationText: placeText(
         l.Destination_City__c,
         l.Destination_Province__c
@@ -99,10 +103,32 @@ export default class RfpLaneTable extends LightningElement {
   }
 
   handleRowClick(event) {
+    this.emitSelect(event.currentTarget);
+  }
+
+  /**
+   * Only when the row itself has focus: the inline place picker lives inside the
+   * row, and its own Enter / Space (pick an option, type a space) must not be
+   * swallowed into a row selection.
+   */
+  handleRowKey(event) {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    if (
+      event.key !== "Enter" &&
+      event.key !== " " &&
+      event.key !== "Spacebar"
+    ) {
+      return;
+    }
+    event.preventDefault();
+    this.emitSelect(event.currentTarget);
+  }
+
+  emitSelect(row) {
     this.dispatchEvent(
-      new CustomEvent("select", {
-        detail: { laneId: event.currentTarget.dataset.laneId }
-      })
+      new CustomEvent("select", { detail: { laneId: row.dataset.laneId } })
     );
   }
 

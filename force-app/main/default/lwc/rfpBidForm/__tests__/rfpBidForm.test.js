@@ -160,4 +160,30 @@ describe("c-rfp-bid-form", () => {
     field(el, "cancel").click();
     expect(handler).toHaveBeenCalledTimes(1);
   });
+
+  it("clears back to a blank bid when the panel switches to Add", async () => {
+    const el = await mount({
+      bid: {
+        Id: "a0B00000001",
+        Carrier__c: null,
+        Carrier_Name__c: "Speedy Lines",
+        Rate__c: 1750,
+        CurrencyIsoCode: "USD",
+        Valid_From__c: "2026-01-01",
+        Notes__c: "Renewal"
+      }
+    });
+    expect(field(el, "rate").value).toBe(1750);
+    expect(field(el, "new-carrier").checked).toBe(true);
+
+    el.bid = null;
+    await flush();
+    expect(field(el, "rate").value).toBeNull();
+    expect(field(el, "currency").value).toBe("CAD");
+    expect(field(el, "valid-from").value).toBe(TODAY);
+    expect(field(el, "expires-on").value).toBe(IN_30_DAYS);
+    expect(field(el, "notes").value).toBe("");
+    expect(field(el, "new-carrier").checked).toBe(false);
+    expect(field(el, "save").label).toBe("Save bid");
+  });
 });

@@ -39,9 +39,10 @@ export default class RfpLanePanel extends LightningElement {
       this.syncFromLane();
       this.loadBids();
     }
-    // Re-sending the same lane after an end was resolved gives it place keys it
-    // did not have, so the history search keys off those and not off the Id.
-    if (historyKey(this._lane) !== previousHistoryKey) {
+    // A new lane always re-searches. Re-sending the same lane searches again
+    // only once its place keys change — an end resolved through the table gives
+    // it keys it did not have, while a pricing round trip changes nothing.
+    if (laneChanged || historyKey(this._lane) !== previousHistoryKey) {
       this.loadHistory();
     }
   }
@@ -54,6 +55,7 @@ export default class RfpLanePanel extends LightningElement {
   marginText = "";
   notes = "";
   showForm = false;
+  editingBid = null;
   truncated = false;
   error = null;
   loadingHistory = false;
@@ -98,27 +100,37 @@ export default class RfpLanePanel extends LightningElement {
         ? ""
         : String(l.Margin__c);
     this.notes = l.Notes__c || "";
+    // Nothing from the lane we were showing may survive into the new one.
+    this.bids = [];
+    this.historyRows = [];
+    this.truncated = false;
     this.showForm = false;
+    this.editingBid = null;
     this.error = null;
   }
 
+  /** Resolves true only when the panel is showing this lane's current bids. */
   async loadBids() {
+    // Bumped before the early return too, so a request still in flight for the
+    // lane we just left cannot land on top of the lane now on screen.
+    const seq = ++this.bidSeq;
     const laneId = this.laneId;
     if (!laneId) {
       this.bids = [];
-      return;
+      return false;
     }
-    const seq = ++this.bidSeq;
     try {
       const rows = await getBids({ laneId });
       if (seq === this.bidSeq) {
         this.bids = rows || [];
       }
+      return true;
     } catch (e) {
       if (seq === this.bidSeq) {
         this.bids = [];
         this.error = apexMessage(e, "The bids could not be loaded.");
       }
+      return false;
     }
   }
 
@@ -127,12 +139,13 @@ export default class RfpLanePanel extends LightningElement {
    * an unresolved end has no key to match loads on.
    */
   async loadHistory() {
+    const seq = ++this.historySeq;
     if (!historyKey(this._lane)) {
       this.historyRows = [];
       this.truncated = false;
+      this.loadingHistory = false;
       return;
     }
-    const seq = ++this.historySeq;
     this.loadingHistory = true;
     try {
       const result = await search({
@@ -161,9 +174,13 @@ export default class RfpLanePanel extends LightningElement {
   get costLocked() {
     return this.costSource !== "Manual";
   }
-  /** A "Bid" cost with no bid behind it would save an inconsistent lane. */
+  /**
+   * With no cost to send, saveLanePricing would write nulls over whatever cost
+   * and sell the lane already had. That includes a "Bid" source whose bid is not
+   * loaded — bids still in flight, or a getBids that failed.
+   */
   get cannotSavePrice() {
-    return this.isBidSource && !this.selectedBidId;
+    return this.costNumber === null;
   }
   get hasBids() {
     return this.bids.length > 0;
@@ -234,6 +251,9 @@ export default class RfpLanePanel extends LightningElement {
   }
 
   handleSavePrice() {
+    if (this.cannotSavePrice) {
+      return;
+    }
     this.dispatchEvent(
       new CustomEvent("pricingchange", { detail: this.pricing })
     );
@@ -241,10 +261,18 @@ export default class RfpLanePanel extends LightningElement {
 
   handleAddBid() {
     this.error = null;
+    this.editingBid = null;
+    this.showForm = true;
+  }
+  handleEditBid(event) {
+    const bidId = event.currentTarget.dataset.bidId;
+    this.error = null;
+    this.editingBid = this.bids.find((b) => b.Id === bidId) || null;
     this.showForm = true;
   }
   handleCancelBid() {
     this.showForm = false;
+    this.editingBid = null;
   }
 
   async handleSaveBid(event) {
@@ -252,12 +280,17 @@ export default class RfpLanePanel extends LightningElement {
     try {
       await saveBid({ bidJson: JSON.stringify(event.detail.bid) });
       this.showForm = false;
-      await this.loadBids();
+      this.editingBid = null;
+    } catch (e) {
+      this.error = apexMessage(e, "The bid could not be saved.");
+      return;
+    }
+    // Only once the panel is showing the saved bid is the container told to
+    // refresh the lane; a failed refresh leaves the error on screen instead.
+    if (await this.loadBids()) {
       this.dispatchEvent(
         new CustomEvent("bidsaved", { detail: { laneId: this.laneId } })
       );
-    } catch (e) {
-      this.error = apexMessage(e, "The bid could not be saved.");
     }
   }
 }
