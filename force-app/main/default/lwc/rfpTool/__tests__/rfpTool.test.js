@@ -189,6 +189,38 @@ describe("c-rfp-tool", () => {
     expect(getProject).toHaveBeenCalledTimes(1);
   });
 
+  it("spins while opening and shows the progress bar only for a chunked run", async () => {
+    let release;
+    getProject.mockImplementation(
+      () => new Promise((resolve) => (release = resolve))
+    );
+    getLanes.mockResolvedValue(lanes(2));
+    const el = mount();
+    CurrentPageReference.emit({ state: { c__projectId: "a0P1" } });
+    await settle(2);
+    expect(field(el, "loading")).not.toBeNull();
+    expect(field(el, "progress")).toBeNull();
+    expect(field(el, "stop")).toBeNull();
+
+    release(PROJECT);
+    await settle(8);
+    expect(field(el, "loading")).toBeNull();
+
+    loadHistory.mockImplementation(async ({ laneIds }) => {
+      await flush();
+      expect(field(el, "progress")).not.toBeNull();
+      expect(field(el, "loading")).toBeNull();
+      return laneIds.map((id) => ({
+        ...pendingLane(Number(id.replace("a0L", ""))),
+        Hist_Status__c: "Done"
+      }));
+    });
+    field(el, "load-history").click();
+    await settle(10);
+    expect(loadHistory).toHaveBeenCalledTimes(1);
+    expect(field(el, "progress")).toBeNull();
+  });
+
   it("opens an empty project on the upload step", async () => {
     const el = await openFromUrl([]);
     expect(child(el, "c-rfp-upload")).not.toBeNull();
@@ -295,6 +327,49 @@ describe("c-rfp-tool", () => {
       expect(child(el, "c-rfp-lane-table")).toBeNull();
     });
 
+    it("keeps the mapping-failure note visible after the lanes load", async () => {
+      const el = await toMapStep(2);
+      importLanes.mockResolvedValue({
+        imported: 2,
+        skipped: 0,
+        unresolvedEnds: 0
+      });
+      saveProject.mockRejectedValue({ body: { message: "mapping too long" } });
+      getLanes.mockResolvedValue(lanes(2));
+      child(el, "c-rfp-column-mapper").dispatchEvent(
+        new CustomEvent("import", {
+          detail: { mapping: { originCity: "From" } }
+        })
+      );
+      await settle(14);
+      // loadLanes runs after rememberMapping, and must not clear the notice.
+      expect(child(el, "c-rfp-lane-table")).not.toBeNull();
+      expect(field(el, "mapping-note").textContent).toContain(
+        "mapping too long"
+      );
+      expect(field(el, "error")).toBeNull();
+    });
+
+    it("says how far a stopped import got", async () => {
+      const el = await toMapStep(450);
+      getLanes.mockResolvedValue(lanes(2));
+      importLanes.mockImplementation(async () => {
+        await flush();
+        field(el, "stop").click();
+        return { imported: 200, skipped: 0, unresolvedEnds: 0 };
+      });
+      child(el, "c-rfp-column-mapper").dispatchEvent(
+        new CustomEvent("import", {
+          detail: { mapping: { originCity: "From" } }
+        })
+      );
+      await settle(16);
+      expect(importLanes).toHaveBeenCalledTimes(1);
+      expect(field(el, "summary").textContent).toContain(
+        "stopped after 200 rows; imported 200, skipped 0, unresolved ends 0"
+      );
+    });
+
     it("starts the mapper from the customer's saved mapping", async () => {
       columnMappingFor.mockResolvedValue(
         JSON.stringify({ destinationCity: "To", mode: "Gone" })
@@ -394,6 +469,11 @@ describe("c-rfp-tool", () => {
       expect(loadHistory).toHaveBeenCalledTimes(1);
       expect(loadHistory.mock.calls[0][0].laneIds.length).toBe(10);
       expect(loadHistory.mock.calls[0][0].laneIds[0]).toBe("a0L11");
+      // The run that succeeded owns the banner, so the stale failure is gone.
+      expect(field(el, "error")).toBeNull();
+      expect(child(el, "c-rfp-lane-table").lanes[10].Hist_Status__c).toBe(
+        "Done"
+      );
     });
 
     it("refreshes every resolved lane and skips the unresolved ones", async () => {
@@ -528,23 +608,5 @@ describe("c-rfp-tool", () => {
       await settle(8);
       expect(loadHistory).not.toHaveBeenCalled();
     });
-  });
-
-  it("collects the bids of lanes with a selected bid for the export", async () => {
-    const list = lanes(3);
-    list[0].Selected_Bid__c = "a0B1";
-    list[2].Selected_Bid__c = "a0B3";
-    getBids.mockResolvedValue([{ Id: "a0B1", Rate__c: 1000 }]);
-    const el = await openFromUrl(list);
-    await settle(8);
-    expect(getBids).toHaveBeenCalledTimes(2);
-    expect(getBids.mock.calls.map((c) => c[0].laneId)).toEqual([
-      "a0L1",
-      "a0L3"
-    ]);
-    expect(Object.keys(child(el, "c-rfp-export").bidsByLaneId)).toEqual([
-      "a0L1",
-      "a0L3"
-    ]);
   });
 });

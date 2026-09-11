@@ -1,9 +1,15 @@
 import { createElement } from "lwc";
 import RfpExport from "c/rfpExport";
 import getRawRows from "@salesforce/apex/RfpLaneController.getRawRows";
+import getBids from "@salesforce/apex/RfpBidController.getBids";
 
 jest.mock(
   "@salesforce/apex/RfpLaneController.getRawRows",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/RfpBidController.getBids",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -39,14 +45,16 @@ const rawPage = (count, from) =>
     Raw_Row__c: JSON.stringify({ From: "Montreal", To: "Toronto" })
   }));
 
-function mount(lanes = LANES, bidsByLaneId = {}) {
+function mount(lanes = LANES) {
   const el = createElement("c-rfp-export", { is: RfpExport });
   el.project = PROJECT;
   el.lanes = lanes;
-  el.bidsByLaneId = bidsByLaneId;
   document.body.appendChild(el);
   return el;
 }
+
+/** The rows the "Bids" sheet was built from, as aoa_to_sheet received them. */
+const bidSheet = () => window.XLSX.utils.aoa_to_sheet.mock.calls[1][0];
 
 const field = (el, id) => el.shadowRoot.querySelector(`[data-id="${id}"]`);
 
@@ -76,6 +84,7 @@ describe("c-rfp-export", () => {
       },
       write: jest.fn(() => new Uint8Array(2))
     };
+    getBids.mockResolvedValue([]);
     createUrl = jest.fn(() => "blob:x");
     revoke = jest.fn();
     global.URL.createObjectURL = createUrl;
@@ -162,5 +171,65 @@ describe("c-rfp-export", () => {
     await clickAndSettle(el, "export");
     expect(field(el, "error").textContent).toContain("rows are gone");
     expect(createUrl).not.toHaveBeenCalled();
+  });
+
+  it("fetches the bids of every lane with a selected bid, at export time", async () => {
+    getRawRows.mockResolvedValueOnce(rawPage(2, 1));
+    getBids.mockImplementation(({ laneId }) =>
+      Promise.resolve([
+        {
+          Id: laneId === "a0L1" ? "a0B1" : "a0B3",
+          Carrier_Display__c: `Carrier ${laneId}`,
+          Rate__c: 1000
+        }
+      ])
+    );
+    const lanes = [
+      { ...LANES[0] },
+      { ...LANES[1] },
+      { Id: "a0L3", Row_Number__c: 3, Cost__c: 900, Selected_Bid__c: "a0B3" }
+    ];
+    const el = mount(lanes);
+    await clickAndSettle(el, "export");
+
+    // One call per lane with a selected bid, and none for the lane without one.
+    expect(getBids).toHaveBeenCalledTimes(2);
+    expect(getBids.mock.calls.map((c) => c[0].laneId)).toEqual([
+      "a0L1",
+      "a0L3"
+    ]);
+    const rows = bidSheet();
+    expect(rows.length).toBe(3);
+    expect(rows[1]).toContain("Carrier a0L1");
+    expect(rows[2]).toContain("Carrier a0L3");
+    expect(field(el, "note")).toBeNull();
+  });
+
+  it("fetches no bids when no lane has a selected bid", async () => {
+    getRawRows.mockResolvedValueOnce(rawPage(1, 1));
+    const el = mount([{ Id: "a0L9", Row_Number__c: 9, Cost__c: 500 }]);
+    await clickAndSettle(el, "export");
+    expect(getBids).not.toHaveBeenCalled();
+    expect(createUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it("notes the lanes whose bids could not be loaded and still exports", async () => {
+    getRawRows.mockResolvedValueOnce(rawPage(1, 1));
+    getBids.mockRejectedValue({ body: { message: "no access" } });
+    const el = mount();
+    await clickAndSettle(el, "export");
+    expect(field(el, "note").textContent).toContain(
+      "Bids for 1 lanes could not be loaded."
+    );
+    expect(createUrl).toHaveBeenCalledTimes(1);
+    expect(bidSheet().length).toBe(1);
+  });
+
+  it("treats a zero cost as unpriced", async () => {
+    getRawRows.mockResolvedValue([]);
+    const el = mount([{ Id: "a0L4", Row_Number__c: 4, Cost__c: 0 }]);
+    await clickAndSettle(el, "export");
+    expect(getRawRows).not.toHaveBeenCalled();
+    expect(field(el, "export-anyway")).not.toBeNull();
   });
 });

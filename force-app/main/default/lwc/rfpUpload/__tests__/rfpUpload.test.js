@@ -1,8 +1,3 @@
-import { createElement } from "lwc";
-import RfpUpload from "c/rfpUpload";
-import { loadScript } from "lightning/platformResourceLoader";
-import attachFile from "@salesforce/apex/RfpProjectController.attachFile";
-
 jest.mock(
   "@salesforce/apex/RfpProjectController.attachFile",
   () => ({ default: jest.fn() }),
@@ -12,10 +7,33 @@ jest.mock("@salesforce/resourceUrl/sheetJs", () => "/sheetjs", {
   virtual: true
 });
 
+// The SheetJS loader (c/rfpSheetLoader) caches its load promise in module scope,
+// so every test takes a fresh copy of the module graph — and an unused loadScript
+// mock — instead of inheriting whatever the test before it left cached.
+let createElement;
+let RfpUpload;
+let loadScript;
+let attachFile;
+// Resetting the module registry also makes a new LWC engine, and jsdom's custom
+// element registry is global, so each test mounts under its own tag name rather
+// than trying to re-upgrade one the previous engine already claimed.
+let tagSeq = 0;
+let tagName;
+
+function freshModules() {
+  jest.resetModules();
+  ({ createElement } = require("lwc"));
+  RfpUpload = require("c/rfpUpload").default;
+  ({ loadScript } = require("lightning/platformResourceLoader"));
+  attachFile =
+    require("@salesforce/apex/RfpProjectController.attachFile").default;
+  tagName = `c-rfp-upload-${tagSeq++}`;
+}
+
 const flush = () => Promise.resolve().then(() => Promise.resolve());
 
 function mount(projectId) {
-  const el = createElement("c-rfp-upload", { is: RfpUpload });
+  const el = createElement(tagName, { is: RfpUpload });
   el.projectId = projectId;
   document.body.appendChild(el);
   return el;
@@ -38,6 +56,7 @@ const AOA = [
 
 describe("c-rfp-upload", () => {
   beforeEach(() => {
+    freshModules();
     window.XLSX = {
       read: jest.fn(() => WB),
       utils: { sheet_to_json: jest.fn(() => AOA) }

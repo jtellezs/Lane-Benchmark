@@ -6,10 +6,22 @@
           {error}
         </p>
       </template>
-      <template lwc:if={note}>
-        <p data-id="note" class="slds-text-color_weak slds-m-bottom_x-small">
-          {note}
+      <template lwc:if={mappingNote}>
+        <p
+          data-id="mapping-note"
+          class="slds-text-color_weak slds-m-bottom_x-small"
+        >
+          {mappingNote}
         </p>
+      </template>
+
+      <template lwc:if={loading}>
+        <div class="slds-is-relative slds-p-vertical_large" data-id="loading">
+          <lightning-spinner
+            alternative-text="Loading the project"
+            size="small"
+          ></lightning-spinner>
+        </div>
       </template>
 
       <template lwc:if={busy}>
@@ -144,11 +156,7 @@
             ></lightning-button>
           </div>
           <div class="slds-col">
-            <c-rfp-export
-              project={project}
-              lanes={lanes}
-              bids-by-lane-id={bidsByLaneId}
-            ></c-rfp-export>
+            <c-rfp-export project={project} lanes={lanes}></c-rfp-export>
           </div>
         </div>
 

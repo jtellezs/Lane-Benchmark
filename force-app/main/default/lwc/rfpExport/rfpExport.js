@@ -1,19 +1,21 @@
 import { LightningElement, api } from "lwc";
 import getRawRows from "@salesforce/apex/RfpLaneController.getRawRows";
+import getBids from "@salesforce/apex/RfpBidController.getBids";
 import { buildSheets, exportFileName } from "c/rfpWorkbook";
 import { ensureSheetJs } from "c/rfpSheetLoader";
+import { series } from "c/rfpBatch";
 
 /** getRawRows returns one page of this size; a short page is the last one. */
 const PAGE = 500;
+/** One getBids round trip per lane, so past this many the Bids sheet is capped. */
+const MAX_BID_LANES = 200;
 const XLSX_MIME =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-const hasCost = (lane) =>
-  lane.Cost__c !== null && lane.Cost__c !== undefined && lane.Cost__c !== "";
+const hasCost = (lane) => Number(lane.Cost__c) > 0;
 
 export default class RfpExport extends LightningElement {
   @api project;
-  @api bidsByLaneId;
 
   _lanes = [];
   @api
@@ -28,6 +30,8 @@ export default class RfpExport extends LightningElement {
 
   busy = false;
   confirming = false;
+  status = "";
+  note = "";
   error = null;
 
   get priced() {
@@ -54,10 +58,15 @@ export default class RfpExport extends LightningElement {
 
   async run() {
     this.busy = true;
+    this.note = "";
     try {
+      this.status = "Reading the rows…";
       const rawRows = await this.allRawRows();
+      this.status = "Collecting the bids…";
+      const bidsByLaneId = await this.collectBids();
+      this.status = "Building the workbook…";
       await ensureSheetJs(this);
-      const sheets = buildSheets(this._lanes, rawRows, this.bidsByLaneId);
+      const sheets = buildSheets(this._lanes, rawRows, bidsByLaneId);
       const XLSX = window.XLSX;
       const book = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(
@@ -77,6 +86,7 @@ export default class RfpExport extends LightningElement {
         e?.body?.message || e?.message || "The export could not be built.";
     } finally {
       this.busy = false;
+      this.status = "";
     }
   }
 
@@ -90,6 +100,37 @@ export default class RfpExport extends LightningElement {
       (await getRawRows({ projectId: this.project?.Id, offset })) || [];
     all.push(...page);
     return page.length === PAGE ? this.allRawRows(offset + PAGE, all) : all;
+  }
+
+  /**
+   * The Bids sheet needs one getBids call per lane that has a selected bid, so
+   * they are fetched here — at export time, for this click only — rather than
+   * kept warm for an export that may never happen. A lane whose bids fail is
+   * left out of the sheet and counted into the note.
+   */
+  async collectBids() {
+    const withBid = this._lanes.filter((l) => l.Selected_Bid__c);
+    const wanted = withBid.slice(0, MAX_BID_LANES);
+    const bids = {};
+    let failed = 0;
+    await series(wanted, async (lane) => {
+      try {
+        bids[lane.Id] = (await getBids({ laneId: lane.Id })) || [];
+      } catch {
+        failed += 1;
+      }
+    });
+    const notes = [];
+    if (withBid.length > wanted.length) {
+      notes.push(
+        `Only the first ${MAX_BID_LANES} lanes with a selected bid carry their bids into the workbook.`
+      );
+    }
+    if (failed) {
+      notes.push(`Bids for ${failed} lanes could not be loaded.`);
+    }
+    this.note = notes.join(" ");
+    return bids;
   }
 
   download(blob) {

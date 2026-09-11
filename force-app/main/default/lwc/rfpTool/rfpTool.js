@@ -8,7 +8,6 @@ import importLanes from "@salesforce/apex/RfpLaneController.importLanes";
 import saveLanePricing from "@salesforce/apex/RfpLaneController.saveLanePricing";
 import resolveLaneEnd from "@salesforce/apex/RfpLaneController.resolveLaneEnd";
 import loadHistory from "@salesforce/apex/RfpHistoryController.loadHistory";
-import getBids from "@salesforce/apex/RfpBidController.getBids";
 import { toImportRows } from "c/rfpSheet";
 import { guess } from "c/rfpHeaderGuess";
 import { chunk, mergeLanes, lanesForHistory, series } from "c/rfpBatch";
@@ -17,7 +16,6 @@ import { chunk, mergeLanes, lanesForHistory, series } from "c/rfpBatch";
 // lane ids, so both run as a sequence of chunks with a progress bar and a Stop.
 const IMPORT_CHUNK = 200;
 const HISTORY_CHUNK = 10;
-const MAX_BID_LANES = 200;
 const PRECISIONS = [
   { label: "City", value: "CITY" },
   { label: "Province / state", value: "PROVINCE" },
@@ -43,7 +41,6 @@ export default class RfpTool extends LightningElement {
   project = null;
   lanes = [];
   selectedId = null;
-  bidsByLaneId = {};
 
   fileName = "";
   headers = [];
@@ -54,11 +51,14 @@ export default class RfpTool extends LightningElement {
   precision = "CITY";
   lookbackDays = 90;
 
+  // `loading` is a single round trip (a spinner); `busy` is a chunked run that
+  // owns the progress bar and the Stop button.
+  loading = false;
   busy = false;
   stopRequested = false;
   progress = { done: 0, total: 0 };
   error = null;
-  note = "";
+  mappingNote = "";
   summary = "";
   openedProjectId = null;
 
@@ -151,8 +151,9 @@ export default class RfpTool extends LightningElement {
 
   async openProject(projectId) {
     this.openedProjectId = projectId;
-    this.busy = true;
+    this.loading = true;
     this.error = null;
+    this.mappingNote = "";
     this.summary = "";
     this.selectedId = null;
     this.progress = { done: 0, total: 0 };
@@ -164,7 +165,7 @@ export default class RfpTool extends LightningElement {
     } catch (e) {
       this.error = apexMessage(e, "The RFP project could not be opened.");
     } finally {
-      this.busy = false;
+      this.loading = false;
     }
   }
 
@@ -184,7 +185,6 @@ export default class RfpTool extends LightningElement {
 
   async loadLanes() {
     this.lanes = (await getLanes({ projectId: this.projectId })) || [];
-    await this.loadBidsForExport();
   }
 
   handleParsed(event) {
@@ -203,19 +203,24 @@ export default class RfpTool extends LightningElement {
     this.stopRequested = false;
     this.busy = true;
     this.error = null;
+    this.mappingNote = "";
     const total = this.rows.length;
     this.progress = { done: 0, total };
     const totals = { imported: 0, skipped: 0, unresolvedEnds: 0 };
-    await series(chunk(this.rows, IMPORT_CHUNK), (rows, index) =>
-      this.importChunk(totals, rows, index * IMPORT_CHUNK, total)
-    );
-    if (this.error) {
-      this.busy = false;
-      return;
-    }
-    this.summary = `imported ${totals.imported}, skipped ${totals.skipped}, unresolved ends ${totals.unresolvedEnds}`;
-    await this.rememberMapping(mapping);
     try {
+      await series(chunk(this.rows, IMPORT_CHUNK), (rows, index) =>
+        this.importChunk(totals, rows, index * IMPORT_CHUNK, total)
+      );
+      if (this.error) {
+        return;
+      }
+      // A Stop leaves the rows it never reached out of the counts, so the
+      // summary says how far the import actually got.
+      const stopped = this.stopRequested
+        ? `stopped after ${this.progress.done} rows; `
+        : "";
+      this.summary = `${stopped}imported ${totals.imported}, skipped ${totals.skipped}, unresolved ends ${totals.unresolvedEnds}`;
+      await this.rememberMapping(mapping);
       await this.loadLanes();
       this.view = "workbench";
     } catch (e) {
@@ -259,7 +264,10 @@ export default class RfpTool extends LightningElement {
         })
       });
     } catch (e) {
-      this.note = apexMessage(e, "The column mapping was not remembered.");
+      this.mappingNote = apexMessage(
+        e,
+        "The column mapping was not remembered."
+      );
     }
   }
 
@@ -282,11 +290,17 @@ export default class RfpTool extends LightningElement {
     const laneIds = lanes.map((l) => l.Id);
     this.stopRequested = false;
     this.busy = true;
+    // A fresh run owns the banner: a successful retry clears the chunk failure
+    // the previous run left behind.
+    this.error = null;
     this.progress = { done: 0, total: laneIds.length };
-    await series(chunk(laneIds, HISTORY_CHUNK), (ids) =>
-      this.historyChunk(ids, laneIds.length)
-    );
-    this.busy = false;
+    try {
+      await series(chunk(laneIds, HISTORY_CHUNK), (ids) =>
+        this.historyChunk(ids, laneIds.length)
+      );
+    } finally {
+      this.busy = false;
+    }
   }
 
   async historyChunk(ids, total) {
@@ -325,7 +339,6 @@ export default class RfpTool extends LightningElement {
         laneJson: JSON.stringify({ Id: laneId, ...fields })
       });
       this.lanes = mergeLanes(this.lanes, lane);
-      await this.cacheBids(lane);
     } catch (e) {
       this.error = apexMessage(e, "The price could not be saved.");
     }
@@ -342,49 +355,6 @@ export default class RfpTool extends LightningElement {
       }
     } catch (e) {
       this.error = apexMessage(e, "The place could not be applied.");
-    }
-  }
-
-  /**
-   * The export writes a Bids sheet, so the lanes that carry a selected bid have
-   * their bids fetched one lane at a time. Past 200 lanes that is more round
-   * trips than an export is worth, so the rest are left out with a note.
-   */
-  async loadBidsForExport() {
-    const withBid = this.lanes.filter((l) => l.Selected_Bid__c);
-    const wanted = withBid.slice(0, MAX_BID_LANES);
-    this.note =
-      withBid.length > wanted.length
-        ? `Only the first ${MAX_BID_LANES} lanes with a selected bid carry their bids into the export.`
-        : "";
-    const bids = {};
-    await series(wanted, async (lane) => {
-      bids[lane.Id] = await this.bidsFor(lane.Id);
-    });
-    this.bidsByLaneId = bids;
-  }
-
-  /** Keeps a lane whose selected bid the export has never seen up to date. */
-  async cacheBids(lane) {
-    const cached = this.bidsByLaneId[lane.Id];
-    if (
-      !lane.Selected_Bid__c ||
-      (cached && cached.some((b) => b.Id === lane.Selected_Bid__c))
-    ) {
-      return;
-    }
-    this.bidsByLaneId = {
-      ...this.bidsByLaneId,
-      [lane.Id]: await this.bidsFor(lane.Id)
-    };
-  }
-
-  async bidsFor(laneId) {
-    try {
-      return (await getBids({ laneId })) || [];
-    } catch {
-      // The export is still worth having without this lane's bid detail.
-      return [];
     }
   }
 }

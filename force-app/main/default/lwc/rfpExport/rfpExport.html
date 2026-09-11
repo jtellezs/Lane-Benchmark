@@ -24,7 +24,14 @@
       </div>
     </template>
     <template lwc:if={busy}>
-      <p class="slds-text-color_weak slds-m-top_xx-small">Building…</p>
+      <p data-id="status" class="slds-text-color_weak slds-m-top_xx-small">
+        {status}
+      </p>
+    </template>
+    <template lwc:if={note}>
+      <p data-id="note" class="slds-text-color_weak slds-m-top_xx-small">
+        {note}
+      </p>
     </template>
     <template lwc:if={error}>
       <p data-id="error" class="slds-text-color_error slds-m-top_xx-small">
