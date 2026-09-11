@@ -1,0 +1,56 @@
+<template>
+  <template lwc:if={isCustomer}>
+    <lightning-card title="RFP Projects" icon-name="standard:contract">
+      <div class="slds-p-horizontal_small">
+        <template lwc:if={error}
+          ><p data-id="error" class="slds-text-color_error">
+            {error}
+          </p></template
+        >
+        <template lwc:if={hasProjects}>
+          <table class="slds-table slds-table_bordered slds-table_cell-buffer">
+            <thead>
+              <tr>
+                <th scope="col">Project</th>
+                <th scope="col">Status</th>
+                <th scope="col">Due</th>
+                <th scope="col">Lanes</th>
+                <th scope="col">Costed</th>
+                <th scope="col">Sold</th>
+                <th scope="col">Bids</th>
+                <th scope="col">Files</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template for:each={projects} for:item="p">
+                <tr key={p.id} data-id="project-row">
+                  <td>
+                    <button
+                      class="slds-button slds-text-link"
+                      data-id={p.id}
+                      onclick={handleOpen}
+                    >
+                      {p.name}
+                    </button>
+                  </td>
+                  <td>{p.status}</td>
+                  <td>{p.dueDate}</td>
+                  <td>{p.laneCount}</td>
+                  <td>{p.costedCount}</td>
+                  <td>{p.soldCount}</td>
+                  <td>{p.bidCount}</td>
+                  <td class="slds-cell-wrap">{p.files}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </template>
+        <template lwc:else
+          ><p class="slds-text-color_weak slds-p-around_small">
+            No RFP projects yet.
+          </p></template
+        >
+      </div>
+    </lightning-card>
+  </template>
+</template>

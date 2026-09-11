@@ -4,7 +4,6 @@
     <description
   >Create RFP projects, lanes and carrier bids. Assign this to the pricing team.</description>
     <hasActivationRequired>false</hasActivationRequired>
-    <!-- RfpController does not exist until Task 7; restored there. -->
     <classAccesses>
         <apexClass>BenchmarkRateService</apexClass>
         <enabled>true</enabled>
@@ -23,6 +22,10 @@
     </classAccesses>
     <classAccesses>
         <apexClass>MapboxGeocoder</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RfpController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
     <objectPermissions>
@@ -76,6 +79,11 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
+        <editable>false</editable>
+        <field>RFP_Project__c.Costed_Count__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
         <editable>true</editable>
         <field>RFP_Project__c.Customer__c</field>
         <readable>true</readable>
@@ -91,8 +99,18 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
+        <editable>false</editable>
+        <field>RFP_Project__c.Lane_Count__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
         <editable>true</editable>
         <field>RFP_Project__c.Notes__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>RFP_Project__c.Sold_Count__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
@@ -168,6 +186,16 @@
     <fieldPermissions>
         <editable>true</editable>
         <field>RFP_Lane__c.Equipment_Type__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>RFP_Lane__c.Has_Cost__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>RFP_Lane__c.Has_Sell__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

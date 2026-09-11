@@ -4,5 +4,5 @@
     <label>Has cost</label>
     <type>Checkbox</type>
     <formula>NOT(ISBLANK(Cost__c))</formula>
-    <formulaTreatBlanksAs>BlankAsZero</formulaTreatBlanksAs>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
 </CustomField>

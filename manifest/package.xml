@@ -29,6 +29,7 @@
         <members>laneBenchmarkResults</members>
         <members>laneBenchmarkMap</members>
         <members>laneBenchmark</members>
+        <members>rfpProjectsForAccount</members>
         <name>LightningComponentBundle</name>
     </types>
     <!-- Apex -->
@@ -66,6 +67,8 @@
         <members>BidSearchQueryBuilderTest</members>
         <members>BidSearchService</members>
         <members>BidSearchServiceTest</members>
+        <members>RfpController</members>
+        <members>RfpControllerTest</members>
         <name>ApexClass</name>
     </types>
     <types>
