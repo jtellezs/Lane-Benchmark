@@ -1,0 +1,77 @@
+<template>
+  <div class="slds-form-element picker" onkeydown={handleKey}>
+    <div class="slds-is-relative">
+      <lightning-input
+        data-id="term"
+        label={label}
+        value={displayValue}
+        placeholder="Type at least two letters"
+        onchange={handleTerm}
+        autocomplete="off"
+        role="combobox"
+        aria-expanded={isOpen}
+        aria-autocomplete="list"
+        aria-controls={listboxId}
+        aria-activedescendant={activeDescendant}
+      ></lightning-input>
+      <template lwc:if={hasValue}>
+        <button
+          data-id="clear"
+          type="button"
+          class="slds-button slds-button_icon clear"
+          title="Clear"
+          onclick={handleClear}
+        >
+          <lightning-icon
+            icon-name="utility:clear"
+            size="x-small"
+            alternative-text="Clear"
+          ></lightning-icon>
+        </button>
+      </template>
+      <template lwc:if={isOpen}>
+        <div
+          class="slds-dropdown slds-dropdown_fluid slds-dropdown_length-10 list"
+        >
+          <ul
+            id={listboxId}
+            class="slds-listbox slds-listbox_vertical"
+            role="listbox"
+          >
+            <template for:each={listItems} for:item="o">
+              <li
+                key={o.id}
+                id={o.optionId}
+                data-id="option"
+                data-account-id={o.id}
+                class={o.liClass}
+                role="option"
+                aria-selected={o.ariaSelected}
+                onclick={handlePick}
+              >
+                <span class="slds-truncate">{o.name}</span>
+                <span class="slds-text-color_weak slds-m-left_x-small"
+                  >{o.city}</span
+                >
+              </li>
+            </template>
+          </ul>
+        </div>
+      </template>
+    </div>
+    <template lwc:if={isSearching}
+      ><lightning-spinner
+        size="small"
+        alternative-text="Searching"
+      ></lightning-spinner
+    ></template>
+    <template lwc:if={error}
+      ><div
+        data-id="picker-error"
+        class="slds-text-color_error slds-m-top_xx-small"
+      >
+        {error}
+      </div></template
+    >
+  </div>
+</template>

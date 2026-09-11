@@ -4,6 +4,10 @@
     <description
   >Create RFP projects, lanes and carrier bids. Assign this to the pricing team.</description>
     <hasActivationRequired>false</hasActivationRequired>
+    <applicationVisibilities>
+        <application>Lane_Benchmark</application>
+        <visible>true</visible>
+    </applicationVisibilities>
     <classAccesses>
         <apexClass>BenchmarkRateService</apexClass>
         <enabled>true</enabled>
@@ -25,7 +29,31 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>RfpBidController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>RfpController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RfpHistoryController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RfpHistoryService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RfpImportService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RfpLaneController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RfpProjectController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
     <customPermissions>
@@ -557,4 +585,12 @@
         <field>Pricing_Place__c.Spellings__c</field>
         <readable>true</readable>
     </fieldPermissions>
+    <tabSettings>
+        <tab>Lane_Benchmark</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>RFP_Tool</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
 </PermissionSet>

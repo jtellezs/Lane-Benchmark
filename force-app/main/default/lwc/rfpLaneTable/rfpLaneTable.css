@@ -1,0 +1,30 @@
+.lane-row {
+  cursor: pointer;
+}
+.lane-row:hover {
+  background: #f3f3f3;
+}
+.lane-row_selected {
+  background: #ecebea;
+}
+.lane-row:focus {
+  outline: 2px solid #0176d3;
+  outline-offset: -2px;
+}
+/* The inline picker is not a row-select target, so it does not borrow the
+   row's pointer cursor. */
+.picker-cell {
+  cursor: default;
+}
+.w-3 {
+  width: 3rem;
+}
+.w-5 {
+  width: 5rem;
+}
+.w-6 {
+  width: 6rem;
+}
+.w-8 {
+  width: 8rem;
+}

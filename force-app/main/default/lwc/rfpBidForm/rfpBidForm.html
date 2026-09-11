@@ -1,0 +1,173 @@
+<template>
+  <div class="slds-box slds-box_x-small slds-theme_shade bid-form">
+    <div class="slds-grid slds-wrap slds-gutters_x-small">
+      <div class="slds-col slds-size_1-of-2">
+        <template lwc:if={newCarrier}>
+          <lightning-input
+            data-id="carrier-name"
+            label="Carrier name"
+            value={typedName}
+            onchange={handleCarrierName}
+          ></lightning-input>
+        </template>
+        <template lwc:else>
+          <c-rfp-account-picker
+            label="Carrier"
+            kind="carrier"
+            value={carrierId}
+            value-label={carrierLabel}
+            onaccountchange={handleCarrier}
+          ></c-rfp-account-picker>
+        </template>
+      </div>
+      <div class="slds-col slds-size_1-of-2 slds-align-bottom">
+        <lightning-input
+          data-id="new-carrier"
+          type="toggle"
+          label="Carrier not in the system"
+          message-toggle-active="Typing a name"
+          message-toggle-inactive="Using the account list"
+          checked={newCarrier}
+          onchange={handleNewCarrier}
+        ></lightning-input>
+      </div>
+    </div>
+
+    <template lwc:if={newCarrier}>
+      <div class="slds-grid slds-wrap slds-gutters_x-small">
+        <div class="slds-col slds-size_1-of-3">
+          <lightning-input
+            data-id="contact-name"
+            label="Contact name"
+            value={contactName}
+            onchange={handleContactName}
+          ></lightning-input>
+        </div>
+        <div class="slds-col slds-size_1-of-3">
+          <lightning-input
+            data-id="contact-email"
+            type="email"
+            label="Contact email"
+            value={contactEmail}
+            onchange={handleContactEmail}
+          ></lightning-input>
+        </div>
+        <div class="slds-col slds-size_1-of-3">
+          <lightning-input
+            data-id="contact-phone"
+            type="tel"
+            label="Contact phone"
+            value={contactPhone}
+            onchange={handleContactPhone}
+          ></lightning-input>
+        </div>
+      </div>
+    </template>
+
+    <div class="slds-grid slds-wrap slds-gutters_x-small">
+      <div class="slds-col slds-size_1-of-4">
+        <lightning-input
+          data-id="rate"
+          type="number"
+          step="0.01"
+          min="0"
+          label="Rate"
+          value={rate}
+          onchange={handleRate}
+        ></lightning-input>
+      </div>
+      <div class="slds-col slds-size_1-of-4">
+        <lightning-combobox
+          data-id="currency"
+          label="Currency"
+          value={currencyIso}
+          options={currencyOptions}
+          onchange={handleCurrency}
+        ></lightning-combobox>
+      </div>
+      <div class="slds-col slds-size_1-of-4">
+        <lightning-input
+          data-id="fsc"
+          type="number"
+          step="0.01"
+          label="Fuel surcharge"
+          value={fsc}
+          onchange={handleFsc}
+        ></lightning-input>
+      </div>
+      <div class="slds-col slds-size_1-of-4 slds-align-bottom">
+        <lightning-input
+          data-id="fsc-included"
+          type="checkbox"
+          label="FSC included"
+          checked={fscIncluded}
+          onchange={handleFscIncluded}
+        ></lightning-input>
+      </div>
+    </div>
+
+    <div class="slds-grid slds-wrap slds-gutters_x-small">
+      <div class="slds-col slds-size_1-of-3">
+        <lightning-input
+          data-id="transit"
+          type="number"
+          step="1"
+          min="0"
+          label="Transit days"
+          value={transitDays}
+          onchange={handleTransit}
+        ></lightning-input>
+      </div>
+      <div class="slds-col slds-size_1-of-3">
+        <lightning-input
+          data-id="valid-from"
+          type="date"
+          label="Valid from"
+          value={validFrom}
+          onchange={handleValidFrom}
+        ></lightning-input>
+      </div>
+      <div class="slds-col slds-size_1-of-3">
+        <lightning-input
+          data-id="expires-on"
+          type="date"
+          label="Expires on"
+          value={expiresOn}
+          onchange={handleExpiresOn}
+        ></lightning-input>
+      </div>
+    </div>
+
+    <lightning-textarea
+      data-id="notes"
+      label="Notes"
+      value={notes}
+      onchange={handleNotes}
+    ></lightning-textarea>
+
+    <template lwc:if={error}>
+      <p
+        data-id="form-error"
+        class="slds-text-color_error slds-m-top_x-small"
+        role="alert"
+      >
+        {error}
+      </p>
+    </template>
+
+    <div class="slds-m-top_x-small">
+      <lightning-button
+        data-id="save"
+        variant="brand"
+        label={saveLabel}
+        onclick={handleSave}
+      ></lightning-button>
+      <lightning-button
+        data-id="cancel"
+        class="slds-m-left_x-small"
+        label="Cancel"
+        onclick={handleCancel}
+      ></lightning-button>
+    </div>
+  </div>
+</template>

@@ -1,0 +1,20 @@
+<template>
+  <div class="slds-form-element">
+    <label class="slds-form-element__label" for="file"
+      >Lane file (.xlsx, .xlsm, .xls, .csv — up to 3 MB, 2,000 lanes)</label
+    >
+    <div class="slds-form-element__control">
+      <input id="file" type="file" accept={accept} onchange={handleFile} />
+    </div>
+    <template lwc:if={status}
+      ><p data-id="status" class="slds-text-color_weak slds-m-top_xx-small">
+        {status}
+      </p></template
+    >
+    <template lwc:if={error}
+      ><p data-id="error" class="slds-text-color_error slds-m-top_xx-small">
+        {error}
+      </p></template
+    >
+  </div>
+</template>

@@ -1,0 +1,172 @@
+<template>
+  <template lwc:if={hasLane}>
+    <div class="slds-box slds-box_x-small lane-panel">
+      <h2 class="slds-text-heading_small slds-m-bottom_x-small">{laneTitle}</h2>
+
+      <div class="slds-grid slds-wrap slds-gutters_x-small">
+        <div class="slds-col slds-size_1-of-1">
+          <lightning-radio-group
+            data-id="cost-source"
+            label="Cost source"
+            type="button"
+            options={sourceOptions}
+            value={costSource}
+            onchange={handleSource}
+          ></lightning-radio-group>
+        </div>
+        <template lwc:if={isBidSource}>
+          <div class="slds-col slds-size_1-of-2">
+            <lightning-combobox
+              data-id="bid-select"
+              label="Bid"
+              value={selectedBidId}
+              options={bidOptions}
+              onchange={handleBidSelect}
+            ></lightning-combobox>
+          </div>
+        </template>
+        <div class="slds-col slds-size_1-of-3">
+          <lightning-input
+            data-id="cost"
+            type="number"
+            step="0.01"
+            min="0"
+            label="Cost"
+            value={costInputValue}
+            disabled={costLocked}
+            onchange={handleCost}
+          ></lightning-input>
+        </div>
+        <div class="slds-col slds-size_1-of-3">
+          <lightning-input
+            data-id="margin"
+            label="Margin %"
+            value={marginText}
+            onchange={handleMargin}
+          ></lightning-input>
+        </div>
+        <div class="slds-col slds-size_1-of-3 slds-align-bottom">
+          <p class="slds-form-element__static">
+            Sell <span data-id="sell" class="sell">{sellText}</span>
+            &nbsp;{currency}
+          </p>
+        </div>
+      </div>
+
+      <template lwc:if={bestBidHint}>
+        <button
+          data-id="best-bid-hint"
+          type="button"
+          class="slds-button slds-button_reset hint"
+          onclick={handleUseBest}
+        >
+          {bestBidHint}
+        </button>
+      </template>
+      <template lwc:if={otherCurrencyNote}>
+        <p data-id="other-currency" class="slds-text-color_weak">
+          {otherCurrencyNote}
+        </p>
+      </template>
+
+      <lightning-textarea
+        data-id="notes"
+        label="Notes"
+        value={notes}
+        onchange={handleNotes}
+      ></lightning-textarea>
+
+      <div class="slds-m-top_x-small">
+        <lightning-button
+          data-id="save-price"
+          variant="brand"
+          label="Save price"
+          disabled={cannotSavePrice}
+          onclick={handleSavePrice}
+        ></lightning-button>
+        <lightning-button
+          data-id="add-bid"
+          class="slds-m-left_x-small"
+          label="Add carrier rate"
+          onclick={handleAddBid}
+        ></lightning-button>
+      </div>
+
+      <template lwc:if={error}>
+        <p
+          data-id="panel-error"
+          class="slds-text-color_error slds-m-top_x-small"
+          role="alert"
+        >
+          {error}
+        </p>
+      </template>
+
+      <template lwc:if={showForm}>
+        <div class="slds-m-top_x-small">
+          <c-rfp-bid-form
+            lane-id={laneId}
+            currency={currency}
+            bid={editingBid}
+            onsave={handleSaveBid}
+            oncancel={handleCancelBid}
+          ></c-rfp-bid-form>
+        </div>
+      </template>
+
+      <template lwc:if={hasBids}>
+        <ul class="slds-m-top_x-small slds-has-dividers_bottom-space">
+          <template for:each={bidRows} for:item="b">
+            <li key={b.Id}>
+              <button
+                data-id="bid-row"
+                data-bid-id={b.Id}
+                type="button"
+                class={b.buttonClass}
+                title="Edit this bid"
+                onclick={handleEditBid}
+              >
+                <span class="slds-text-title_bold">{b.Carrier_Display__c}</span>
+                <span class="slds-m-left_x-small">{b.rateText}</span>
+                <span class="slds-m-left_x-small slds-text-color_weak"
+                  >{b.Status__c}</span
+                >
+              </button>
+            </li>
+          </template>
+        </ul>
+      </template>
+
+      <template lwc:if={loadingHistory}>
+        <lightning-spinner
+          size="small"
+          alternative-text="Loading history"
+        ></lightning-spinner>
+      </template>
+      <template lwc:if={truncated}>
+        <p
+          data-id="truncated"
+          class="slds-text-color_weak slds-text-body_small"
+        >
+          Only the first 500 loads are shown.
+        </p>
+      </template>
+      <!-- The panel column is far narrower than the results table, which would
+           otherwise wrap to one character per line; it scrolls sideways instead. -->
+      <div data-id="history-scroll" class="history-scroll">
+        <div class="history-scroll__inner">
+          <c-lane-benchmark-results
+            rows={historyRows}
+            origin-label={originLabel}
+            destination-label={destinationLabel}
+          ></c-lane-benchmark-results>
+        </div>
+      </div>
+    </div>
+  </template>
+  <template lwc:else>
+    <p data-id="empty" class="slds-text-color_weak slds-p-around_small">
+      Pick a lane to price it.
+    </p>
+  </template>
+</template>

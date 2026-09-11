@@ -7,6 +7,21 @@ jest.mock("@salesforce/customPermission/RFP_Tool", () => ({ default: true }), {
   virtual: true
 });
 
+// The sfdx-lwc-jest navigation stub's Navigate is a no-op with no recorder, so
+// this file swaps in a mixin that records what the component navigated to.
+const mockNavigateCalls = [];
+jest.mock("lightning/navigation", () => {
+  const Navigate = Symbol("Navigate");
+  const NavigationMixin = (Base) =>
+    class extends Base {
+      [Navigate](pageReference) {
+        mockNavigateCalls.push(pageReference);
+      }
+    };
+  NavigationMixin.Navigate = Navigate;
+  return { NavigationMixin, CurrentPageReference: { emit: () => {} } };
+});
+
 jest.mock(
   "@salesforce/apex/RfpController.projectsForAccount",
   () => {
@@ -30,6 +45,7 @@ async function mount(recordId) {
 
 describe("c-rfp-projects-for-account", () => {
   afterEach(() => {
+    mockNavigateCalls.length = 0;
     while (document.body.firstChild) {
       document.body.removeChild(document.body.firstChild);
     }
@@ -73,6 +89,40 @@ describe("c-rfp-projects-for-account", () => {
     });
     await flush();
     expect(el.shadowRoot.querySelector("lightning-card")).toBeNull();
+  });
+
+  it("opens the project in the RFP Tool tab rather than its record page", async () => {
+    const el = await mount("001z");
+    getRecord.emit({
+      fields: {
+        RecordType: {
+          value: { fields: { DeveloperName: { value: "Customer" } } }
+        }
+      }
+    });
+    await flush();
+    projectsForAccount.emit([
+      {
+        id: "a0P1",
+        name: "Costco Q4",
+        status: "Pricing",
+        dueDate: "2026-10-01",
+        laneCount: 12,
+        costedCount: 4,
+        soldCount: 3,
+        bidCount: 5,
+        fileNames: []
+      }
+    ]);
+    await flush();
+    el.shadowRoot.querySelector('[data-id="project-row"] button').click();
+    expect(mockNavigateCalls).toEqual([
+      {
+        type: "standard__navItemPage",
+        attributes: { apiName: "RFP_Tool" },
+        state: { c__projectId: "a0P1" }
+      }
+    ]);
   });
 
   it("shows the empty state and the error text", async () => {

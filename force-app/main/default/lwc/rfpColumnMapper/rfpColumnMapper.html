@@ -1,0 +1,28 @@
+<template>
+  <div class="slds-grid slds-wrap slds-gutters_small">
+    <template for:each={targets} for:item="t">
+      <div key={t.key} class="slds-col slds-size_1-of-2 slds-p-bottom_x-small">
+        <lightning-combobox
+          data-target={t.key}
+          label={t.label}
+          value={t.value}
+          options={options}
+          onchange={handleChange}
+        ></lightning-combobox>
+        <p class="slds-text-color_weak slds-text-body_small">{t.sample}</p>
+      </div>
+    </template>
+  </div>
+  <template lwc:if={missingText}
+    ><p data-id="missing" class="slds-text-color_error">
+      {missingText}
+    </p></template
+  >
+  <lightning-button
+    data-id="import"
+    variant="brand"
+    label="Import lanes"
+    disabled={cannotImport}
+    onclick={handleImport}
+  ></lightning-button>
+</template>

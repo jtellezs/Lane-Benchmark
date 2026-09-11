@@ -1,0 +1,88 @@
+<template>
+  <template lwc:if={hasLanes}>
+    <table class="slds-table slds-table_bordered slds-table_fixed-layout lanes">
+      <thead>
+        <tr class="slds-line-height_reset">
+          <th scope="col" class="w-3">#</th>
+          <th scope="col">Origin</th>
+          <th scope="col">Destination</th>
+          <th scope="col" class="w-8">Mode</th>
+          <th scope="col" class="w-8">Equipment</th>
+          <th scope="col">History</th>
+          <th scope="col" class="w-8">{costHeader}</th>
+          <th scope="col" class="w-5">Margin</th>
+          <th scope="col" class="w-8">{sellHeader}</th>
+          <th scope="col" class="w-6">Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <template for:each={viewRows} for:item="r">
+          <tr
+            key={r.id}
+            data-id="lane-row"
+            data-lane-id={r.id}
+            class={r.rowClass}
+            tabindex="0"
+            aria-selected={r.ariaSelected}
+            onclick={handleRowClick}
+            onkeydown={handleRowKey}
+          >
+            <td>{r.rowNumber}</td>
+            <td class="slds-cell-wrap">
+              <span data-id="origin">{r.originText}</span>
+              <template lwc:if={r.originUnresolved}>
+                <div
+                  data-id="picker-cell"
+                  class="picker-cell"
+                  onclick={stopRowSelect}
+                  onkeydown={stopRowSelect}
+                >
+                  <c-lane-benchmark-place-picker
+                    data-lane-id={r.id}
+                    data-side="origin"
+                    label="Origin"
+                    value={r.originKey}
+                    onplacechange={handlePlaceChange}
+                  ></c-lane-benchmark-place-picker>
+                </div>
+              </template>
+            </td>
+            <td class="slds-cell-wrap">
+              <span data-id="destination">{r.destinationText}</span>
+              <template lwc:if={r.destinationUnresolved}>
+                <div
+                  data-id="picker-cell"
+                  class="picker-cell"
+                  onclick={stopRowSelect}
+                  onkeydown={stopRowSelect}
+                >
+                  <c-lane-benchmark-place-picker
+                    data-lane-id={r.id}
+                    data-side="destination"
+                    label="Destination"
+                    value={r.destinationKey}
+                    onplacechange={handlePlaceChange}
+                  ></c-lane-benchmark-place-picker>
+                </div>
+              </template>
+            </td>
+            <td>{r.mode}</td>
+            <td>{r.equipment}</td>
+            <td data-id="hist" title={r.histTitle}>{r.histText}</td>
+            <td data-id="cost" class="slds-text-align_right">{r.costText}</td>
+            <td data-id="margin" class="slds-text-align_right">
+              {r.marginText}
+            </td>
+            <td data-id="sell" class="slds-text-align_right">{r.sellText}</td>
+            <td data-id="status">{r.statusText}</td>
+          </tr>
+        </template>
+      </tbody>
+    </table>
+  </template>
+  <template lwc:else>
+    <p data-id="empty" class="slds-text-color_weak slds-p-around_small">
+      No lanes yet. Upload a spreadsheet to get started.
+    </p>
+  </template>
+</template>
