@@ -28,6 +28,10 @@
         <apexClass>RfpController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
+    <customPermissions>
+        <enabled>true</enabled>
+        <name>RFP_Tool</name>
+    </customPermissions>
     <objectPermissions>
         <allowCreate>true</allowCreate>
         <allowDelete>false</allowDelete>
@@ -344,7 +348,7 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
-        <editable>true</editable>
+        <editable>false</editable>
         <field>Benchmark_Rate__c.City_Lane__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -374,7 +378,7 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
-        <editable>true</editable>
+        <editable>false</editable>
         <field>Benchmark_Rate__c.Destination_Geolocation__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -444,7 +448,7 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
-        <editable>true</editable>
+        <editable>false</editable>
         <field>Benchmark_Rate__c.Origin_Geolocation__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -474,7 +478,7 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
-        <editable>true</editable>
+        <editable>false</editable>
         <field>Benchmark_Rate__c.State_Lane__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -494,7 +498,7 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
-        <editable>true</editable>
+        <editable>false</editable>
         <field>Benchmark_Rate__c.Zip3_Lane__c</field>
         <readable>true</readable>
     </fieldPermissions>

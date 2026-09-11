@@ -279,7 +279,13 @@ This section and its docs commit land on the same branch, after `e53994e`.
 The tab/page/app, import, history, workbench and export named in "3b —
 workbench" above are not part of 3a; only the foundation goal ("After 3a a
 bid created through the record page already appears in Lane Benchmark") was
-targeted.
+targeted. That goal was true only for bids created through
+`BenchmarkRateService.save` until the final review fix wave below: a bid
+inserted or updated directly on the record page (bypassing `save()`) carried
+no lane keys, so it did not match a Lane Benchmark search. The
+`BenchmarkRateTrigger` before-insert/before-update trigger, added in that fix
+wave, stamps every bid regardless of how it was created, so the exit
+criterion is now true without qualification.
 
 **Deploys** (all to `sandbox`/PostProduc; ids and counts from the task
 reports):
@@ -387,3 +393,40 @@ not spec decisions):
 - `laneBenchmarkResults`'s detail row renders a trailing " · " for Load rows,
   since `transitText`/`fscText` are empty strings for a Load, not a bid
   (cosmetic; Task 6).
+
+**Final review fixes (2026-09-11).** A whole-branch review of `7575be6..f1b23f5`
+found ten items, fixed in one final wave before 3a closes:
+
+1. `BidSearchQueryBuilder.addLike` returns without adding a condition when the
+   place has no province/postal prefix at that precision, instead of throwing
+   — the end is unconstrained, so a bid missing that attribute still matches
+   on its other end.
+2. `BenchmarkRateTrigger` (before insert, before update) calls
+   `BenchmarkRateService.applyLanes`, which bulk-loads every referenced lane
+   in one query and stamps lane keys/project/geolocations (always) and
+   `Mode__c`/`Equipment_Category__c`/`Equipment_Type__c`/`Hazmat__c` (only
+   when blank on the bid), plus `Valid_From__c`/`Expires_On__c` defaults, for
+   every bid in the trigger batch.
+3. `Benchmark_Rate__c.Valid_From__c`/`Expires_On__c` gain field-level
+   `<defaultValue>` (`TODAY()` / `TODAY() + 30`); the field generator's
+   `formula()` gained a `blanks` parameter so it stops regressing
+   `Has_Cost__c`/`Has_Sell__c` back to `BlankAsZero` on every re-run (see the
+   plan header's defects note).
+4. `RfpController.projectsForAccount(null)` returns an empty list instead of
+   querying with a null bind.
+5. `BidSearchService.isBefore` renamed to `isNewer` (same body).
+6. Manifest gains `ApexTrigger` (`BenchmarkRateTrigger`) and
+   `CustomPermission` (`RFP_Tool`) type blocks.
+7. New custom permission `RFP_Tool`, carried by `RFP_Tool_User`.
+8. `rfpProjectsForAccount` gates on the `RFP_Tool` custom permission in
+   addition to the Customer/New_Customer record type check, and never wires
+   the Apex adapter with an `accountId` when the permission is absent.
+9. `RFP_Tool_User` marks `Benchmark_Rate__c`'s lane-key and geolocation
+   fields (`City_Lane__c`, `State_Lane__c`, `Zip3_Lane__c`,
+   `Origin_Geolocation__c`, `Destination_Geolocation__c`) not editable, since
+   they are now exclusively trigger-maintained; `Lane_Benchmark_User` gains
+   read-only grants on `Carrier_Display__c`/`Status__c`, closing a gap the
+   same as Task 3/7's `Carrier_Display__c`/`Status__c`/roll-up fix, but on the
+   read-only permission set this time.
+10. This Outcome's exit-criterion correction (above), the README's "RFP Tool
+    (phase 3a)" section, and the plan header's defects note.

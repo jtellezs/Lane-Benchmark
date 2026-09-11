@@ -312,23 +312,44 @@ the spec's Outcome for what is still open.
 | `RFP_Lane__c`       | One spreadsheet row of a project: the lane as the customer wrote it, the resolved places, the history snapshot and the chosen cost/sell | `RFP_Project__c` (master-detail), `Origin_Place__c` / `Destination_Place__c` (`Pricing_Place__c` lookups), `Mode__c`, `Equipment_Category__c`, `Cost__c` / `Margin__c` / `Sell__c`, `Has_Cost__c` / `Has_Sell__c`        |
 | `Benchmark_Rate__c` | A carrier bid for a lane, captured without a Load                                                                                       | `RFP_Lane__c` / `RFP_Project__c` lookups, `Carrier__c` / `Carrier_Name__c`, `Rate__c`, `Valid_From__c` / `Expires_On__c`, `City_Lane__c` / `State_Lane__c` / `Zip3_Lane__c`, formulas `Status__c` / `Carrier_Display__c` |
 
-**Lane keys.** A bid carries none of `City_Lane__c` / `State_Lane__c` /
-`Zip3_Lane__c` from the browser. `BenchmarkRateService.save` copies them from
-the lane's resolved `Pricing_Place__c` records (`Origin_Place__r` /
-`Destination_Place__r`: city, province, postal prefix, geolocation) into the
-same `"City, ST:City, ST"` / `"ST:ST"` / `"XXX:XXX"` format `PlaceNormalizer`
-writes for Loads, so a bid matches a CITY-precision search through
-`PlaceNormalizer.cityLaneVariants` exactly as a Load does.
+**Lane keys and the `BenchmarkRateTrigger`.** A bid carries none of
+`City_Lane__c` / `State_Lane__c` / `Zip3_Lane__c` from the browser. The
+`before insert` / `before update` trigger `BenchmarkRateTrigger` calls
+`BenchmarkRateService.applyLanes`, which copies them (plus
+`RFP_Project__c`, the origin/destination geolocations, and — only when blank
+on the bid — `Mode__c` / `Equipment_Category__c` / `Equipment_Type__c` /
+`Hazmat__c`) from the lane's resolved `Pricing_Place__c` records
+(`Origin_Place__r` / `Destination_Place__r`: city, province, postal prefix,
+geolocation) into the same `"City, ST:City, ST"` / `"ST:ST"` / `"XXX:XXX"`
+format `PlaceNormalizer` writes for Loads, so a bid matches a CITY-precision
+search through `PlaceNormalizer.cityLaneVariants` exactly as a Load does.
+Running this in a trigger (system context, one bulk query per batch for every
+referenced lane) rather than only in `BenchmarkRateService.save` means a bid
+created directly on the record page — bypassing `save()` entirely — is
+stamped too; `save()` itself now only validates `Rate__c` and does the
+USER_MODE insert/update/reload, since `RFP_Tool_User` marks the lane-key and
+geolocation fields not editable (see Permission sets below) and a user-mode
+DML can no longer set them. The trigger also defaults `Valid_From__c` /
+`Expires_On__c` to today / today+30 for every bid that doesn't already have
+them, on top of the same defaults now carried on the field metadata itself
+(`<defaultValue>TODAY()</defaultValue>` / `TODAY() + 30`, which only prefill
+the standard "New" page, not an Apex-created record — hence the trigger).
 
 **Permission sets.**
 
 - `RFP_Tool_User` — the pricing team's access: create/read/edit on the three
-  RFP objects, read on `Pricing_Place__c` and `Account`, and Apex class access
+  RFP objects, read on `Pricing_Place__c` and `Account`, Apex class access
   to `RfpController`, `BenchmarkRateService`, `LaneBenchmarkController`,
-  `LaneBenchmarkPlaceService`, `LaneSearchService`, `MapboxGeocoder`.
+  `LaneBenchmarkPlaceService`, `LaneSearchService`, `MapboxGeocoder`, and the
+  `RFP_Tool` custom permission (gates `rfpProjectsForAccount`, below).
+  `City_Lane__c` / `State_Lane__c` / `Zip3_Lane__c` /
+  `Origin_Geolocation__c` / `Destination_Geolocation__c` on `Benchmark_Rate__c`
+  are readable but not editable: they are service-maintained by
+  `BenchmarkRateTrigger`, never user-entered.
 - `Lane_Benchmark_User` gains object read on `Benchmark_Rate__c` and field read
-  on all of its fields (no create/edit — bids are entered through the RFP
-  tool, not Lane Benchmark).
+  on all of its fields, including the formula fields `Carrier_Display__c` /
+  `Status__c` (no create/edit — bids are entered through the RFP tool, not
+  Lane Benchmark).
 - Formula and roll-up fields need their own explicit read `fieldPermissions`
   entry, same as any other field: `WITH USER_MODE` reports a field the running
   user cannot read as "No such column", identical to a genuinely missing
@@ -336,6 +357,10 @@ writes for Loads, so a bid matches a CITY-precision search through
   / `Status__c` on `Benchmark_Rate__c` and `Lane_Count__c` / `Costed_Count__c`
   / `Sold_Count__c` on `RFP_Project__c` during 3a; both are now granted
   read-only.
+- `RFP_Tool` — a custom permission (not a permission set) carried by
+  `RFP_Tool_User`. `rfpProjectsForAccount` renders nothing, and never wires
+  the Apex adapter with an `accountId`, unless the running user holds it —
+  assign `RFP_Tool_User` to grant it.
 
 **Lane Benchmark "Source" filter.** A radio group — All / Loads only / Bids
 only, default All. "Bids only" is the only setting that also returns expired
@@ -346,7 +371,9 @@ out. The CSV export gains a "Source" column (`Load` / `Bid`) first.
 
 **Customer Account component.** `rfpProjectsForAccount` (label "RFP Projects
 (customer)") lists a customer's RFP projects, file names and bid counts; a row
-click opens the project. It renders nothing on a non-customer record type.
+click opens the project. It renders nothing on a non-customer record type, and
+nothing for a user who lacks the `RFP_Tool` custom permission (assign
+`RFP_Tool_User`).
 Trans-Pro Customer accounts use Revenova's managed page
 `rtms__Account_TMS_Record_Default` (template "Header and Left Sidebar"), and
 App Builder can only save a clone of a managed page, never edit it in place.

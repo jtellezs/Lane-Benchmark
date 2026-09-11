@@ -3,6 +3,10 @@ import RfpProjectsForAccount from "c/rfpProjectsForAccount";
 import { getRecord } from "lightning/uiRecordApi";
 import projectsForAccount from "@salesforce/apex/RfpController.projectsForAccount";
 
+jest.mock("@salesforce/customPermission/RFP_Tool", () => ({ default: true }), {
+  virtual: true
+});
+
 jest.mock(
   "@salesforce/apex/RfpController.projectsForAccount",
   () => {

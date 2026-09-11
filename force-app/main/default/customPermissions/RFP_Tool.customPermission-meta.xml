@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomPermission xmlns="http://soap.sforce.com/2006/04/metadata">
+    <isLicensed>false</isLicensed>
+    <label>RFP Tool</label>
+    <description
+  >Can use the RFP tool and see RFP data on customer accounts.</description>
+</CustomPermission>

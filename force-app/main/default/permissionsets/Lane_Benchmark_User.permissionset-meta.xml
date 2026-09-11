@@ -202,6 +202,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
+        <field>Benchmark_Rate__c.Carrier_Display__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
         <field>Benchmark_Rate__c.Carrier_Name__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -343,6 +348,11 @@
     <fieldPermissions>
         <editable>false</editable>
         <field>Benchmark_Rate__c.State_Lane__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>false</editable>
+        <field>Benchmark_Rate__c.Status__c</field>
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>

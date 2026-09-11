@@ -1,6 +1,7 @@
 import { LightningElement, api, wire } from "lwc";
 import { getRecord } from "lightning/uiRecordApi";
 import { NavigationMixin } from "lightning/navigation";
+import hasRfpTool from "@salesforce/customPermission/RFP_Tool";
 import projectsForAccount from "@salesforce/apex/RfpController.projectsForAccount";
 
 const RT_FIELD = "Account.RecordType.DeveloperName";
@@ -18,13 +19,17 @@ export default class RfpProjectsForAccount extends NavigationMixin(
   wiredAccount({ data, error }) {
     if (data) {
       this.recordTypeName =
-        data.fields.RecordType.value?.fields?.DeveloperName?.value ?? null;
+        data.fields?.RecordType?.value?.fields?.DeveloperName?.value ?? null;
     } else if (error) {
       this.recordTypeName = null;
     }
   }
 
-  @wire(projectsForAccount, { accountId: "$recordId" })
+  get wiredAccountId() {
+    return hasRfpTool ? this.recordId : undefined;
+  }
+
+  @wire(projectsForAccount, { accountId: "$wiredAccountId" })
   wiredProjects({ data, error }) {
     if (data) {
       this.projects = data.map((p) => ({
@@ -40,6 +45,9 @@ export default class RfpProjectsForAccount extends NavigationMixin(
 
   get isCustomer() {
     return CUSTOMER_TYPES.has(this.recordTypeName);
+  }
+  get isVisible() {
+    return this.isCustomer && hasRfpTool === true;
   }
   get hasProjects() {
     return this.projects.length > 0;
