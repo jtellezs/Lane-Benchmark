@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Destination_Postal__c</fullName>
+    <label>Destination postal</label>
+    <type>Text</type>
+    <length>12</length>
+    <required>false</required>
+</CustomField>

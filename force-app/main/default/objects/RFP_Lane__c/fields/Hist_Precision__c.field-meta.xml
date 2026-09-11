@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Hist_Precision__c</fullName>
+    <label>History precision</label>
+    <type>Text</type>
+    <length>20</length>
+    <required>false</required>
+    <inlineHelpText>CITY, PROVINCE or RADIUS-50KM</inlineHelpText>
+</CustomField>

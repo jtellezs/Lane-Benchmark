@@ -63,6 +63,9 @@
     <types>
         <members>Pricing_Department_Setting__mdt</members>
         <members>Pricing_Place__c</members>
+        <members>RFP_Project__c</members>
+        <members>RFP_Lane__c</members>
+        <members>Benchmark_Rate__c</members>
         <name>CustomObject</name>
     </types>
     <types>
@@ -131,7 +134,98 @@
         <members>Pricing_Place__c.Postal_Prefix__c</members>
         <members>Pricing_Place__c.Active__c</members>
         <members>Pricing_Place__c.Source__c</members>
+        <members>RFP_Project__c.Column_Mapping__c</members>
+        <members>RFP_Project__c.Costed_Count__c</members>
+        <members>RFP_Project__c.Customer__c</members>
+        <members>RFP_Project__c.Default_Margin__c</members>
+        <members>RFP_Project__c.Due_Date__c</members>
+        <members>RFP_Project__c.Lane_Count__c</members>
+        <members>RFP_Project__c.Notes__c</members>
+        <members>RFP_Project__c.Sold_Count__c</members>
+        <members>RFP_Project__c.Source_File_Name__c</members>
+        <members>RFP_Project__c.Status__c</members>
+        <members>RFP_Lane__c.Commodity__c</members>
+        <members>RFP_Lane__c.Cost_Source__c</members>
+        <members>RFP_Lane__c.Cost__c</members>
+        <members>RFP_Lane__c.Customer_FSC_Included__c</members>
+        <members>RFP_Lane__c.Customer_Fuel_Surcharge__c</members>
+        <members>RFP_Lane__c.Destination_City__c</members>
+        <members>RFP_Lane__c.Destination_Country__c</members>
+        <members>RFP_Lane__c.Destination_Place__c</members>
+        <members>RFP_Lane__c.Destination_Postal__c</members>
+        <members>RFP_Lane__c.Destination_Province__c</members>
+        <members>RFP_Lane__c.Destination_Resolved__c</members>
+        <members>RFP_Lane__c.Equipment_Category__c</members>
+        <members>RFP_Lane__c.Equipment_Type__c</members>
+        <members>RFP_Lane__c.Has_Cost__c</members>
+        <members>RFP_Lane__c.Has_Sell__c</members>
+        <members>RFP_Lane__c.Hazmat__c</members>
+        <members>RFP_Lane__c.Hist_As_Of__c</members>
+        <members>RFP_Lane__c.Hist_Average__c</members>
+        <members>RFP_Lane__c.Hist_Count__c</members>
+        <members>RFP_Lane__c.Hist_Lookback_Days__c</members>
+        <members>RFP_Lane__c.Hist_Max__c</members>
+        <members>RFP_Lane__c.Hist_Median__c</members>
+        <members>RFP_Lane__c.Hist_Min__c</members>
+        <members>RFP_Lane__c.Hist_Precision__c</members>
+        <members>RFP_Lane__c.Hist_Status__c</members>
+        <members>RFP_Lane__c.Margin__c</members>
+        <members>RFP_Lane__c.Mode__c</members>
+        <members>RFP_Lane__c.Notes__c</members>
+        <members>RFP_Lane__c.Origin_City__c</members>
+        <members>RFP_Lane__c.Origin_Country__c</members>
+        <members>RFP_Lane__c.Origin_Place__c</members>
+        <members>RFP_Lane__c.Origin_Postal__c</members>
+        <members>RFP_Lane__c.Origin_Province__c</members>
+        <members>RFP_Lane__c.Origin_Resolved__c</members>
+        <members>RFP_Lane__c.Quantity_Unit__c</members>
+        <members>RFP_Lane__c.Quantity__c</members>
+        <members>RFP_Lane__c.RFP_Project__c</members>
+        <members>RFP_Lane__c.Raw_Row__c</members>
+        <members>RFP_Lane__c.Row_Number__c</members>
+        <members>RFP_Lane__c.Selected_Bid__c</members>
+        <members>RFP_Lane__c.Sell__c</members>
+        <members>RFP_Lane__c.Shipments_Per_Year__c</members>
+        <members>Benchmark_Rate__c.Carrier_Display__c</members>
+        <members>Benchmark_Rate__c.Carrier_Name__c</members>
+        <members>Benchmark_Rate__c.Carrier__c</members>
+        <members>Benchmark_Rate__c.City_Lane__c</members>
+        <members>Benchmark_Rate__c.Contact_Email__c</members>
+        <members>Benchmark_Rate__c.Contact_Name__c</members>
+        <members>Benchmark_Rate__c.Contact_Phone__c</members>
+        <members>Benchmark_Rate__c.Destination_City__c</members>
+        <members>Benchmark_Rate__c.Destination_Country__c</members>
+        <members>Benchmark_Rate__c.Destination_Geolocation__c</members>
+        <members>Benchmark_Rate__c.Destination_Place__c</members>
+        <members>Benchmark_Rate__c.Destination_Postal__c</members>
+        <members>Benchmark_Rate__c.Destination_Province__c</members>
+        <members>Benchmark_Rate__c.Equipment_Category__c</members>
+        <members>Benchmark_Rate__c.Equipment_Type__c</members>
+        <members>Benchmark_Rate__c.Expires_On__c</members>
+        <members>Benchmark_Rate__c.FSC_Included__c</members>
+        <members>Benchmark_Rate__c.Fuel_Surcharge__c</members>
+        <members>Benchmark_Rate__c.Hazmat__c</members>
+        <members>Benchmark_Rate__c.Mode__c</members>
+        <members>Benchmark_Rate__c.Notes__c</members>
+        <members>Benchmark_Rate__c.Origin_City__c</members>
+        <members>Benchmark_Rate__c.Origin_Country__c</members>
+        <members>Benchmark_Rate__c.Origin_Geolocation__c</members>
+        <members>Benchmark_Rate__c.Origin_Place__c</members>
+        <members>Benchmark_Rate__c.Origin_Postal__c</members>
+        <members>Benchmark_Rate__c.Origin_Province__c</members>
+        <members>Benchmark_Rate__c.RFP_Lane__c</members>
+        <members>Benchmark_Rate__c.RFP_Project__c</members>
+        <members>Benchmark_Rate__c.Rate__c</members>
+        <members>Benchmark_Rate__c.State_Lane__c</members>
+        <members>Benchmark_Rate__c.Status__c</members>
+        <members>Benchmark_Rate__c.Transit_Days__c</members>
+        <members>Benchmark_Rate__c.Valid_From__c</members>
+        <members>Benchmark_Rate__c.Zip3_Lane__c</members>
         <name>CustomField</name>
+    </types>
+    <types>
+        <members>Benchmark_Rate__c.Carrier_Or_Name_Required</members>
+        <name>ValidationRule</name>
     </types>
     <version>64.0</version>
 </Package>
