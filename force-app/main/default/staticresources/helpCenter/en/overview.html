@@ -1,0 +1,11 @@
+<h2>Two tools, one source of truth</h2>
+<p><strong>Lane Benchmark</strong> answers &quot;what did this lane cost recently?&quot;. You pick an origin and a destination, how precisely to match them, and how far back to look. It returns every matching carrier quote from Revenova loads plus the carrier bids recorded in the RFP Tool, with per-currency statistics and a suggested sell.</p>
+<p><strong>RFP Tool</strong> prices a whole customer request. You upload the customer&#39;s lane file, the tool matches each lane&#39;s ends to known places, loads the same history per lane, and lets you set a cost, a margin and a sell for every lane - one at a time, straight in the table, or in bulk - then export the priced list to Excel.</p>
+<h2>Where the numbers come from</h2>
+<ul>
+<li><strong>Loads</strong>: carrier quotes on Revenova loads, matched by the lane&#39;s origin and destination.</li>
+<li><strong>Bids</strong>: carrier rates recorded in the RFP Tool without a load (a quote a carrier gave you for an RFP). They show with a <strong>Bid</strong> badge and an expiry date.</li>
+</ul>
+<p>Both sources are filtered by the lookback window (days since the quote or bid was created).</p>
+<h2>Who to ask</h2>
+<p>Access is granted by the <code>Lane_Benchmark_User</code> and <code>RFP_Tool_User</code> permission sets. If a tab is missing or a button is greyed out with a permission message, ask your Salesforce admin.</p>

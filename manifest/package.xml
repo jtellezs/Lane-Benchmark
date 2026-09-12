@@ -51,6 +51,7 @@
         <name>LightningComponentBundle</name>
     </types>
     <types>
+        <members>helpCenter</members>
         <members>sheetJs</members>
         <name>StaticResource</name>
     </types>

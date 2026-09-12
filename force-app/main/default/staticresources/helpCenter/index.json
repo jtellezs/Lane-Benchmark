@@ -1,0 +1,184 @@
+{
+  "sections": [
+    {
+      "slug": "overview",
+      "order": 10,
+      "title": {
+        "en": "What these tools do",
+        "fr": "À quoi servent ces outils"
+      },
+      "hint": {
+        "en": "Lane Benchmark shows what a lane cost recently; the RFP Tool prices a customer's lane list from that history and from carrier bids.",
+        "fr": "Lane Benchmark montre ce qu'une voie a coûté récemment; l'outil RFP tarifie la liste de voies d'un client à partir de cet historique et des soumissions des transporteurs."
+      }
+    },
+    {
+      "slug": "lb-lane",
+      "order": 20,
+      "title": {
+        "en": "Choosing a lane",
+        "fr": "Choisir une voie"
+      },
+      "hint": {
+        "en": "Type a city, province or alias for each end, then pick how precisely to match: exact city, province, postal prefix or a radius.",
+        "fr": "Tapez une ville, une province ou un alias pour chaque extrémité, puis choisissez la précision : ville exacte, province, préfixe postal ou rayon."
+      }
+    },
+    {
+      "slug": "lb-filters",
+      "order": 30,
+      "title": {
+        "en": "Filters and lookback",
+        "fr": "Filtres et période"
+      },
+      "hint": {
+        "en": "Lookback is how many days back to search. Currency, mode, equipment, hazmat, market test, source and quote status narrow the results.",
+        "fr": "La période est le nombre de jours à remonter. Devise, mode, équipement, matières dangereuses, test de marché, source et statut de cotation resserrent les résultats."
+      }
+    },
+    {
+      "slug": "lb-stats",
+      "order": 40,
+      "title": {
+        "en": "Reading the statistics",
+        "fr": "Lire les statistiques"
+      },
+      "hint": {
+        "en": "One box per currency: min, median, average, max over the priced quotes, and a suggested sell from the margin you type.",
+        "fr": "Une boîte par devise : min, médiane, moyenne, max sur les cotations tarifées, et un prix de vente suggéré à partir de la marge saisie."
+      }
+    },
+    {
+      "slug": "lb-results",
+      "order": 50,
+      "title": {
+        "en": "Results, carrier detail and export",
+        "fr": "Résultats, détail du transporteur et export"
+      },
+      "hint": {
+        "en": "Each row is one quote. Expand it for the load and contact detail; bids carry a badge and an expiry. Export CSV downloads what you see.",
+        "fr": "Chaque ligne est une cotation. Dépliez-la pour le détail du chargement et du contact; les soumissions portent une étiquette et une expiration. Export CSV télécharge ce qui est affiché."
+      }
+    },
+    {
+      "slug": "rfp-projects",
+      "order": 60,
+      "title": {
+        "en": "RFP projects",
+        "fr": "Projets RFP"
+      },
+      "hint": {
+        "en": "A project is one customer request: name, customer, due date, currency and default margin. Open it to upload lanes and price them.",
+        "fr": "Un projet est une demande client : nom, client, échéance, devise et marge par défaut. Ouvrez-le pour téléverser les voies et les tarifer."
+      }
+    },
+    {
+      "slug": "rfp-upload",
+      "order": 70,
+      "title": {
+        "en": "Uploading a lane file and mapping",
+        "fr": "Téléverser un fichier de voies et faire la correspondance"
+      },
+      "hint": {
+        "en": "Upload the customer's .xlsx or .csv, match its columns to our fields (the mapping is remembered per customer), then import.",
+        "fr": "Téléversez le .xlsx ou .csv du client, associez ses colonnes à nos champs (la correspondance est mémorisée par client), puis importez."
+      }
+    },
+    {
+      "slug": "rfp-unresolved",
+      "order": 80,
+      "title": {
+        "en": "Unresolved lane ends",
+        "fr": "Extrémités non résolues"
+      },
+      "hint": {
+        "en": "An \"Unresolved\" lane has an end the tool could not match to a known place. Fix the place inline, then reload its history.",
+        "fr": "Une voie « Unresolved » a une extrémité que l'outil n'a pas pu associer à un lieu connu. Corrigez le lieu dans la ligne, puis rechargez son historique."
+      }
+    },
+    {
+      "slug": "rfp-history",
+      "order": 90,
+      "title": {
+        "en": "Loading history",
+        "fr": "Charger l'historique"
+      },
+      "hint": {
+        "en": "Load history runs a Lane Benchmark search per lane. Choose precision, lookback, radius and whether to count other RFPs' bids, then read \"N loads + M bids · median\".",
+        "fr": "Load history lance une recherche Lane Benchmark par voie. Choisissez précision, période, rayon et si les soumissions des autres RFP comptent, puis lisez « N loads + M bids · median »."
+      }
+    },
+    {
+      "slug": "rfp-pricing",
+      "order": 100,
+      "title": {
+        "en": "Pricing a lane",
+        "fr": "Tarifer une voie"
+      },
+      "hint": {
+        "en": "Pick a cost source (a bid, the history median or a number you type), set a margin or a sell price, then Save price.",
+        "fr": "Choisissez une source de coût (une soumission, la médiane de l'historique ou un montant saisi), fixez une marge ou un prix de vente, puis Save price."
+      }
+    },
+    {
+      "slug": "rfp-inline",
+      "order": 110,
+      "title": {
+        "en": "Editing in the table",
+        "fr": "Modifier dans le tableau"
+      },
+      "hint": {
+        "en": "Click a Cost, Margin or Sell cell and type. Enter saves and moves down, Tab moves down, Shift+Tab moves up, Escape cancels.",
+        "fr": "Cliquez sur une cellule Cost, Margin ou Sell et tapez. Entrée enregistre et descend, Tab descend, Maj+Tab remonte, Échap annule."
+      }
+    },
+    {
+      "slug": "rfp-bids",
+      "order": 120,
+      "title": {
+        "en": "Recording carrier bids",
+        "fr": "Enregistrer les soumissions des transporteurs"
+      },
+      "hint": {
+        "en": "Add carrier rate stores a carrier's quote for a lane without creating a load: existing carrier or free text, rate, currency, validity dates.",
+        "fr": "Add carrier rate enregistre la cotation d'un transporteur pour une voie sans créer de chargement : transporteur existant ou texte libre, tarif, devise, dates de validité."
+      }
+    },
+    {
+      "slug": "rfp-bulk",
+      "order": 130,
+      "title": {
+        "en": "Bulk actions",
+        "fr": "Actions en lot"
+      },
+      "hint": {
+        "en": "Choose Selected or All lanes, then Use median, Apply margin, cost or sell, Add carrier rate, or Delete. Runs go 200 lanes at a time with a Stop button.",
+        "fr": "Choisissez Selected ou All lanes, puis Use median, Apply margin, cost ou sell, Add carrier rate, ou Delete. Les traitements vont par 200 voies avec un bouton Stop."
+      }
+    },
+    {
+      "slug": "rfp-filters-export",
+      "order": 140,
+      "title": {
+        "en": "Filters, selection and export",
+        "fr": "Filtres, sélection et export"
+      },
+      "hint": {
+        "en": "Show narrows the table (Unpriced, No history match, Manual…), the search box filters by text, the header checkbox selects the rows shown, Export to Excel builds the workbook.",
+        "fr": "Show resserre le tableau (Unpriced, No history match, Manual…), la boîte de recherche filtre par texte, la case d'en-tête sélectionne les lignes affichées, Export to Excel construit le classeur."
+      }
+    },
+    {
+      "slug": "faq",
+      "order": 150,
+      "title": {
+        "en": "Questions and problems",
+        "fr": "Questions et problèmes"
+      },
+      "hint": {
+        "en": "No match, Failed, old history, wrong currency, missing tab: the usual causes and what to do.",
+        "fr": "No match, Failed, historique ancien, mauvaise devise, onglet absent : les causes habituelles et quoi faire."
+      }
+    }
+  ]
+}

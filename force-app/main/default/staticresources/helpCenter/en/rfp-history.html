@@ -1,0 +1,13 @@
+<h2>Running it</h2>
+<p>Set <strong>History precision</strong> (City, Province or Radius), <strong>Lookback (days)</strong>, <strong>Radius</strong> and its <strong>Unit</strong>, and whether to <strong>Include RFP bids</strong>, then click <strong>Load history</strong>. Lanes are processed in batches with a progress bar; <strong>Stop</strong> ends the run after the current batch. <strong>Refresh history</strong> reruns every lane; <strong>Retry failed</strong> reruns only the lanes marked Failed or Unresolved.</p>
+<h2>Radius fallback</h2>
+<p>With City precision, a lane whose city has no history is searched again within the radius. The History cell&#39;s tooltip shows which precision was used, for example <code>RADIUS-50KM</code>.</p>
+<h2>Include RFP bids</h2>
+<p>When on (the default), carrier bids recorded on <strong>other</strong> RFP projects count alongside the loads, even after their validity date, as long as they are inside the lookback. Bids on the project you are pricing are never counted - they are your own inputs. The History cell then reads &quot;5 loads + 1 bid · median 5,500.00&quot;. When off, only loads count.</p>
+<h2>Reading the cell</h2>
+<ul>
+<li><code>12 · median 5,800.00</code>: twelve quotes matched, the median of the priced ones is 5,800.</li>
+<li><code>3 · no median</code>: three matched but none had a price.</li>
+<li><strong>No match</strong>, <strong>Failed</strong>, <strong>Unresolved</strong>, <strong>Pending</strong>: no history yet; hover for the reason.</li>
+</ul>
+<p>Statistics use only quotes in the lane&#39;s own currency.</p>
