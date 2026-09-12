@@ -87,6 +87,11 @@ export default class RfpExport extends LightningElement {
         XLSX.utils.aoa_to_sheet(sheets.bids),
         "Bids"
       );
+      XLSX.utils.book_append_sheet(
+        book,
+        XLSX.utils.aoa_to_sheet(sheets.summary),
+        "Summary"
+      );
       const out = XLSX.write(book, { bookType: "xlsx", type: "array" });
       this.download(new Blob([out], { type: XLSX_MIME }));
     } catch (e) {

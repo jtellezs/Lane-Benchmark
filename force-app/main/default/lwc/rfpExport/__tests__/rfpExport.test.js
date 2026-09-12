@@ -129,7 +129,7 @@ describe("c-rfp-export", () => {
 
     expect(
       window.XLSX.utils.book_append_sheet.mock.calls.map((c) => c[2])
-    ).toEqual(["Lanes", "Bids"]);
+    ).toEqual(["Lanes", "Bids", "Summary"]);
     expect(window.XLSX.write.mock.calls[0][1]).toEqual({
       bookType: "xlsx",
       type: "array"
