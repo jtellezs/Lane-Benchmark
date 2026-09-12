@@ -5,16 +5,18 @@ import search from "@salesforce/apex/LaneBenchmarkController.search";
 import { bestBid } from "c/rfpMath";
 import {
   SOURCES,
-  money,
   costFor,
   bidOptions,
   bidRows,
   bestBidHint,
   otherCurrencyNote,
   pricingDetail,
+  pricingFingerprint,
+  parseMoney,
   historyKey,
   historyRequest
 } from "c/rfpPricing";
+import { marginFor } from "c/marginMath";
 
 const laneIdOf = (lane) => (lane && lane.Id) || null;
 const apexMessage = (e, fallback) =>
@@ -33,11 +35,17 @@ export default class RfpLanePanel extends LightningElement {
   }
   set lane(value) {
     const laneChanged = laneIdOf(value) !== laneIdOf(this._lane);
+    const pricingChanged =
+      pricingFingerprint(value) !== pricingFingerprint(this._lane);
     const previousHistoryKey = historyKey(this._lane);
     this._lane = value || null;
     if (laneChanged) {
       this.syncFromLane();
       this.loadBids();
+    } else if (pricingChanged) {
+      // An inline edit or a bulk action touched the lane on screen: the editor
+      // must show what is stored now, not what it showed before the change.
+      this.syncPricing();
     }
     // A new lane always re-searches. Re-sending the same lane searches again
     // only once its place keys change — an end resolved through the table gives
@@ -53,6 +61,8 @@ export default class RfpLanePanel extends LightningElement {
   selectedBidId = null;
   manualCost = "";
   marginText = "";
+  sellSource = "Margin";
+  sellText = "";
   notes = "";
   showForm = false;
   editingBid = null;
@@ -91,14 +101,7 @@ export default class RfpLanePanel extends LightningElement {
 
   syncFromLane() {
     const l = this._lane || {};
-    this.costSource = l.Cost_Source__c || "Manual";
-    this.selectedBidId = l.Selected_Bid__c || null;
-    this.manualCost =
-      l.Cost__c === null || l.Cost__c === undefined ? "" : String(l.Cost__c);
-    this.marginText =
-      l.Margin__c === null || l.Margin__c === undefined
-        ? ""
-        : String(l.Margin__c);
+    this.syncPricing();
     this.notes = l.Notes__c || "";
     // Nothing from the lane we were showing may survive into the new one.
     this.bids = [];
@@ -107,6 +110,21 @@ export default class RfpLanePanel extends LightningElement {
     this.showForm = false;
     this.editingBid = null;
     this.error = null;
+  }
+
+  syncPricing() {
+    const l = this._lane || {};
+    this.costSource = l.Cost_Source__c || "Manual";
+    this.selectedBidId = l.Selected_Bid__c || null;
+    this.manualCost =
+      l.Cost__c === null || l.Cost__c === undefined ? "" : String(l.Cost__c);
+    this.marginText =
+      l.Margin__c === null || l.Margin__c === undefined
+        ? ""
+        : String(l.Margin__c);
+    this.sellSource = l.Sell_Source__c === "Manual" ? "Manual" : "Margin";
+    this.sellText =
+      l.Sell__c === null || l.Sell__c === undefined ? "" : String(l.Sell__c);
   }
 
   /** Resolves true only when the panel is showing this lane's current bids. */
@@ -177,10 +195,15 @@ export default class RfpLanePanel extends LightningElement {
   /**
    * With no cost to send, saveLanePricing would write nulls over whatever cost
    * and sell the lane already had. That includes a "Bid" source whose bid is not
-   * loaded — bids still in flight, or a getBids that failed.
+   * loaded — bids still in flight, or a getBids that failed. A manual sell that
+   * cannot be parsed is the same problem on the sell side: pricingDetail would
+   * write a null Sell__c over whatever the lane already had.
    */
   get cannotSavePrice() {
-    return this.costNumber === null;
+    return (
+      this.costNumber === null ||
+      (this.isManualSell && parseMoney(this.sellText) === null)
+    );
   }
   get hasBids() {
     return this.bids.length > 0;
@@ -202,8 +225,26 @@ export default class RfpLanePanel extends LightningElement {
   get costInputValue() {
     return this.costSource === "Manual" ? this.manualCost : this.costNumber;
   }
-  get sellText() {
-    return money(this.pricing.Sell__c);
+  get isManualSell() {
+    return this.sellSource === "Manual";
+  }
+  get sellMode() {
+    return this.isManualSell
+      ? "Margin follows the sell"
+      : "Sell follows the margin";
+  }
+  get sellValue() {
+    return this.isManualSell ? this.sellText : this.pricing.Sell__c;
+  }
+  get sellLabel() {
+    return `Sell (${this.currency})`;
+  }
+  get marginValue() {
+    if (!this.isManualSell) {
+      return this.marginText;
+    }
+    const m = marginFor(this.costNumber, parseMoney(this.sellText));
+    return m === null ? "" : String(m);
   }
   get bestBidHint() {
     return bestBidHint(this.bids, this.currency, this.costNumber);
@@ -218,7 +259,9 @@ export default class RfpLanePanel extends LightningElement {
       selectedBidId: this.selectedBidId,
       cost: this.costNumber,
       marginText: this.marginText,
-      notes: this.notes
+      notes: this.notes,
+      sellSource: this.sellSource,
+      sellText: this.sellText
     });
   }
 
@@ -237,6 +280,11 @@ export default class RfpLanePanel extends LightningElement {
   }
   handleMargin(event) {
     this.marginText = event.detail.value;
+    this.sellSource = "Margin";
+  }
+  handleSell(event) {
+    this.sellText = event.detail.value;
+    this.sellSource = "Manual";
   }
   handleNotes(event) {
     this.notes = event.detail.value;

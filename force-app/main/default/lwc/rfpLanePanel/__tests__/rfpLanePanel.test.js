@@ -176,11 +176,7 @@ describe("c-rfp-lane-panel", () => {
 
     change(el, "margin", { value: "15" });
     await flush();
-    expect(field(el, "sell").textContent.trim()).toBe("2300.00");
-    // The amount and the currency need a space between them (\u00a0 counts).
-    expect(
-      field(el, "sell").parentElement.textContent.replace(/\s+/g, " ").trim()
-    ).toBe("Sell 2300.00 CAD");
+    expect(field(el, "sell").value).toBe(2300);
 
     field(el, "save-price").click();
     expect(handler).toHaveBeenCalledTimes(1);
@@ -414,5 +410,76 @@ describe("c-rfp-lane-panel", () => {
     expect(field(el, "panel-error").textContent).toContain(
       "A bid needs a rate."
     );
+  });
+
+  describe("linked sell and margin", () => {
+    it("typing a sell flips the lane to Manual and shows the derived margin", async () => {
+      const el = await mount();
+      field(el, "margin").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "20" } })
+      );
+      await flush();
+      expect(field(el, "sell").value).toBe(1800);
+      expect(field(el, "sell-mode").textContent).toContain(
+        "Sell follows the margin"
+      );
+      field(el, "sell").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "2250" } })
+      );
+      await flush();
+      expect(field(el, "margin").value).toBe("50");
+      expect(field(el, "sell-mode").textContent).toContain(
+        "Margin follows the sell"
+      );
+      const spy = jest.fn();
+      el.addEventListener("pricingchange", spy);
+      field(el, "save-price").click();
+      expect(spy.mock.calls[0][0].detail).toMatchObject({
+        Cost__c: 1500,
+        Sell__c: 2250,
+        Margin__c: 50,
+        Sell_Source__c: "Manual"
+      });
+    });
+
+    it("a cost change keeps a manual sell and re-derives the margin", async () => {
+      const el = await mount();
+      field(el, "sell").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "2000" } })
+      );
+      field(el, "cost").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "1000" } })
+      );
+      await flush();
+      // sellValue in Manual mode returns the typed text as-is (the lightning-input
+      // stub does not coerce it to a number), unlike Margin mode where it is
+      // pricing.Sell__c, a computed number.
+      expect(field(el, "sell").value).toBe("2000");
+      expect(field(el, "margin").value).toBe("100");
+    });
+
+    it("cannot save a manual sell that is blank", async () => {
+      const el = await mount();
+      field(el, "sell").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "" } })
+      );
+      await flush();
+      expect(field(el, "save-price").disabled).toBe(true);
+    });
+
+    it("re-syncs when the same lane comes back with different pricing", async () => {
+      const el = await mount();
+      el.lane = {
+        ...LANE,
+        Cost__c: 1700,
+        Margin__c: 10,
+        Sell__c: 1870,
+        Sell_Source__c: "Margin"
+      };
+      await flush();
+      expect(field(el, "cost").value).toBe("1700");
+      expect(field(el, "margin").value).toBe("10");
+      expect(field(el, "sell").value).toBe(1870);
+    });
   });
 });
