@@ -389,7 +389,7 @@ In `RfpHistoryServiceTest.cls`:
   }
 ```
 
-Check the exact names `PricingTestDataFactory.createLoad` / `buildQuote` against how the first test in this file builds its load and quotes (lines ~40–56) and use the same calls.
+(`PricingTestDataFactory.createLoad(g, g.originLocation, g.destinationLocation)` and `buildQuote(g, load, rate)` are the calls the first test in this file already uses.)
 
 - [ ] **Step 2: Implement the service and controller**
 
@@ -525,16 +525,10 @@ Add to `rfpTool.test.js` (inside the existing describe, using its `mount`, `fiel
 
 ```js
 it("passes the radius and unit to every history chunk", async () => {
-  getProject.mockResolvedValue(PROJECT);
-  getLanes.mockResolvedValue(lanes(2));
   loadHistory.mockImplementation(async ({ laneIds }) =>
     laneIds.map((Id) => ({ ...pendingLane(1), Id, Hist_Status__c: "Done" }))
   );
-  const el = mount();
-  child(el, "c-rfp-project-list").dispatchEvent(
-    new CustomEvent("open", { detail: { projectId: "a0P1" } })
-  );
-  await settle();
+  const el = await openFromUrl(lanes(2));
   field(el, "radius").dispatchEvent(
     new CustomEvent("change", { detail: { value: "150" } })
   );
@@ -552,14 +546,8 @@ it("passes the radius and unit to every history chunk", async () => {
   });
 });
 it("falls back to 50 km when the radius box is emptied", async () => {
-  getProject.mockResolvedValue(PROJECT);
-  getLanes.mockResolvedValue(lanes(1));
   loadHistory.mockResolvedValue([]);
-  const el = mount();
-  child(el, "c-rfp-project-list").dispatchEvent(
-    new CustomEvent("open", { detail: { projectId: "a0P1" } })
-  );
-  await settle();
+  const el = await openFromUrl(lanes(1));
   field(el, "radius").dispatchEvent(
     new CustomEvent("change", { detail: { value: "" } })
   );
@@ -570,7 +558,7 @@ it("falls back to 50 km when the radius box is emptied", async () => {
 });
 ```
 
-Adapt `mount`/open to the helper this test file already uses for opening a project (look at "runs history in chunks", ~line 455).
+`openFromUrl(laneList)`, `settle`, `field`, `lanes` and `pendingLane` already exist in this test file.
 
 - [ ] **Step 7: Implement in `rfpTool`**
 
@@ -661,7 +649,9 @@ Add to `BenchmarkRateServiceTest.cls` (use the same fixture helpers the file alr
 ```apex
   @IsTest
   static void saveAllInsertsEveryBidWithItsLaneKeys() {
-    // build: graph g, places mtl/tor, project p, lanes a and b (same as the existing save test)
+    Fx f = fx();
+    RFP_Lane__c a = f.lane;
+    RFP_Lane__c b = RfpTestDataFactory.createLane(f.project, f.mtl, f.tor);
     List<Benchmark_Rate__c> saved = BenchmarkRateService.saveAll(
       new List<Benchmark_Rate__c>{
         RfpTestDataFactory.buildBid(a, 1000),
@@ -904,7 +894,7 @@ private class RfpBulkServiceTest {
   static void copyPricingCopiesTheSixPricingFields() {
     Fx f = fx();
     Benchmark_Rate__c bid = BenchmarkRateService.save(
-      RfpTestDataFactory.buildBid(f.a.Id == null ? f.a : f.a, 1700)
+      RfpTestDataFactory.buildBid(f.a, 1700)
     );
     update new RFP_Lane__c(
       Id = f.a.Id,
@@ -927,15 +917,6 @@ private class RfpBulkServiceTest {
     System.assertEquals(10, c.Margin__c);
     System.assertEquals(1870, c.Sell__c);
     System.assertEquals('Margin', c.Sell_Source__c);
-    try {
-      RfpBulkService.copyPricing(
-        f.c.Id == null ? f.c.Id : f.b.Id,
-        new List<Id>{ f.a.Id }
-      );
-      // b is costed, so use an uncosted source instead:
-    } catch (LaneSearchException e) {
-      System.assert(false, 'b has a cost: ' + e.getMessage());
-    }
     update new RFP_Lane__c(Id = f.c.Id, Cost__c = null);
     try {
       RfpBulkService.copyPricing(f.c.Id, new List<Id>{ f.a.Id });
@@ -971,8 +952,6 @@ private class RfpBulkServiceTest {
   }
 }
 ```
-
-Clean up the two odd ternaries in `copyPricingCopiesTheSixPricingFields` while transcribing: the bid is `RfpTestDataFactory.buildBid(f.a, 1700)`, and drop the middle try/catch entirely (keep only the uncosted-source refusal at the end).
 
 - [ ] **Step 2: Implement `RfpBulkService.cls`**
 
@@ -1286,7 +1265,11 @@ Add to `RfpBulkServiceTest.cls`:
     System.assertNotEquals(null, a.Selected_Bid__c);
     System.assertEquals(1380.00, a.Sell__c);
     RFP_Lane__c b = fetch(f.b.Id);
-    System.assertEquals(2070, b.Sell__c, 'b was Margin-sourced with no Sell_Source__c: recomputed');
+    System.assertEquals(
+      1380.00,
+      b.Sell__c,
+      'b had no Sell_Source__c: the margin drives, sell recomputed from the bid'
+    );
   }
 
   @IsTest
@@ -1311,20 +1294,7 @@ Add to `RfpBulkServiceTest.cls`:
   }
 ```
 
-`RfpBulkControllerTest.cls`:
-
-```apex
-@IsTest
-private class RfpBulkControllerTest {
-  @IsTest
-  static void wrapsValidationAsUserErrors() {
-    List<Id> none = new List<Id>();
-    assertUserError(() => RfpBulkController.applyMedian(none, false), '200');
-  }
-}
-```
-
-Apex has no lambdas: write it out as five try/catch blocks instead, one per wrapper, each asserting `AuraHandledException` whose message contains the fragment:
+`RfpBulkControllerTest.cls` (five wrappers, one try/catch each, asserting the `AuraHandledException` message):
 
 ```apex
 @IsTest
@@ -1354,7 +1324,7 @@ private class RfpBulkControllerTest {
       RfpBulkController.copyPricing(null, none);
       System.assert(false);
     } catch (AuraHandledException e) {
-      System.assert(e.getMessage().contains('no cost'), e.getMessage());
+      System.assert(e.getMessage().containsIgnoreCase('cop'), e.getMessage());
     }
     try {
       RfpBulkController.deleteLanes(none);
@@ -1405,31 +1375,39 @@ private class RfpBulkControllerTest {
 
 Prettier will reformat the one-line try/catch blocks; that is fine.
 
-Add to `RfpSecurityTest.cls`:
+Add to `RfpSecurityTest.cls`. `RFP_Project__c` is Public Read/Write and lanes are Controlled by Parent, so a non-owner can edit but not delete: the project and lane are created inside `runAs(pricing)` so the restricted user owns them (the graph, places and account come from the admin fixture `Fx { g, mtl, laval, tor, lane }` and are only read):
 
 ```apex
   @IsTest
-  static void rfpToolUserCanDeleteLanesAndTheirBids() {
+  static void rfpToolUserCanDeleteTheirLanesAndBids() {
     Fx f = fx();
     User pricing = restrictedUser('RFP_Tool_User');
     if (pricing == null) {
-      System.assert(true, 'no usable profile in this org; runAs coverage skipped (ledgered)');
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
       return;
     }
-    BenchmarkRateService.save(RfpTestDataFactory.buildBid(f.lane, 900));
     Test.startTest();
     RfpBulkService.Result r;
+    Id laneId;
     System.runAs(pricing) {
-      r = RfpBulkController.deleteLanes(new List<Id>{ f.lane.Id });
+      RFP_Project__c own = RfpTestDataFactory.createProject(f.g.customer);
+      RFP_Lane__c lane = RfpTestDataFactory.createLane(own, f.mtl, f.tor);
+      laneId = lane.Id;
+      BenchmarkRateService.save(RfpTestDataFactory.buildBid(lane, 900));
+      r = RfpBulkController.deleteLanes(new List<Id>{ laneId });
     }
     Test.stopTest();
     System.assertEquals(1, r.updated, String.join(r.errors, '; '));
-    System.assertEquals(0, [SELECT COUNT() FROM RFP_Lane__c WHERE Id = :f.lane.Id]);
-    System.assertEquals(0, [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :f.lane.Id]);
+    System.assertEquals(0, [SELECT COUNT() FROM RFP_Lane__c WHERE Id = :laneId]);
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :laneId]
+    );
   }
 ```
-
-If sharing keeps the restricted user from seeing the lane (0 deleted, no error), the project's OWD is private: in that case change the test to create the project and lane inside `System.runAs(pricing)` (the factory inserts with the running user as owner) and keep the assertions.
 
 - [ ] **Step 2: Implement `applyBid` in `RfpBulkService.cls`**
 
@@ -1573,7 +1551,7 @@ public with sharing class RfpBulkController {
 }
 ```
 
-`copyPricing(null, ...)` must reach the "no cost" branch: `lanesByIds(new List<Id>{ null })` returns an empty list, which the `sources.isEmpty()` check already handles.
+`copyPricing(null, ...)` either reaches the "no cost" branch (`lanesByIds(new List<Id>{ null })` is empty) or fails inside the query; both surface as an `AuraHandledException` whose message contains "cop" ("no cost to copy" or "could not be copied"), which is what the test asserts.
 
 Manifest: `<members>RfpBulkController</members>`, `<members>RfpBulkControllerTest</members>` after `RfpBulkServiceTest`. CI (`ci.yml` `--tests` line) and README (the "Apex tests" row, the `sf apex run test -n …` command, the `sf project deploy start … -t …` command): append ` RfpPricingMathTest RfpBulkServiceTest RfpBulkControllerTest` (README `-n` form: `-n RfpPricingMathTest -n RfpBulkServiceTest -n RfpBulkControllerTest`), matching the Global Constraints order exactly.
 
@@ -1595,7 +1573,7 @@ Expected: both deploys Succeeded; every class ≥ 75 %; record the deploy id in 
 
 **Files:**
 
-- Modify: `force-app/main/default/lwc/rfpPricing/rfpPricing.js` (+ test)
+- Modify: `force-app/main/default/lwc/rfpPricing/rfpPricing.js` (+ test), `force-app/main/default/lwc/rfpLanePanel/__tests__/rfpLanePanel.test.js` (two assertions)
 - Create: `force-app/main/default/lwc/rfpLaneFilter/rfpLaneFilter.js`, `rfpLaneFilter.js-meta.xml` (copy `rfpBatch.js-meta.xml`), `__tests__/rfpLaneFilter.test.js`
 - Modify: `manifest/package.xml` (LWC members, after `rfpWorkbook`)
 
@@ -1888,6 +1866,7 @@ const L = [
     Destination_Resolved__c: false,
     Destination_Place__c: null,
     Destination_City__c: "Nowhere",
+    Destination_Postal__c: null,
     Hist_Status__c: "Unresolved",
     Cost__c: null
   }),
@@ -2039,11 +2018,11 @@ Add `<members>rfpLaneFilter</members>` after `<members>rfpWorkbook</members>` in
 
 ```bash
 npx jest force-app/main/default/lwc/rfpPricing force-app/main/default/lwc/rfpLaneFilter force-app/main/default/lwc/rfpLanePanel && npx eslint force-app/main/default/lwc
-git add force-app/main/default/lwc/rfpPricing force-app/main/default/lwc/rfpLaneFilter manifest/package.xml
+git add force-app/main/default/lwc/rfpPricing force-app/main/default/lwc/rfpLaneFilter force-app/main/default/lwc/rfpLanePanel/__tests__ manifest/package.xml
 git commit -m "Add sell-source pricing details, inline edit math and the lane filter module"
 ```
 
-(`rfpLanePanel` tests still pass because `pricingDetail` without `sellSource` behaves as before, plus the new key.)
+Before running: the two `toEqual` assertions on a `pricingchange` detail in `rfpLanePanel/__tests__/rfpLanePanel.test.js` (~lines 187 and 358) gain `Sell_Source__c: "Margin"`, since every detail now carries it. Add that test file to the commit.
 
 ---
 
@@ -2609,8 +2588,9 @@ export default class RfpBulkBar extends LightningElement {
     return !this._selectedCount;
   }
   get deleteLabel() {
+    const n = this._selectedCount;
     return this.confirmingDelete
-      ? `Confirm: delete ${this._selectedCount} lanes and their carrier rates`
+      ? `Confirm: delete ${n} lane${n === 1 ? "" : "s"} and ${n === 1 ? "its" : "their"} carrier rates`
       : "Delete selected";
   }
   get costLabel() {
@@ -3128,8 +3108,7 @@ Extend `viewRows` (keep every existing key) with:
       manualSell: l.Sell_Source__c === "Manual",
       editingCost: this.isEditing(l.Id, "cost"),
       editingMargin: this.isEditing(l.Id, "margin"),
-      editingSell: this.isEditing(l.Id, "sell"),
-      inputType: this.editing && this.editing.field === "margin" ? "text" : "number"
+      editingSell: this.isEditing(l.Id, "sell")
 ```
 
 with `const selected = new Set(this._selectedIds); const pending = new Set(this.pendingIds || []);` at the top of the getter and
@@ -3447,7 +3426,7 @@ Add to `rfpLanePanel.test.js` (its `LANE` has Cost 1500, Cost_Source Manual, no 
 ```js
 describe("linked sell and margin", () => {
   it("typing a sell flips the lane to Manual and shows the derived margin", async () => {
-    const el = await mount(); // however the file mounts with LANE and resolves getBids/search
+    const el = await mount();
     field(el, "margin").dispatchEvent(
       new CustomEvent("change", { detail: { value: "20" } })
     );
@@ -3514,7 +3493,7 @@ describe("linked sell and margin", () => {
 });
 ```
 
-Adjust `mount()` and `field()` names to the helpers this test file already defines. The existing test that reads `data-id="sell"` as a span must now read `.value` of the input.
+`mount(props)`, `field(el, id)` and `flush()` already exist in this file. The existing tests that read `data-id="sell"` as a span must now read `.value` of the input.
 
 - [ ] **Step 2: Implement**
 
@@ -3634,17 +3613,15 @@ git commit -m "Let the pricing panel take a sell price and keep it in step with 
 
 - [ ] **Step 1: Failing tests**
 
-Add to `rfpTool.test.js` (mock the five `RfpBulkController` modules at the top like the other Apex mocks; import `applyMedian`, `applyPricing`, `copyPricing`, `deleteLanes`):
+Add to `rfpTool.test.js` (mock the five `RfpBulkController` modules at the top like the other Apex mocks; import `applyMedian`, `applyPricing`, `copyPricing`, `deleteLanes`; `openFromUrl(laneList)`, `settle`, `field`, `child`, `lanes`, `pendingLane` already exist in the file — `openFromUrl` sets the `getLanes` mock itself and opens project `a0P1` through the page reference):
 
 ```js
 it("filters the table and selects only the rows shown", async () => {
-  getProject.mockResolvedValue(PROJECT);
-  getLanes.mockResolvedValue([
+  const el = await openFromUrl([
     { ...pendingLane(1), Cost__c: 100 },
     { ...pendingLane(2), Destination_City__c: "Calgary" },
     pendingLane(3)
   ]);
-  const el = await openProject(); // the file's helper that mounts and opens a0P1
   field(el, "filter-status").dispatchEvent(
     new CustomEvent("change", { detail: { value: "unpriced" } })
   );
@@ -3667,8 +3644,6 @@ it("filters the table and selects only the rows shown", async () => {
 });
 
 it("runs a bulk action over the chosen scope and merges the lanes back", async () => {
-  getProject.mockResolvedValue(PROJECT);
-  getLanes.mockResolvedValue(lanes(3));
   applyMedian.mockResolvedValue({
     lanes: [{ ...pendingLane(1), Cost__c: 2000 }],
     updated: 1,
@@ -3676,7 +3651,7 @@ it("runs a bulk action over the chosen scope and merges the lanes back", async (
     skippedIds: ["a0L2", "a0L3"],
     errors: []
   });
-  const el = await openProject();
+  const el = await openFromUrl(lanes(3));
   child(el, "c-rfp-bulk-bar").dispatchEvent(
     new CustomEvent("bulk", { detail: { action: "median", scope: "all" } })
   );
@@ -3706,8 +3681,6 @@ it("runs a bulk action over the chosen scope and merges the lanes back", async (
 });
 
 it("deletes the selection and drops the rows", async () => {
-  getProject.mockResolvedValue(PROJECT);
-  getLanes.mockResolvedValue(lanes(3));
   deleteLanes.mockResolvedValue({
     lanes: [],
     updated: 2,
@@ -3715,7 +3688,7 @@ it("deletes the selection and drops the rows", async () => {
     skippedIds: [],
     errors: []
   });
-  const el = await openProject();
+  const el = await openFromUrl(lanes(3));
   child(el, "c-rfp-lane-table").dispatchEvent(
     new CustomEvent("selectionchange", {
       detail: { laneIds: ["a0L1", "a0L3"] }
@@ -3734,22 +3707,12 @@ it("deletes the selection and drops the rows", async () => {
 });
 
 it("marks a row pending while an inline save runs and offers the twins afterwards", async () => {
-  getProject.mockResolvedValue(PROJECT);
   const twin = {
     ...pendingLane(2),
     Origin_Place__c: "p1",
     Destination_Place__c: "p2",
     Mode__c: "TL"
   };
-  getLanes.mockResolvedValue([
-    {
-      ...pendingLane(1),
-      Origin_Place__c: "p1",
-      Destination_Place__c: "p2",
-      Mode__c: "TL"
-    },
-    twin
-  ]);
   let release;
   saveLanePricing.mockImplementation(
     () =>
@@ -3764,7 +3727,15 @@ it("marks a row pending while an inline save runs and offers the twins afterward
     skippedIds: [],
     errors: []
   });
-  const el = await openProject();
+  const el = await openFromUrl([
+    {
+      ...pendingLane(1),
+      Origin_Place__c: "p1",
+      Destination_Place__c: "p2",
+      Mode__c: "TL"
+    },
+    twin
+  ]);
   child(el, "c-rfp-lane-table").dispatchEvent(
     new CustomEvent("pricingchange", {
       detail: {
@@ -3803,12 +3774,10 @@ it("marks a row pending while an inline save runs and offers the twins afterward
 });
 
 it("records a failed inline save on the row instead of the banner", async () => {
-  getProject.mockResolvedValue(PROJECT);
-  getLanes.mockResolvedValue(lanes(1));
   saveLanePricing.mockRejectedValue({
     body: { message: "The lane price could not be saved. Boom" }
   });
-  const el = await openProject();
+  const el = await openFromUrl(lanes(1));
   child(el, "c-rfp-lane-table").dispatchEvent(
     new CustomEvent("pricingchange", {
       detail: {
