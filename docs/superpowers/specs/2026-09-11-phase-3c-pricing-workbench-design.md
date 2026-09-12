@@ -151,7 +151,7 @@ Inline editing of the Cost, Margin and Sell cells:
 
 - State `editing = { laneId, field }` and `draft`. A click on one of the three cells, or Enter on a focused cell (`tabindex="0"`, `data-id="cell-cost|cell-margin|cell-sell"`), selects the row and opens one `lightning-input` (`data-id="cell-input"`, type number for cost and sell, text for margin, `step="0.01"`) in that cell; `renderedCallback` focuses it once per open.
 - Enter, Tab, and blur commit; Escape cancels. Commit with an unchanged text just closes. Commit with a valid text emits `pricingchange` (detail from `inlineEdit`); an invalid text keeps the input open with `class="slds-has-error"` and `data-id="cell-error"` text under it. After Enter or Tab the same field opens on the next row shown (Shift+Tab: previous row); on the last row it just closes.
-- The row's Status cell shows a small spinner while its id is in `pendingIds` and a red icon with the message as title when `rowErrors[id]` is set; the text stays "Priced" once `Cost__c` is set.
+- The row's Status cell shows a small sync icon while its id is in `pendingIds` and a red icon with the message as title when `rowErrors[id]` is set; the text stays "Priced" once `Cost__c` is set.
 - A negative margin gets `slds-text-color_error`. A `Sell_Source__c === "Manual"` lane shows a small "manual" tag after the sell.
 
 ### 6.5 `c/rfpLanePanel` (existing)
@@ -164,15 +164,15 @@ Inline editing of the Cost, Margin and Sell cells:
 
 Rendered above the table once the workbench has lanes. `@api selectedCount, totalCount, currency, busy, project`. A scope toggle (`data-id="scope"`, radio buttons "Selected (N)" / "All lanes (M)"; Selected is disabled at 0 and the bar starts on All) and the actions:
 
-| Control                                                                                                                                            | Emits `bulk` with `detail`                                           |
-| -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| "Use median" button (`data-id="use-median"`)                                                                                                       | `{ action: "median", scope }`                                        |
-| Margin % input + "Apply" (`data-id="margin"`, `apply-margin`)                                                                                      | `{ action: "pricing", scope, margin }`                               |
-| Cost input + "Apply" (`cost`, `apply-cost`)                                                                                                        | `{ action: "pricing", scope, cost }`                                 |
-| Sell input + "Apply" (`sell`, `apply-sell`)                                                                                                        | `{ action: "pricing", scope, sell }`                                 |
-| "Add carrier rate" (`add-bid`) → opens `c-rfp-bid-form` with `lane-id` null and `currency`; its `save`                                             | `{ action: "bid", scope, bid }` (the form's bid minus `RFP_Lane__c`) |
-| "Delete selected" (`delete`), Selected scope only, two clicks: the label turns into "Confirm: delete N lanes and their carrier rates" for 5 s      | `{ action: "delete", scope: "selected" }`                            |
-| After a median run that skipped lanes: text "N lanes already costed from a bid or manually were left as they are" + "Overwrite them" (`overwrite`) | `{ action: "median", scope: "skipped", overwrite: true }`            |
+| Control                                                                                                                                                                        | Emits `bulk` with `detail`                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| "Use median" button (`data-id="use-median"`)                                                                                                                                   | `{ action: "median", scope }`                                        |
+| Margin % input + "Apply" (`data-id="margin"`, `apply-margin`)                                                                                                                  | `{ action: "pricing", scope, margin }`                               |
+| Cost input + "Apply" (`cost`, `apply-cost`)                                                                                                                                    | `{ action: "pricing", scope, cost }`                                 |
+| Sell input + "Apply" (`sell`, `apply-sell`)                                                                                                                                    | `{ action: "pricing", scope, sell }`                                 |
+| "Add carrier rate" (`add-bid`) → opens `c-rfp-bid-form` with `lane-id` null and `currency`; its `save`                                                                         | `{ action: "bid", scope, bid }` (the form's bid minus `RFP_Lane__c`) |
+| "Delete selected" (`delete`), Selected scope only, two clicks: the label turns into "Confirm: delete N lanes and their carrier rates" until the selection or the scope changes | `{ action: "delete", scope: "selected" }`                            |
+| After a median run that skipped lanes: text "N lanes already costed from a bid or manually were left as they are" + "Overwrite them" (`overwrite`)                             | `{ action: "median", scope: "skipped", overwrite: true }`            |
 
 Client validation mirrors the server (margin 0..100, cost and sell > 0) with a `data-id="bar-error"` line. All buttons are disabled while `busy`. `@api lastResult` (the summary text and skipped count) is what the bar renders after a run.
 
@@ -184,7 +184,7 @@ Client validation mirrors the server (margin 0..100, cost and sell > 0) with a `
 - `handlePricingChange` marks the lane pending, saves, merges, clears pending or records `rowErrors[id]`; on success computes `siblings(lanes, saved)` and, when any, shows `data-id="twin-offer"`: "Apply the same cost and sell to N identical lanes" with Apply (→ `copyPricing`) and Dismiss. Concurrent inline saves on different lanes are allowed; a second save on a lane still pending is ignored.
 - `handleBulk` resolves the id list (selected, all, or `bulkResult.skippedIds`), runs it 200 ids per call through `c/rfpBulk` (§6.8) with the existing progress bar and Stop, merges returned lanes, and for `delete` removes the ids from `lanes` and `selectedIds`. The summary line reads e.g. "Median applied to 143 lanes; 12 skipped; 2 failed".
 - Sticky panel: `rfpTool.css` (new) gives the panel column `position: sticky; top: 0; align-self: flex-start; max-height: calc(100vh - 8rem); overflow-y: auto`. Jest cannot verify this; it is a browser check.
-- `rfpTool.js` is at 399 lines; the bulk and filter handlers move into the modules below so it stays under ~450 lines. If it does not, the workbench toolbar (precision, lookback, radius, history buttons, export) moves into a `c/rfpToolbar` component in the same plan.
+- `rfpTool.js` is at 399 lines; the bulk and filter logic lives in the modules below so the container lands around 520 lines. If it passes 560, the workbench toolbar (precision, lookback, radius, history buttons, export) moves into a `c/rfpToolbar` component in the same plan.
 
 ### 6.8 `c/rfpBulk` (new module, Apex-aware)
 
