@@ -71,9 +71,9 @@ Apex `LaneBenchmark*` for UI-facing classes, permission set
 
 - Develop and test in PostProduc; production is the only org after it. Nothing
   is developed directly in production.
-- `PricingDepartmentController` stays `without sharing` on purpose (pricing
-  must see every team's quotes). State it in code; move the hardcoded
-  excluded Contact Id to custom metadata.
+- (Retired with phase 4.) `PricingDepartmentController` stayed `without
+sharing` on purpose while it existed; the excluded Contact Ids moved to
+  custom metadata in phase 0 and are read by `LaneSearchExclusions` now.
 - Lookback is a free number of days (default 90, no cap). Radius searches over long windows are slower (about 13 s for a year); the fix is custom indexes requested from Salesforce, not new fields.
 - No backfill: lane data is read through relationships from Revenova's lane keys and the location accounts.
 - Alias rules for places are a business asset curated by the pricing team.
@@ -100,7 +100,11 @@ Branch `phase-4/retire-pricing-department`, three commits:
    metadata), with a new `LaneSearchExclusionsTest`. Every consumer, the 22-class test
    list and both surviving permission sets are repointed.
 2. `870e6cc` Remove the Pricing Department page, tab, component and permission set.
-3. Document the retired Pricing Department page and the production steps (this commit).
+3. `6f7b0db` Document the retired Pricing Department page and the production steps.
+4. Review fix wave (this commit): remove the orphaned `lwc/quoteStats` (its only importer
+   was `pricingDepartment.js`), add the production pre-check for the two legacy test
+   classes and the unassign commands to the README runbook, note that `e4bd684` is not
+   deployable on its own, and fix the data-flow diagram.
 
 **PostProduc deploys:** `0AfbZ00000CpbZhSAJ` (the new class and the repointed consumers,
 124/124 Apex tests) and `0AfbZ00000CpaH4SAJ` (the destructive run, 124/124). An earlier
@@ -110,8 +114,9 @@ so the two Apex classes are deleted together with the component rather than a st
 earlier. The single `Pricing_Department_User` assignment was removed by Id first.
 
 **Removed** from repo and org: the `Pricing_Department` tab and FlexiPage, the
-`pricingDepartment` LWC and its Jest suite, `PricingDepartmentController` and its test,
-the `Pricing_Department_User` permission set, and the reference-only `Pricing` profile.
+`pricingDepartment` LWC and its Jest suite, the orphaned `quoteStats` LWC (deploy
+`0AfbZ00000CpbwHSAR`), `PricingDepartmentController` and its test, the `Pricing_Department_User`
+permission set, and the reference-only `Pricing` profile.
 
 **Kept:** `Pricing_Department_Setting__mdt`, its `Excluded_Contact_Ids__c` field and its
 `Default` record (the lane search still reads the exclusions), and every

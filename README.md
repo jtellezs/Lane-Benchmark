@@ -52,10 +52,10 @@ Not included on purpose:
 ## How the data flows
 
 ```
-Load (rtms__Load__c)  ──┐
+Load (rtms__Load__c) ───┐
 Carrier Service ────────┼─► formulas on rtms__CarrierQuote__c ─┐
-Vendor Account ─────────┘                                   ├─► LaneSearchService ─► Lane Benchmark page
-Benchmark_Rate__c (RFP bids) ───────────────────────┘                             RFP workbench
+Vendor Account ─────────┘                                      ├─► LaneSearchService ─► Lane Benchmark page
+Benchmark_Rate__c (RFP bids) ──────────────────────────────────┘                        RFP workbench
 ```
 
 Nearly every lane column is a cross-object formula on Carrier Quote (origin,
@@ -316,9 +316,13 @@ Lane Benchmark and the RFP workbench replaced the original page, so on 2026-09-1
 left the repo and PostProduc.
 
 **Removed:** `tabs/Pricing_Department`, `flexipages/Pricing_Department`,
-`lwc/pricingDepartment` (bundle and Jest suite), `classes/PricingDepartmentController`
-and `PricingDepartmentControllerTest`, `permissionsets/Pricing_Department_User`, and the
+`lwc/pricingDepartment` (bundle and Jest suite), `lwc/quoteStats` (the old page's stats
+helper, which nothing else imported), `classes/PricingDepartmentController` and
+`PricingDepartmentControllerTest`, `permissionsets/Pricing_Department_User`, and the
 reference-only `profiles/Pricing` (never deployed; git history keeps all of it).
+The first commit of the change (`e4bd684`) removes the controller from the repo while
+the manifest still lists the component that imported it, so that commit is not
+deployable on its own; the branch was always deployed from its second commit onward.
 
 **Kept:** the custom metadata type `Pricing_Department_Setting__mdt`, its
 `Excluded_Contact_Ids__c` field and its `Default` record - every lane search still reads
@@ -336,19 +340,39 @@ components together with the two Apex classes (124/124). A first attempt,
 Salesforce will not delete `PricingDepartmentController` while `lwc/pricingDepartment`
 imports `getCarrierQuotes`, so both classes are deleted with the component instead - which
 is why `manifest/destructiveChanges-phase4.xml` lists all of them in one file.
+The orphaned `quoteStats` bundle was removed in the
+review fix wave (deploy `0AfbZ00000CpbwHSAR`).
 
 **Production is the admin's step, in this order** (users on the `Pricing` profile lose the
 tab, so they need the replacement permission sets first):
 
-1. Assign the replacements to the pricing team, and unassign the old set from whoever
-   still holds it (PostProduc had one holder, removed by Id before the deploy):
+1. Assign the replacements to the pricing team, and unassign the old set from everyone
+   who still holds it (a permission set with assignments cannot be deleted). List the
+   holders, then remove each assignment by its Id:
 
 ```bash
 sf org assign permset -n Lane_Benchmark_User -o vscodeOrg
 sf org assign permset -n RFP_Tool_User -o vscodeOrg
+sf data query -o vscodeOrg -q "SELECT Id, Assignee.Name FROM PermissionSetAssignment WHERE PermissionSet.Name = 'Pricing_Department_User'"
+sf data delete record -o vscodeOrg -s PermissionSetAssignment -i <Id from the query, one command per row>
 ```
 
-2. Deploy the code and run the one-time destructive manifest. It is deliberately not part
+2. Pre-check the two legacy test classes. Phase 0 deleted
+   `PricingDepartmentControllerTest3` and `PricingDepartmentController_TGN_TEST` from
+   PostProduc only; if production still has them, the destructive deploy fails with
+   "This apex class is referenced elsewhere in Salesforce" because both call the
+   controller. Check, and when they exist add them to the `ApexClass` block of a local
+   copy of the manifest:
+
+```bash
+sf org list metadata -o vscodeOrg -m ApexClass --json | grep -E "PricingDepartmentControllerTest3|PricingDepartmentController_TGN_TEST"
+cp manifest/destructiveChanges-phase4.xml /tmp/destructive-phase4-prod.xml
+# if the grep printed either name, add <members>…</members> lines for them next to
+# PricingDepartmentControllerTest in /tmp/destructive-phase4-prod.xml and use that
+# file in step 3 instead of manifest/destructiveChanges-phase4.xml
+```
+
+3. Deploy the code and run the one-time destructive manifest. It is deliberately not part
    of the routine deploy command: a second run fails, because the components are gone.
 
 ```bash

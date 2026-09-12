@@ -18,7 +18,6 @@
     </types>
     <!-- UI -->
     <types>
-        <members>quoteStats</members>
         <members>marginMath</members>
         <members>laneBenchmarkCsv</members>
         <members>laneBenchmarkStorage</members>
