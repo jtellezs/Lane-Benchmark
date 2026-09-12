@@ -166,7 +166,7 @@ public with sharing class RfpBulkService {
     try {
       costFromBids(c, plan, BenchmarkRateService.saveAll(plan.bids));
       return save(c, true);
-    } catch (DmlException e) {
+    } catch (Exception e) {
       Database.rollback(sp);
       throw new LaneSearchException(
         'No lane was updated: ' + RfpUserError.safe(e)

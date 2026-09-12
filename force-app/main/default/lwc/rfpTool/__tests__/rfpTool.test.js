@@ -944,6 +944,40 @@ describe("c-rfp-tool", () => {
       );
     });
 
+    it("turns a panel save away while a bulk run is going and says so", async () => {
+      applyMedian.mockImplementation(() => new Promise(() => {}));
+      const el = await openFromUrl(lanes(2));
+      child(el, "c-rfp-lane-table").dispatchEvent(
+        new CustomEvent("select", { detail: { laneId: "a0L2" } })
+      );
+      await flush();
+      child(el, "c-rfp-bulk-bar").dispatchEvent(
+        new CustomEvent("bulk", { detail: { action: "median", scope: "all" } })
+      );
+      await settle();
+      const panel = child(el, "c-rfp-lane-panel");
+      expect(panel.busy).toBe(true);
+      panel.dispatchEvent(
+        new CustomEvent("pricingchange", {
+          detail: {
+            laneId: "a0L2",
+            Cost__c: 900,
+            Cost_Source__c: "Manual",
+            Selected_Bid__c: null,
+            Margin__c: 15,
+            Sell__c: 1035,
+            Sell_Source__c: "Margin",
+            Notes__c: null
+          }
+        })
+      );
+      await settle();
+      expect(saveLanePricing).not.toHaveBeenCalled();
+      expect(field(el, "error").textContent).toContain(
+        "Wait for the current run to finish."
+      );
+    });
+
     it("shows a bulk run that threw outside a chunk on the banner", async () => {
       const el = await openFromUrl(lanes(2));
       child(el, "c-rfp-bulk-bar").dispatchEvent(

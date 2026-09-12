@@ -26,6 +26,8 @@ const placeText = (city, province) =>
 
 export default class RfpLanePanel extends LightningElement {
   @api project;
+  /** A chunked run is going in the container: the panel must not add a save to it. */
+  @api busy = false;
 
   _lane = null;
 
@@ -204,6 +206,10 @@ export default class RfpLanePanel extends LightningElement {
       this.costNumber === null ||
       (this.isManualSell && parseMoney(this.sellText) === null)
     );
+  }
+  /** Save is off while the container is mid-run, as well as when there is nothing to save. */
+  get saveDisabled() {
+    return this.busy || this.cannotSavePrice;
   }
   get hasBids() {
     return this.bids.length > 0;

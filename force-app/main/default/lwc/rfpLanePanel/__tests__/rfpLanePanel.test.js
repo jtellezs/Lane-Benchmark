@@ -212,6 +212,15 @@ describe("c-rfp-lane-panel", () => {
     });
   });
 
+  it("will not save while the container reports a run in flight", async () => {
+    // The lane carries a manual cost, so `busy` is the only reason Save is off.
+    const el = await mount({ busy: true });
+    expect(field(el, "save-price").disabled).toBe(true);
+    el.busy = false;
+    await flush();
+    expect(field(el, "save-price").disabled).toBe(false);
+  });
+
   it("will not save a Bid cost while no bid is picked", async () => {
     const el = await mount();
     change(el, "cost-source", { value: "Bid" });

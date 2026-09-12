@@ -228,4 +228,46 @@ private class RfpSecurityTest {
       [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :laneId]
     );
   }
+
+  /**
+   * Class security is not enforced Apex to Apex, so calling a controller from a test proves
+   * nothing about the permission set. Read the grant out of the metadata instead: a workbench
+   * controller missing here is the "You do not have access to the Apex class named ..." error
+   * the pricing team hits in the browser on every bulk action.
+   */
+  @IsTest
+  static void rfpToolUserHasClassAccessToEveryWorkbenchController() {
+    PermissionSet ps = [
+      SELECT Id
+      FROM PermissionSet
+      WHERE Name = 'RFP_Tool_User'
+    ];
+    Set<Id> ids = new Set<Id>();
+    for (SetupEntityAccess a : [
+      SELECT SetupEntityId
+      FROM SetupEntityAccess
+      WHERE ParentId = :ps.Id AND SetupEntityType = 'ApexClass'
+    ]) {
+      ids.add(a.SetupEntityId);
+    }
+    Set<String> granted = new Set<String>();
+    for (ApexClass c : [SELECT Id, Name FROM ApexClass WHERE Id IN :ids]) {
+      granted.add(c.Name);
+    }
+    for (
+      String name : new List<String>{
+        'RfpBulkController',
+        'RfpBulkService',
+        'RfpBidController',
+        'RfpLaneController',
+        'RfpHistoryController',
+        'RfpProjectController'
+      }
+    ) {
+      System.assert(
+        granted.contains(name),
+        'RFP_Tool_User grants no class access to ' + name
+      );
+    }
+  }
 }

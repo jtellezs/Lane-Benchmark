@@ -33,6 +33,14 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>RfpBulkController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RfpBulkService</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>RfpController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
@@ -50,6 +58,14 @@
     </classAccesses>
     <classAccesses>
         <apexClass>RfpLaneController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RfpPricingInput</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>RfpPricingMath</apexClass>
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>

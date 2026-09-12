@@ -207,6 +207,7 @@ Client validation mirrors the server (margin 0..100, cost and sell > 0) with a `
 
 - All SOQL/DML in user mode; `stripInaccessible` before every write; the `RFP_Tool_User` permission set is the only one widened (delete on lanes and bids, the new field).
 - `applyBid` templates go through `BenchmarkRateService.saveAll`, which strips the service-maintained key fields the same way `save` does.
+- Every new `@AuraEnabled` class needs a `classAccesses` entry in `RFP_Tool_User` in the task that creates it, the same standing rule as the manifest entry for a new bundle; `RfpSecurityTest` proves the grant by reading `SetupEntityAccess`, because class security is not enforced Apex to Apex and an Apex-to-Apex call would pass either way.
 - `bidJson` and `laneJson` are deserialised into SObjects and re-copied field by field onto new records; nothing posted reaches SOQL text.
 - Export: unchanged neutralisation (typed string cells).
 
@@ -267,6 +268,7 @@ except Task 13's, which are from the commands run for this task.
 | 11 — wire filters, selection, bulk actions, twins, sticky panel | `0AfbZ00000CpXnpSAF` (NoTestRun); fix round `0AfbZ00000CpXsfSAF`                                                   | Jest 250/250, then 258/258 after the doneIds-diff and unpriced-source-twin fixes                                             |
 | 12 — export: annual sell, sell source, Summary sheet            | — (LWC only)                                                                                                       | Jest 13/13 in the two suites, ESLint clean                                                                                   |
 | 13 — docs, final deploy with tests (this task)                  | `0AfbZ00000CpXvtSAF` (full-manifest NoTestRun); `0AfbZ00000CpXnqSAF` (full-manifest RunSpecifiedTests, 22 classes) | 241 components deployed, 0 errors; Apex 124/124 across the 22 classes; `npm test` 32 suites / 258 tests; PMD clean           |
+| Final fix wave — class access, panel busy, rollback breadth     | `0AfbZ00000CpY7BSAV` (full-manifest NoTestRun); `0AfbZ00000CpY8nSAF` (full-manifest RunSpecifiedTests, 22 classes) | 241 components deployed, 0 errors; Apex 125/125 (the new class-access test included); Jest 32 suites / 260 tests; PMD clean  |
 
 Final state: **Apex 124/124** tests across the 22-class `RunSpecifiedTests`
 list (deploy `0AfbZ00000CpXnqSAF`), **Jest 32 suites / 258 tests**, **PMD
@@ -307,6 +309,18 @@ numbering above; full text in the ledger):
   delete chunk no longer hides lanes that still exist.
 - R39 (Task 11) — `siblings()` no longer offers twins for an unpriced
   source lane; an unpriced source now returns no siblings.
+- R40 (final fix wave) — `RFP_Tool_User` now grants class access to the
+  four 3c classes (`RfpBulkController`, `RfpBulkService`,
+  `RfpPricingInput`, `RfpPricingMath`), without which a user holding only
+  that permission set hit "You do not have access to the Apex class named
+  'RfpBulkController'" on every bulk action.
+- R41 (final fix wave) — the lane panel takes a `busy` flag from the
+  container and disables Save price during a chunked run, and a
+  `pricingchange` that still arrives while busy now says "Wait for the
+  current run to finish." on the banner instead of returning silently.
+- R42 (final fix wave) — `applyBid`'s rollback catches `Exception` rather
+  than only `DmlException`, so a non-DML failure between the bid save and
+  the lane update also rolls the savepoint back.
 
 **Known limits and deferred minors** (from the ledger's `minor (deferred)`
 and `parked` lines, grouped by area).

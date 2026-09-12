@@ -422,8 +422,8 @@ reads from `CurrentPageReference` and opens without showing the project list.
 **Flow.** Project (create or open) → upload the customer's file → map its
 columns to our fields (the mapping is remembered per customer) → import
 lanes (each end resolved to a `Pricing_Place__c` by city key, then postal
-prefix) → load carrier-quote history per lane (CITY, falling back to a 50 km
-radius on a CITY miss) → price each lane (from a bid, the history median, or
+prefix) → load carrier-quote history per lane (CITY, falling back to the
+chosen radius, default 50 km, on a CITY miss) → price each lane (from a bid, the history median, or
 a manual cost, plus margin) → record carrier bids → export the customer's
 file back with our prices and the selected bid filled in.
 
@@ -468,11 +468,15 @@ shows up under Files on the project, not on the lanes.
 
 **Permission set and custom permission.** `RFP_Tool_User` gains tab
 visibility for `RFP_Tool` (alongside its existing `Lane_Benchmark` app and
-tab visibility) and class access to the four workbench controllers
+tab visibility) and class access to every workbench controller — now
+including the bulk controller — and to the services behind them
 (`RfpProjectController`, `RfpLaneController`, `RfpHistoryController`,
-`RfpBidController`) and the two services (`RfpImportService`,
-`RfpHistoryService`). The `RFP_Tool` custom permission (added in 3a) still
-gates `rfpProjectsForAccount`; assigning `RFP_Tool_User` grants both the
+`RfpBidController`, `RfpBulkController`, `RfpImportService`,
+`RfpHistoryService`, `RfpBulkService`, `RfpPricingInput`,
+`RfpPricingMath`). Every new `@AuraEnabled` class needs a `classAccesses`
+entry in `RFP_Tool_User`, just as every new bundle needs a manifest entry.
+The `RFP_Tool` custom permission (added in 3a) still gates
+`rfpProjectsForAccount`; assigning `RFP_Tool_User` grants both the
 workbench tab and that permission.
 
 ### Phase 3c — pricing

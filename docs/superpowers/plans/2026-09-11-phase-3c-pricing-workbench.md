@@ -13,8 +13,9 @@
 > (wire filters, selection, bulk, twins, sticky panel): final commit
 > `c009537`. Task 12 (export annual sell, sell source, Summary sheet):
 > final commit `1f65b40`. Task 13 (docs, final deploy with tests): this
-> commit. Rulings made during execution are recorded in the spec's
-> `## Outcome — 3c` section, not repeated here.
+> commit. Final fix wave (R40–R42): the commit after `e67f9af`. Rulings
+> made during execution are recorded in the spec's `## Outcome — 3c`
+> section, not repeated here.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 

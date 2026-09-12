@@ -459,12 +459,15 @@ export default class RfpTool extends LightningElement {
   /**
    * One lane's save, from the panel or from a table cell. Several lanes may be
    * saving at once (a quick Enter-Enter-Enter down a column); a lane already
-   * saving ignores a second request until the first returns. The failure lands
-   * on the row, not on the page banner, so the rest of the sheet stays usable.
+   * saving ignores a second request. A failure lands on the row, not the banner.
    */
   async handlePricingChange(event) {
     const { laneId, ...fields } = event.detail;
-    if (this.busy || this.pendingIds.includes(laneId)) {
+    if (this.busy) {
+      this.error = "Wait for the current run to finish.";
+      return;
+    }
+    if (this.pendingIds.includes(laneId)) {
       return;
     }
     this.pendingIds = [...this.pendingIds, laneId];
