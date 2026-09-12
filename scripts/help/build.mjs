@@ -73,35 +73,41 @@ function frontMatter(text, file) {
 // Keeps only the allowed tags; on <a>, keeps only a safe href. Content is
 // repo-authored, so this is a guard against mistakes, not an attacker.
 function sanitize(html, file) {
-  return html.replace(/<\/?([a-zA-Z0-9]+)([^>]*)>/g, (tag, name, attrs) => {
-    const lower = name.toLowerCase();
-    if (!ALLOWED.has(lower))
-      throw new Error(`${file}: tag <${lower}> is not allowed`);
-    if (tag.startsWith("</")) return `</${lower}>`;
-    if (lower !== "a") return `<${lower}>`;
-    const href = /href="([^"]*)"/.exec(attrs);
-    const value = href ? href[1] : "";
-    if (!/^(#|\/|https:\/\/)/.test(value))
-      throw new Error(
-        `${file}: link "${value}" must start with #, / or https://`
-      );
-    return `<a href="${value}">`;
-  });
+  return html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<\/?([a-zA-Z0-9]+)([^>]*)>/g, (tag, name, attrs) => {
+      const lower = name.toLowerCase();
+      if (!ALLOWED.has(lower))
+        throw new Error(`${file}: tag <${lower}> is not allowed`);
+      if (tag.startsWith("</")) return `</${lower}>`;
+      if (lower !== "a") return `<${lower}>`;
+      const href = /href="([^"]*)"/.exec(attrs);
+      const value = href ? href[1] : "";
+      if (!/^(#|\/(?!\/)|https:\/\/)/.test(value))
+        throw new Error(
+          `${file}: link "${value}" must start with #, / or https://`
+        );
+      return `<a href="${value}">`;
+    });
 }
 
 async function readLang(lang) {
   const dir = path.join(SRC, lang);
   const files = (await fs.readdir(dir)).filter((f) => f.endsWith(".md")).sort();
-  const out = new Map();
-  for (const f of files) {
-    const text = await fs.readFile(path.join(dir, f), "utf8");
-    const parsed = frontMatter(text, `${lang}/${f}`);
-    out.set(f.replace(/\.md$/, ""), {
-      ...parsed,
-      html: sanitize(marked.parse(parsed.body), `${lang}/${f}`)
-    });
-  }
-  return out;
+  const entries = await Promise.all(
+    files.map(async (f) => {
+      const text = await fs.readFile(path.join(dir, f), "utf8");
+      const parsed = frontMatter(text, `${lang}/${f}`);
+      return [
+        f.replace(/\.md$/, ""),
+        {
+          ...parsed,
+          html: sanitize(marked.parse(parsed.body), `${lang}/${f}`)
+        }
+      ];
+    })
+  );
+  return new Map(entries);
 }
 
 async function build(outDir) {
@@ -161,17 +167,21 @@ async function build(outDir) {
 }
 
 async function tree(dir) {
-  const out = new Map();
   async function walk(d, rel) {
-    for (const e of await fs.readdir(d, { withFileTypes: true })) {
-      const p = path.join(d, e.name);
-      const r = rel ? `${rel}/${e.name}` : e.name;
-      if (e.isDirectory()) await walk(p, r);
-      else out.set(r, await fs.readFile(p, "utf8"));
-    }
+    const entries = (await fs.readdir(d, { withFileTypes: true })).sort(
+      (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+    );
+    const lists = await Promise.all(
+      entries.map(async (e) => {
+        const p = path.join(d, e.name);
+        const r = rel ? `${rel}/${e.name}` : e.name;
+        if (e.isDirectory()) return walk(p, r);
+        return [[r, await fs.readFile(p, "utf8")]];
+      })
+    );
+    return lists.flat();
   }
-  await walk(dir, "");
-  return out;
+  return new Map(await walk(dir, ""));
 }
 
 async function check() {
