@@ -180,4 +180,41 @@ private class RfpSecurityTest {
     System.assertEquals(950, resaved.Rate__c);
     System.assertEquals('Montréal, QC:Toronto, ON', resaved.City_Lane__c);
   }
+
+  @IsTest
+  static void rfpToolUserCanDeleteTheirLanesAndBids() {
+    Fx f = fx();
+    User pricing = restrictedUser('RFP_Tool_User');
+    if (pricing == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    // Account is Private in this org, so the restricted user cannot reference the admin-owned
+    // customer from RFP_Project__c.Customer__c: the admin creates the project and hands it over
+    // instead. Lanes are Controlled by Parent, so the restricted user now owns the lane too.
+    RFP_Project__c own = RfpTestDataFactory.createProject(f.g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(own, f.mtl, f.tor);
+    own.OwnerId = pricing.Id;
+    update own;
+    Id laneId = lane.Id;
+    Test.startTest();
+    RfpBulkService.Result r;
+    System.runAs(pricing) {
+      BenchmarkRateService.save(RfpTestDataFactory.buildBid(lane, 900));
+      r = RfpBulkController.deleteLanes(new List<Id>{ laneId });
+    }
+    Test.stopTest();
+    System.assertEquals(1, r.updated, String.join(r.errors, '; '));
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM RFP_Lane__c WHERE Id = :laneId]
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :laneId]
+    );
+  }
 }

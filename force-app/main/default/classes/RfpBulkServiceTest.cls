@@ -264,4 +264,71 @@ private class RfpBulkServiceTest {
       [SELECT COUNT() FROM RFP_Lane__c WHERE RFP_Project__c = :f.p.Id]
     );
   }
+
+  @IsTest
+  static void applyBidCreatesOneBidPerLaneAndSkipsOtherCurrencies() {
+    Fx f = fx();
+    update new RFP_Lane__c(Id = f.c.Id, CurrencyIsoCode = 'USD');
+    String bidJson = '{"Carrier_Name__c":"Bulk Carrier","Contact_Name__c":"Sam","Rate__c":1200,"CurrencyIsoCode":"CAD","FSC_Included__c":true,"Transit_Days__c":2}';
+    RfpBulkService.Result r = RfpBulkService.applyBid(
+      new List<Id>{ f.a.Id, f.b.Id, f.c.Id },
+      bidJson
+    );
+    System.assertEquals(2, r.updated);
+    System.assertEquals(1, r.skipped, 'USD lane skipped');
+    System.assertEquals(f.c.Id, r.skippedIds[0]);
+    List<Benchmark_Rate__c> bids = [
+      SELECT RFP_Lane__c, City_Lane__c, Rate__c, Carrier_Name__c
+      FROM Benchmark_Rate__c
+      WHERE RFP_Project__c = :f.p.Id
+    ];
+    System.assertEquals(2, bids.size());
+    System.assertEquals(
+      'Montréal, QC:Toronto, ON',
+      bids[0].City_Lane__c,
+      'trigger stamped the keys'
+    );
+    RFP_Lane__c a = fetch(f.a.Id);
+    System.assertEquals(1200, a.Cost__c);
+    System.assertEquals('Bid', a.Cost_Source__c);
+    System.assertNotEquals(null, a.Selected_Bid__c);
+    System.assertEquals(1380.00, a.Sell__c);
+    RFP_Lane__c b = fetch(f.b.Id);
+    System.assertEquals(
+      1380.00,
+      b.Sell__c,
+      'b had no Sell_Source__c: the margin drives, sell recomputed from the bid'
+    );
+  }
+
+  @IsTest
+  static void applyBidRollsBackTheBidsWhenTheLanesCannotBeUpdated() {
+    Fx f = fx();
+    // Sell__c is Currency(16,2): 99,999,999,999,999 × 1.15 has 15 integer digits and does not fit,
+    // so the lane update fails after the bids were inserted - the Savepoint must undo the bids.
+    String bidJson = '{"Carrier_Name__c":"Huge","Rate__c":99999999999999,"CurrencyIsoCode":"CAD"}';
+    try {
+      RfpBulkService.applyBid(new List<Id>{ f.a.Id }, bidJson);
+      System.assert(false, 'expected a failure');
+    } catch (LaneSearchException e) {
+      System.assert(
+        e.getMessage().contains('No lane was updated'),
+        e.getMessage()
+      );
+    }
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :f.a.Id],
+      'rolled back'
+    );
+    try {
+      RfpBulkService.applyBid(
+        new List<Id>{ f.a.Id },
+        '{"Carrier_Name__c":"x"}'
+      );
+      System.assert(false, 'expected a failure');
+    } catch (LaneSearchException e) {
+      System.assert(e.getMessage().contains('rate'), e.getMessage());
+    }
+  }
 }

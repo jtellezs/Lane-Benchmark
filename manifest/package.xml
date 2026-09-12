@@ -106,8 +106,11 @@
         <members>RfpBidControllerTest</members>
         <members>RfpPricingMath</members>
         <members>RfpPricingMathTest</members>
+        <members>RfpPricingInput</members>
         <members>RfpBulkService</members>
         <members>RfpBulkServiceTest</members>
+        <members>RfpBulkController</members>
+        <members>RfpBulkControllerTest</members>
         <name>ApexClass</name>
     </types>
     <types>

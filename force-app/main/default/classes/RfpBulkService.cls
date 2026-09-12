@@ -144,39 +144,88 @@ public with sharing class RfpBulkService {
     Decimal sell,
     Decimal margin
   ) {
-    String problem = pricingProblem(cost, sell, margin);
+    String problem = RfpPricingInput.problem(cost, sell, margin);
     if (problem != null) {
       throw new LaneSearchException(problem);
     }
   }
 
-  /** The first thing wrong with the typed numbers, or null when they can be applied. */
-  private static String pricingProblem(
-    Decimal cost,
-    Decimal sell,
-    Decimal margin
+  /**
+   * One bid per lane from the same template, then the lanes pick it as their cost. Two DMLs in one
+   * Savepoint: if the lane update fails the bids are rolled back too, so no bid is left behind
+   * without a lane pointing at it (allOrNone on the lane update for the same reason).
+   */
+  public static Result applyBid(List<Id> laneIds, String bidJson) {
+    Benchmark_Rate__c template = bidTemplate(bidJson);
+    Context c = load(laneIds);
+    BidPlan plan = planBids(c, template);
+    if (plan.bids.isEmpty()) {
+      return save(c, false);
+    }
+    Savepoint sp = Database.setSavepoint();
+    try {
+      costFromBids(c, plan, BenchmarkRateService.saveAll(plan.bids));
+      return save(c, true);
+    } catch (DmlException e) {
+      Database.rollback(sp);
+      throw new LaneSearchException(
+        'No lane was updated: ' + RfpUserError.safe(e)
+      );
+    }
+  }
+
+  /** The bids to insert and the lanes they will cost, in the same order. */
+  private class BidPlan {
+    List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
+    List<RFP_Lane__c> targets = new List<RFP_Lane__c>();
+  }
+
+  /** The typed carrier rate, refused before any DML when it carries no usable rate. */
+  private static Benchmark_Rate__c bidTemplate(String bidJson) {
+    Benchmark_Rate__c template = (Benchmark_Rate__c) JSON.deserialize(
+      bidJson,
+      Benchmark_Rate__c.class
+    );
+    Boolean unusable = template.Rate__c == null || template.Rate__c <= 0;
+    if (unusable) {
+      throw new LaneSearchException('A bid needs a rate above zero.');
+    }
+    return template;
+  }
+
+  /** One clone of the template per lane it can price; a lane in another currency is skipped. */
+  private static BidPlan planBids(Context c, Benchmark_Rate__c template) {
+    BidPlan plan = new BidPlan();
+    for (RFP_Lane__c lane : c.lanes) {
+      Boolean otherCurrency =
+        template.CurrencyIsoCode != null &&
+        lane.CurrencyIsoCode != template.CurrencyIsoCode;
+      if (otherCurrency) {
+        skip(c, lane);
+        continue;
+      }
+      Benchmark_Rate__c bid = template.clone(false, true);
+      bid.RFP_Lane__c = lane.Id;
+      plan.bids.add(bid);
+      plan.targets.add(lane);
+    }
+    return plan;
+  }
+
+  /** Every planned lane takes its saved bid as the cost, recomputed against the project margin. */
+  private static void costFromBids(
+    Context c,
+    BidPlan plan,
+    List<Benchmark_Rate__c> saved
   ) {
-    Boolean nothingTyped = cost == null && sell == null && margin == null;
-    if (nothingTyped) {
-      return 'Enter a cost, a sell or a margin.';
+    for (Integer i = 0; i < saved.size(); i++) {
+      RFP_Lane__c u = pricingCopy(plan.targets[i]);
+      u.Cost__c = saved[i].Rate__c;
+      u.Cost_Source__c = 'Bid';
+      u.Selected_Bid__c = saved[i].Id;
+      RfpPricingMath.recompute(u, c.defaultMarginFor(plan.targets[i]));
+      c.updates.add(u);
     }
-    Boolean sellAndMargin = sell != null && margin != null;
-    if (sellAndMargin) {
-      return 'Enter a sell or a margin, not both.';
-    }
-    Boolean costTooLow = cost != null && cost <= 0;
-    if (costTooLow) {
-      return 'The cost must be above zero.';
-    }
-    Boolean sellTooLow = sell != null && sell <= 0;
-    if (sellTooLow) {
-      return 'The sell must be above zero.';
-    }
-    Boolean marginOutOfRange = margin != null && (margin < 0 || margin > 100);
-    if (marginOutOfRange) {
-      return 'The margin must be between 0 and 100.';
-    }
-    return null;
   }
 
   public static Result copyPricing(Id sourceLaneId, List<Id> laneIds) {
