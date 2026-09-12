@@ -77,6 +77,17 @@ async function mount(props = {}) {
 }
 
 const rowsOf = (el) => el.shadowRoot.querySelectorAll('[data-id="lane-row"]');
+const cellOf = (row, field) => row.querySelector(`[data-id="${field}"]`);
+const inputIn = (el) => el.shadowRoot.querySelector('[data-id="cell-input"]');
+const key = (target, k, extra = {}) =>
+  target.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      key: k,
+      bubbles: true,
+      cancelable: true,
+      ...extra
+    })
+  );
 
 describe("c-rfp-lane-table", () => {
   afterEach(() => {
@@ -258,6 +269,255 @@ describe("c-rfp-lane-table", () => {
       laneId: "a0L00000002",
       side: "origin",
       key: "laval|qc|ca"
+    });
+  });
+
+  describe("selection", () => {
+    it("emits the whole selection on a row checkbox and on the header checkbox", async () => {
+      const el = await mount({ selectedIds: ["a0L00000002"] });
+      const spy = jest.fn();
+      el.addEventListener("selectionchange", spy);
+      const select = jest.fn();
+      el.addEventListener("select", select);
+      const checks = el.shadowRoot.querySelectorAll('[data-id="row-check"]');
+      expect(checks[1].checked).toBe(true);
+      checks[0].click();
+      expect(spy.mock.calls[0][0].detail.laneIds).toEqual([
+        "a0L00000002",
+        "a0L00000001"
+      ]);
+      expect(select).not.toHaveBeenCalled();
+      el.shadowRoot.querySelector('[data-id="check-all"]').click();
+      expect(spy.mock.calls[1][0].detail.laneIds).toEqual([
+        "a0L00000002",
+        "a0L00000001"
+      ]);
+      el.selectedIds = ["a0L00000001", "a0L00000002"];
+      await flush();
+      expect(el.shadowRoot.querySelector('[data-id="check-all"]').checked).toBe(
+        true
+      );
+      el.shadowRoot.querySelector('[data-id="check-all"]').click();
+      expect(spy.mock.calls[2][0].detail.laneIds).toEqual([]);
+    });
+  });
+
+  describe("inline editing", () => {
+    it("opens one cell on click, saves on Enter and moves down the column", async () => {
+      const el = await mount({ defaultMargin: 15 });
+      const spy = jest.fn();
+      el.addEventListener("pricingchange", spy);
+      const select = jest.fn();
+      el.addEventListener("select", select);
+      cellOf(rowsOf(el)[0], "margin").click();
+      await flush();
+      // one select, from the cell itself — the row handler must not add a second
+      expect(select).toHaveBeenCalledTimes(1);
+      expect(select.mock.calls[0][0].detail).toEqual({ laneId: "a0L00000001" });
+      const input = inputIn(el);
+      expect(input).not.toBeNull();
+      expect(input.value).toBe("15");
+      expect(
+        el.shadowRoot.querySelectorAll('[data-id="cell-input"]').length
+      ).toBe(1);
+      input.dispatchEvent(
+        new CustomEvent("change", { detail: { value: "20" } })
+      );
+      key(input, "Enter");
+      await flush();
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][0].detail).toMatchObject({
+        laneId: "a0L00000001",
+        Margin__c: 20,
+        Sell__c: 2280,
+        Sell_Source__c: "Margin"
+      });
+      const next = inputIn(el);
+      expect(next).not.toBeNull();
+      expect(rowsOf(el)[1].contains(next)).toBe(true);
+      // the panel follows the cell down the column
+      expect(select).toHaveBeenCalledTimes(2);
+      expect(select.mock.calls[1][0].detail).toEqual({ laneId: "a0L00000002" });
+    });
+
+    it("does not re-select the lane when its own cell is opened again", async () => {
+      const el = await mount({ defaultMargin: 15, selectedId: "a0L00000001" });
+      const select = jest.fn();
+      el.addEventListener("select", select);
+      cellOf(rowsOf(el)[0], "margin").click();
+      await flush();
+      expect(inputIn(el)).not.toBeNull();
+      expect(select).not.toHaveBeenCalled();
+    });
+
+    it("Tab saves and moves down; Escape cancels without saving", async () => {
+      const el = await mount({ defaultMargin: 15 });
+      const spy = jest.fn();
+      el.addEventListener("pricingchange", spy);
+      cellOf(rowsOf(el)[0], "sell").click();
+      await flush();
+      inputIn(el).dispatchEvent(
+        new CustomEvent("change", { detail: { value: "2500" } })
+      );
+      key(inputIn(el), "Tab");
+      await flush();
+      expect(spy.mock.calls[0][0].detail).toMatchObject({
+        Sell__c: 2500,
+        Sell_Source__c: "Manual",
+        Margin__c: 31.58
+      });
+      key(inputIn(el), "Escape");
+      await flush();
+      expect(inputIn(el)).toBeNull();
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps an invalid value open with an error, and an unchanged value just closes", async () => {
+      const el = await mount({ defaultMargin: 15 });
+      const spy = jest.fn();
+      el.addEventListener("pricingchange", spy);
+      cellOf(rowsOf(el)[0], "cost").click();
+      await flush();
+      inputIn(el).dispatchEvent(
+        new CustomEvent("change", { detail: { value: "-5" } })
+      );
+      key(inputIn(el), "Enter");
+      await flush();
+      expect(inputIn(el)).not.toBeNull();
+      expect(
+        el.shadowRoot.querySelector('[data-id="cell-error"]').textContent
+      ).toContain("above zero");
+      expect(spy).not.toHaveBeenCalled();
+      inputIn(el).dispatchEvent(
+        new CustomEvent("change", { detail: { value: "1900" } })
+      );
+      key(inputIn(el), "Enter");
+      await flush();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("Enter on a focused cell opens it, blur commits, and a locked table ignores clicks", async () => {
+      const el = await mount({ defaultMargin: 15 });
+      const spy = jest.fn();
+      el.addEventListener("pricingchange", spy);
+      const select = jest.fn();
+      el.addEventListener("select", select);
+      const cell = cellOf(rowsOf(el)[1], "cost");
+      key(cell, "Enter");
+      await flush();
+      expect(inputIn(el)).not.toBeNull();
+      // the keyboard path selects the lane too, so the panel follows it
+      expect(select).toHaveBeenCalledTimes(1);
+      expect(select.mock.calls[0][0].detail).toEqual({ laneId: "a0L00000002" });
+      inputIn(el).dispatchEvent(
+        new CustomEvent("change", { detail: { value: "800" } })
+      );
+      inputIn(el).dispatchEvent(new CustomEvent("blur"));
+      await flush();
+      expect(spy.mock.calls[0][0].detail).toMatchObject({
+        laneId: "a0L00000002",
+        Cost__c: 800,
+        Cost_Source__c: "Manual",
+        Margin__c: 15,
+        Sell__c: 920
+      });
+      expect(inputIn(el)).toBeNull();
+      el.locked = true;
+      await flush();
+      cellOf(rowsOf(el)[0], "cost").click();
+      await flush();
+      expect(inputIn(el)).toBeNull();
+      // locking stops the typing, not the navigating
+      expect(select).toHaveBeenCalledTimes(2);
+      expect(select.mock.calls[1][0].detail).toEqual({ laneId: "a0L00000001" });
+    });
+
+    it("sends focus back to the cell when Escape closes it", async () => {
+      const el = await mount({ defaultMargin: 15 });
+      const cell = cellOf(rowsOf(el)[0], "margin");
+      const focus = jest.spyOn(cell, "focus");
+      cell.click();
+      await flush();
+      key(inputIn(el), "Escape");
+      await flush();
+      expect(inputIn(el)).toBeNull();
+      expect(focus).toHaveBeenCalled();
+      expect(el.shadowRoot.activeElement).toBe(cell);
+    });
+
+    it("ignores the blur left behind by a cell that already moved on", async () => {
+      const el = await mount({ defaultMargin: 15 });
+      const spy = jest.fn();
+      el.addEventListener("pricingchange", spy);
+      cellOf(rowsOf(el)[0], "margin").click();
+      await flush();
+      const first = inputIn(el);
+      first.dispatchEvent(
+        new CustomEvent("change", { detail: { value: "20" } })
+      );
+      key(first, "Enter");
+      await flush();
+      expect(spy).toHaveBeenCalledTimes(1);
+      // the input that moved on still gets a blur; it must not save twice
+      first.dispatchEvent(new CustomEvent("blur"));
+      await flush();
+      expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    it("drops an unusable value on blur instead of trapping the cursor", async () => {
+      const el = await mount({ defaultMargin: 15 });
+      const spy = jest.fn();
+      el.addEventListener("pricingchange", spy);
+      cellOf(rowsOf(el)[0], "cost").click();
+      await flush();
+      inputIn(el).dispatchEvent(
+        new CustomEvent("change", { detail: { value: "abc" } })
+      );
+      inputIn(el).dispatchEvent(new CustomEvent("blur"));
+      await flush();
+      expect(spy).not.toHaveBeenCalled();
+      expect(inputIn(el)).toBeNull();
+    });
+
+    it("survives a lane that leaves the table while its cell is open", async () => {
+      const el = await mount({ defaultMargin: 15 });
+      const spy = jest.fn();
+      el.addEventListener("pricingchange", spy);
+      cellOf(rowsOf(el)[0], "margin").click();
+      await flush();
+      const input = inputIn(el);
+      input.dispatchEvent(
+        new CustomEvent("change", { detail: { value: "20" } })
+      );
+      // a filter change drops the lane the open cell belongs to
+      el.lanes = [UNRESOLVED_LANE];
+      await flush();
+      key(input, "Enter");
+      await flush();
+      expect(spy).not.toHaveBeenCalled();
+      expect(inputIn(el)).toBeNull();
+    });
+
+    it("marks pending rows, errors, negative margins and manual sells", async () => {
+      const el = await mount({
+        lanes: [
+          { ...RESOLVED_LANE, Margin__c: -5, Sell_Source__c: "Manual" },
+          UNRESOLVED_LANE
+        ],
+        pendingIds: ["a0L00000001"],
+        rowErrors: { a0L00000002: "The lane price could not be saved." }
+      });
+      const rows = rowsOf(el);
+      expect(rows[0].querySelector('[data-id="row-pending"]')).not.toBeNull();
+      expect(rows[1].querySelector('[data-id="row-error"]').title).toContain(
+        "could not be saved"
+      );
+      expect(
+        cellOf(rows[0], "margin").classList.contains("slds-text-color_error")
+      ).toBe(true);
+      expect(
+        rows[0].querySelector('[data-id="manual-tag"]').textContent.trim()
+      ).toBe("manual");
     });
   });
 });

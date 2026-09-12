@@ -3,6 +3,16 @@
     <table class="slds-table slds-table_bordered slds-table_fixed-layout lanes">
       <thead>
         <tr class="slds-line-height_reset">
+          <th scope="col" class="w-2">
+            <input
+              type="checkbox"
+              data-id="check-all"
+              aria-label="Select every lane shown"
+              checked={allChecked}
+              onclick={stopRowSelect}
+              onchange={handleCheckAll}
+            />
+          </th>
           <th scope="col" class="w-3">#</th>
           <th scope="col">Origin</th>
           <th scope="col">Destination</th>
@@ -27,6 +37,20 @@
             onclick={handleRowClick}
             onkeydown={handleRowKey}
           >
+            <td
+              class="check-cell"
+              onclick={stopRowSelect}
+              onkeydown={stopRowSelect}
+            >
+              <input
+                type="checkbox"
+                data-id="row-check"
+                data-lane-id={r.id}
+                aria-label="Select this lane"
+                checked={r.checked}
+                onchange={handleRowCheck}
+              />
+            </td>
             <td>{r.rowNumber}</td>
             <td class="slds-cell-wrap">
               <span data-id="origin">{r.originText}</span>
@@ -69,12 +93,137 @@
             <td>{r.mode}</td>
             <td>{r.equipment}</td>
             <td data-id="hist" title={r.histTitle}>{r.histText}</td>
-            <td data-id="cost" class="slds-text-align_right">{r.costText}</td>
-            <td data-id="margin" class="slds-text-align_right">
-              {r.marginText}
+            <td
+              data-id="cost"
+              data-field="cost"
+              data-lane-id={r.id}
+              class="slds-text-align_right cell"
+              tabindex="0"
+              onclick={handleCellClick}
+              onkeydown={handleCellKey}
+            >
+              <template lwc:if={r.editingCost}>
+                <lightning-input
+                  data-id="cell-input"
+                  data-field="cost"
+                  data-lane-id={r.id}
+                  type="number"
+                  step="0.01"
+                  variant="label-hidden"
+                  label="Cost"
+                  value={draft}
+                  onchange={handleDraft}
+                  onkeydown={handleInputKey}
+                  onblur={handleInputBlur}
+                ></lightning-input>
+                <template lwc:if={cellError}>
+                  <div
+                    data-id="cell-error"
+                    class="slds-text-color_error slds-text-body_small"
+                  >
+                    {cellError}
+                  </div>
+                </template>
+              </template>
+              <template lwc:else>{r.costText}</template>
             </td>
-            <td data-id="sell" class="slds-text-align_right">{r.sellText}</td>
-            <td data-id="status">{r.statusText}</td>
+            <td
+              data-id="margin"
+              data-field="margin"
+              data-lane-id={r.id}
+              class={r.marginClass}
+              tabindex="0"
+              onclick={handleCellClick}
+              onkeydown={handleCellKey}
+            >
+              <template lwc:if={r.editingMargin}>
+                <lightning-input
+                  data-id="cell-input"
+                  data-field="margin"
+                  data-lane-id={r.id}
+                  type="text"
+                  variant="label-hidden"
+                  label="Margin %"
+                  value={draft}
+                  onchange={handleDraft}
+                  onkeydown={handleInputKey}
+                  onblur={handleInputBlur}
+                ></lightning-input>
+                <template lwc:if={cellError}>
+                  <div
+                    data-id="cell-error"
+                    class="slds-text-color_error slds-text-body_small"
+                  >
+                    {cellError}
+                  </div>
+                </template>
+              </template>
+              <template lwc:else>{r.marginText}</template>
+            </td>
+            <td
+              data-id="sell"
+              data-field="sell"
+              data-lane-id={r.id}
+              class="slds-text-align_right cell"
+              tabindex="0"
+              onclick={handleCellClick}
+              onkeydown={handleCellKey}
+            >
+              <template lwc:if={r.editingSell}>
+                <lightning-input
+                  data-id="cell-input"
+                  data-field="sell"
+                  data-lane-id={r.id}
+                  type="number"
+                  step="0.01"
+                  variant="label-hidden"
+                  label="Sell"
+                  value={draft}
+                  onchange={handleDraft}
+                  onkeydown={handleInputKey}
+                  onblur={handleInputBlur}
+                ></lightning-input>
+                <template lwc:if={cellError}>
+                  <div
+                    data-id="cell-error"
+                    class="slds-text-color_error slds-text-body_small"
+                  >
+                    {cellError}
+                  </div>
+                </template>
+              </template>
+              <template lwc:else>
+                {r.sellText}
+                <template lwc:if={r.manualSell}>
+                  <span
+                    data-id="manual-tag"
+                    class="slds-badge slds-m-left_xx-small"
+                    >manual</span
+                  >
+                </template>
+              </template>
+            </td>
+            <td data-id="status">
+              <template lwc:if={r.pending}>
+                <lightning-icon
+                  data-id="row-pending"
+                  icon-name="utility:sync"
+                  size="xx-small"
+                  alternative-text="Saving"
+                ></lightning-icon>
+              </template>
+              <template lwc:if={r.error}>
+                <lightning-icon
+                  data-id="row-error"
+                  icon-name="utility:error"
+                  variant="error"
+                  size="xx-small"
+                  alternative-text="Save failed"
+                  title={r.error}
+                ></lightning-icon>
+              </template>
+              {r.statusText}
+            </td>
           </tr>
         </template>
       </tbody>

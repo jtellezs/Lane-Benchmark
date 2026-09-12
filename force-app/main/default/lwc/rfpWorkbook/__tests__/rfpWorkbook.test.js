@@ -60,8 +60,8 @@ describe("rfpWorkbook", () => {
     expect(sheet[1].slice(0, 2)).toEqual(["Montreal", "Toronto"]);
     expect(sheet[1][2]).toBe(1000);
     expect(sheet[1][5]).toBe(1150);
-    expect(sheet[1][9]).toBe("Acme");
-    expect(sheet[1][10]).toBe("=SUM(A1)"); // typed string cell, no apostrophe
+    expect(sheet[1][11]).toBe("Acme");
+    expect(sheet[1][12]).toBe("=SUM(A1)"); // typed string cell, no apostrophe
     expect(sheet[2][2]).toBe("");
     expect(sheet[2][5]).toBe("");
     expect(bidSheet[0][0]).toBe("Lane row");
@@ -171,5 +171,87 @@ describe("rfpWorkbook", () => {
     expect(sheet[2][fuelIdx]).toBe("");
     expect(sheet[2][fscIdx]).toBe("");
     expect(sheet[2][transitIdx]).toBe("");
+  });
+});
+
+describe("annual sell and summary", () => {
+  const lanes = [
+    {
+      Id: "1",
+      Row_Number__c: 1,
+      Mode__c: "Truckload",
+      Cost__c: 1000,
+      Margin__c: 15,
+      Sell__c: 1150,
+      Sell_Source__c: "Margin",
+      Shipments_Per_Year__c: 52,
+      CurrencyIsoCode: "CAD",
+      Origin_Resolved__c: true,
+      Destination_Resolved__c: true,
+      Hist_Status__c: "Done"
+    },
+    {
+      Id: "2",
+      Row_Number__c: 2,
+      Mode__c: "Truckload",
+      Cost__c: 2000,
+      Margin__c: 25,
+      Sell__c: 2500,
+      Sell_Source__c: "Manual",
+      Shipments_Per_Year__c: 10,
+      CurrencyIsoCode: "USD",
+      Origin_Resolved__c: true,
+      Destination_Resolved__c: true,
+      Hist_Status__c: "Done"
+    },
+    {
+      Id: "3",
+      Row_Number__c: 3,
+      Mode__c: "",
+      Cost__c: null,
+      Sell__c: null,
+      Shipments_Per_Year__c: 4,
+      CurrencyIsoCode: "CAD",
+      Origin_Resolved__c: true,
+      Destination_Resolved__c: false,
+      Hist_Status__c: "No match"
+    }
+  ];
+  const raw = lanes.map((l) => ({
+    Id: l.Id,
+    Raw_Row__c: JSON.stringify({ Lane: l.Id })
+  }));
+
+  it("adds Annual sell and Sell source after Sell", () => {
+    const { lanes: sheet } = buildSheets(lanes, raw, {});
+    const header = sheet[0];
+    expect(
+      header.slice(header.indexOf("Sell"), header.indexOf("Sell") + 3)
+    ).toEqual(["Sell", "Annual sell", "Sell source"]);
+    const row = (i) =>
+      Object.fromEntries(header.map((h, j) => [h, sheet[i][j]]));
+    expect(row(1)["Annual sell"]).toBe(59800);
+    expect(row(1)["Sell source"]).toBe("Margin");
+    expect(row(2)["Sell source"]).toBe("Manual");
+    expect(row(3)["Annual sell"]).toBe("");
+    expect(row(3)["Sell source"]).toBe("");
+  });
+
+  it("builds the summary sheet", () => {
+    const { summary } = buildSheets(lanes, raw, {});
+    expect(summary).toEqual([
+      ["Lanes", 3],
+      ["Priced lanes", 2],
+      ["Unpriced lanes", 1],
+      ["No history match", 1],
+      ["Unresolved ends", 1],
+      ["Total annual sell (CAD)", 59800],
+      ["Total annual sell (USD)", 25000],
+      ["Average margin %", 20],
+      [],
+      ["Mode", "Lanes", "Priced", "Annual sell"],
+      ["Truckload", 2, 2, 84800],
+      ["(none)", 1, 0, 0]
+    ]);
   });
 });

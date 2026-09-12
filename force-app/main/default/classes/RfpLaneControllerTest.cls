@@ -87,6 +87,26 @@ private class RfpLaneControllerTest {
   }
 
   @IsTest
+  static void saveLanePricingRoundTripsSellSource() {
+    Fx f = fx();
+    String laneJson =
+      '{"Id":"' +
+      f.lane.Id +
+      '","Cost__c":1000,"Cost_Source__c":"Manual","Margin__c":50,"Sell__c":1500,"Sell_Source__c":"Manual"}';
+    RFP_Lane__c out = RfpLaneController.saveLanePricing(laneJson);
+    System.assertEquals('Manual', out.Sell_Source__c);
+    System.assertEquals(
+      'Manual',
+      [SELECT Sell_Source__c FROM RFP_Lane__c WHERE Id = :f.lane.Id]
+      .Sell_Source__c
+    );
+    System.assertEquals(
+      'Manual',
+      RfpLaneController.getLanes(f.lane.RFP_Project__c)[0].Sell_Source__c
+    );
+  }
+
+  @IsTest
   static void resolveLaneEndCopiesThePlaceAndResetsHistory() {
     Fx f = fx();
     Pricing_Place__c laval = RfpTestDataFactory.createPlace(

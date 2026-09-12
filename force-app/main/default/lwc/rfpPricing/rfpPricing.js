@@ -1,4 +1,4 @@
-import { parseMargin, suggestedSell } from "c/marginMath";
+import { parseMargin, suggestedSell, marginFor } from "c/marginMath";
 import { bestBid, otherCurrencyCount } from "c/rfpMath";
 
 /** The three values RFP_Lane__c.Cost_Source__c accepts. */
@@ -75,6 +75,43 @@ export function otherCurrencyNote(bids, currency) {
   return `${n} bid${n === 1 ? "" : "s"} in another currency ${n === 1 ? "is" : "are"} not compared`;
 }
 
+/** A positive amount typed by the pricer, else null. */
+export function parseMoney(text) {
+  if (text === null || text === undefined) return null;
+  const s = String(text).trim();
+  if (s === "") return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+const PRICING_FIELDS = [
+  "Cost__c",
+  "Cost_Source__c",
+  "Selected_Bid__c",
+  "Margin__c",
+  "Sell__c",
+  "Sell_Source__c"
+];
+
+/** Changes whenever one of the six pricing fields does; the panel re-syncs on it. */
+export function pricingFingerprint(lane) {
+  return PRICING_FIELDS.map((f) => lane?.[f] ?? "").join("|");
+}
+
+/** Mirrors RfpPricingMath.recompute after a cost change. */
+export function recompute(detail, defaultMargin) {
+  if (detail.Sell_Source__c === "Manual" && detail.Sell__c !== null) {
+    return { ...detail, Margin__c: marginFor(detail.Cost__c, detail.Sell__c) };
+  }
+  const margin = detail.Margin__c ?? defaultMargin ?? null;
+  return {
+    ...detail,
+    Margin__c: margin,
+    Sell__c: suggestedSell(detail.Cost__c, margin),
+    Sell_Source__c: "Margin"
+  };
+}
+
 /** Exactly the fields RfpLaneController.saveLanePricing whitelists. */
 export function pricingDetail({
   laneId,
@@ -82,18 +119,72 @@ export function pricingDetail({
   selectedBidId,
   cost,
   marginText,
-  notes
+  notes,
+  sellSource,
+  sellText
 }) {
-  const margin = parseMargin(marginText);
+  const manual = sellSource === "Manual";
+  const costValue = cost === undefined ? null : cost;
+  const sell = manual ? parseMoney(sellText) : null;
+  const margin = manual ? marginFor(costValue, sell) : parseMargin(marginText);
   return {
     laneId,
-    Cost__c: cost === undefined ? null : cost,
+    Cost__c: costValue,
     Cost_Source__c: source,
     Selected_Bid__c: source === "Bid" ? selectedBidId || null : null,
     Margin__c: margin,
-    Sell__c: suggestedSell(cost, margin),
+    Sell__c: manual ? sell : suggestedSell(costValue, margin),
+    Sell_Source__c: manual ? "Manual" : "Margin",
     Notes__c: notes || null
   };
+}
+
+/**
+ * One edited cell → the whole pricing detail to save (the controller writes every
+ * whitelisted field, so the untouched ones travel along). Null when the text is
+ * not a usable value; the caller keeps the cell open.
+ */
+export function inlineEdit(lane, field, text, defaultMargin) {
+  const base = {
+    laneId: lane.Id,
+    Cost__c: lane.Cost__c ?? null,
+    Cost_Source__c: lane.Cost_Source__c || "Manual",
+    Selected_Bid__c: lane.Selected_Bid__c || null,
+    Margin__c: lane.Margin__c ?? null,
+    Sell__c: lane.Sell__c ?? null,
+    Sell_Source__c: lane.Sell_Source__c || "Margin",
+    Notes__c: lane.Notes__c || null
+  };
+  if (field === "margin") {
+    const margin = parseMargin(text);
+    if (margin === null) return null;
+    return {
+      ...base,
+      Margin__c: margin,
+      Sell_Source__c: "Margin",
+      Sell__c: suggestedSell(base.Cost__c, margin)
+    };
+  }
+  const value = parseMoney(text);
+  if (value === null) return null;
+  if (field === "sell") {
+    return {
+      ...base,
+      Sell__c: value,
+      Sell_Source__c: "Manual",
+      Margin__c: marginFor(base.Cost__c, value)
+    };
+  }
+  if (field !== "cost") return null;
+  return recompute(
+    {
+      ...base,
+      Cost__c: value,
+      Cost_Source__c: "Manual",
+      Selected_Bid__c: null
+    },
+    defaultMargin
+  );
 }
 
 /**
@@ -114,17 +205,23 @@ export function historyKey(lane) {
   ].join("~");
 }
 
+/** `RADIUS-<n><KM|MI>` as written by RfpHistoryService, else null. */
+export function parseRadius(text) {
+  const m = /^RADIUS-(\d+)(KM|MI)$/.exec(text || "");
+  return m ? { radius: Number(m[1]), unit: m[2] } : null;
+}
+
 export function historyRequest(lane) {
-  const radius = lane.Hist_Precision__c === "RADIUS-50KM";
-  const precision = radius ? "RADIUS" : lane.Hist_Precision__c || "CITY";
+  const r = parseRadius(lane.Hist_Precision__c);
+  const precision = r ? "RADIUS" : lane.Hist_Precision__c || "CITY";
   return JSON.stringify({
     originKey: lane.Origin_Place__r?.Key__c,
     destinationKey: lane.Destination_Place__r?.Key__c,
     originPrecision: precision,
     destinationPrecision: precision,
-    originRadius: radius ? 50 : null,
-    destinationRadius: radius ? 50 : null,
-    radiusUnit: "KM",
+    originRadius: r ? r.radius : null,
+    destinationRadius: r ? r.radius : null,
+    radiusUnit: r ? r.unit : "KM",
     lookbackDays: lane.Hist_Lookback_Days__c || 90,
     sourceFilter: "LOADS",
     rowLimit: 500,

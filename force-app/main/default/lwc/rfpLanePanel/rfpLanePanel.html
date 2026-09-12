@@ -41,14 +41,27 @@
           <lightning-input
             data-id="margin"
             label="Margin %"
-            value={marginText}
+            value={marginValue}
             onchange={handleMargin}
           ></lightning-input>
         </div>
-        <div class="slds-col slds-size_1-of-3 slds-align-bottom">
-          <p class="slds-form-element__static">
-            Sell <span data-id="sell" class="sell">{sellText}</span>
-            &nbsp;{currency}
+        <div class="slds-col slds-size_1-of-3">
+          <lightning-input
+            data-id="sell"
+            type="number"
+            step="0.01"
+            min="0"
+            label={sellLabel}
+            value={sellValue}
+            onchange={handleSell}
+          ></lightning-input>
+        </div>
+        <div class="slds-col slds-size_1-of-1">
+          <p
+            data-id="sell-mode"
+            class="slds-text-body_small slds-text-color_weak"
+          >
+            {sellMode}
           </p>
         </div>
       </div>
@@ -81,7 +94,7 @@
           data-id="save-price"
           variant="brand"
           label="Save price"
-          disabled={cannotSavePrice}
+          disabled={saveDisabled}
           onclick={handleSavePrice}
         ></lightning-button>
         <lightning-button

@@ -5,6 +5,8 @@ export const OUR_COLUMNS = [
   "Currency",
   "Margin %",
   "Sell",
+  "Annual sell",
+  "Sell source",
   "Fuel surcharge",
   "FSC included",
   "Transit days",
@@ -30,6 +32,81 @@ const BID_HEADER = [
 
 const cell = (v) => (v === null || v === undefined ? "" : v);
 const yesNo = (b) => (b ? "Yes" : "No");
+
+const isNum = (v) => typeof v === "number" && Number.isFinite(v);
+function annualSell(l) {
+  return isNum(l.Sell__c) && isNum(l.Shipments_Per_Year__c)
+    ? Math.round(l.Sell__c * l.Shipments_Per_Year__c * 100) / 100
+    : "";
+}
+function sellSource(l) {
+  if (l.Sell__c === null || l.Sell__c === undefined) return "";
+  return l.Sell_Source__c === "Manual" ? "Manual" : "Margin";
+}
+const priced = (l) => isNum(l.Cost__c);
+
+function summarySheet(ordered) {
+  const rows = [
+    ["Lanes", ordered.length],
+    ["Priced lanes", ordered.filter(priced).length],
+    ["Unpriced lanes", ordered.filter((l) => !priced(l)).length],
+    [
+      "No history match",
+      ordered.filter((l) => l.Hist_Status__c === "No match").length
+    ],
+    [
+      "Unresolved ends",
+      ordered.filter((l) => !l.Origin_Resolved__c || !l.Destination_Resolved__c)
+        .length
+    ]
+  ];
+  const byCurrency = {};
+  ordered.forEach((l) => {
+    const a = annualSell(l);
+    if (a !== "") {
+      byCurrency[l.CurrencyIsoCode] = (byCurrency[l.CurrencyIsoCode] || 0) + a;
+    }
+  });
+  Object.keys(byCurrency)
+    .sort()
+    .forEach((c) =>
+      rows.push([
+        `Total annual sell (${c})`,
+        Math.round(byCurrency[c] * 100) / 100
+      ])
+    );
+  const margins = ordered
+    .filter((l) => priced(l) && isNum(l.Margin__c))
+    .map((l) => l.Margin__c);
+  rows.push([
+    "Average margin %",
+    margins.length
+      ? Math.round(
+          (margins.reduce((s, m) => s + m, 0) / margins.length) * 100
+        ) / 100
+      : ""
+  ]);
+  rows.push([]);
+  rows.push(["Mode", "Lanes", "Priced", "Annual sell"]);
+  const modes = {};
+  ordered.forEach((l) => {
+    const key = l.Mode__c || "(none)";
+    const m = modes[key] || (modes[key] = { lanes: 0, priced: 0, annual: 0 });
+    m.lanes++;
+    if (priced(l)) m.priced++;
+    const a = annualSell(l);
+    if (a !== "") m.annual += a;
+  });
+  Object.keys(modes).forEach((k) =>
+    rows.push([
+      k,
+      modes[k].lanes,
+      modes[k].priced,
+      Math.round(modes[k].annual * 100) / 100
+    ])
+  );
+  return rows;
+}
 
 export function buildSheets(lanes, rawRows, bidsByLaneId) {
   const rawById = {};
@@ -64,6 +141,8 @@ export function buildSheets(lanes, rawRows, bidsByLaneId) {
         : cell(l.CurrencyIsoCode),
       cell(l.Margin__c),
       cell(l.Sell__c),
+      annualSell(l),
+      sellSource(l),
       cell(best?.Fuel_Surcharge__c),
       best ? yesNo(best.FSC_Included__c) : "",
       cell(best?.Transit_Days__c),
@@ -89,7 +168,7 @@ export function buildSheets(lanes, rawRows, bidsByLaneId) {
       ]);
     });
   });
-  return { lanes: laneSheet, bids: bidSheet };
+  return { lanes: laneSheet, bids: bidSheet, summary: summarySheet(ordered) };
 }
 
 export function exportFileName(customerName, projectName, date) {

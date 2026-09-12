@@ -180,4 +180,94 @@ private class RfpSecurityTest {
     System.assertEquals(950, resaved.Rate__c);
     System.assertEquals('Montréal, QC:Toronto, ON', resaved.City_Lane__c);
   }
+
+  @IsTest
+  static void rfpToolUserCanDeleteTheirLanesAndBids() {
+    Fx f = fx();
+    User pricing = restrictedUser('RFP_Tool_User');
+    if (pricing == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    // Account is Private in this org, so the restricted user cannot reference the admin-owned
+    // customer from RFP_Project__c.Customer__c: the admin creates the project and hands it over
+    // instead. Lanes are Controlled by Parent, so the restricted user now owns the lane too.
+    RFP_Project__c own = RfpTestDataFactory.createProject(f.g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(own, f.mtl, f.tor);
+    own.OwnerId = pricing.Id;
+    update own;
+    Id laneId = lane.Id;
+    Test.startTest();
+    RfpBulkService.Result r;
+    Id bidId;
+    System.runAs(pricing) {
+      bidId = BenchmarkRateService.save(RfpTestDataFactory.buildBid(lane, 900))
+        .Id;
+      r = RfpBulkController.deleteLanes(new List<Id>{ laneId });
+    }
+    Test.stopTest();
+    System.assertEquals(1, r.updated, String.join(r.errors, '; '));
+    // deleteLanes collects the bid pass with count=false, and Benchmark_Rate__c.RFP_Lane__c is a
+    // SetNull lookup: a bid the user may not delete would survive with a null lookup and every
+    // count-by-lane assertion would still read 0. Assert on the bid's own Id, and on no errors.
+    System.assert(r.errors.isEmpty(), String.join(r.errors, '; '));
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM RFP_Lane__c WHERE Id = :laneId]
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE Id = :bidId],
+      'the bid itself is gone, not merely unlinked'
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :laneId]
+    );
+  }
+
+  /**
+   * Class security is not enforced Apex to Apex, so calling a controller from a test proves
+   * nothing about the permission set. Read the grant out of the metadata instead: a workbench
+   * controller missing here is the "You do not have access to the Apex class named ..." error
+   * the pricing team hits in the browser on every bulk action.
+   */
+  @IsTest
+  static void rfpToolUserHasClassAccessToEveryWorkbenchController() {
+    PermissionSet ps = [
+      SELECT Id
+      FROM PermissionSet
+      WHERE Name = 'RFP_Tool_User'
+    ];
+    Set<Id> ids = new Set<Id>();
+    for (SetupEntityAccess a : [
+      SELECT SetupEntityId
+      FROM SetupEntityAccess
+      WHERE ParentId = :ps.Id AND SetupEntityType = 'ApexClass'
+    ]) {
+      ids.add(a.SetupEntityId);
+    }
+    Set<String> granted = new Set<String>();
+    for (ApexClass c : [SELECT Id, Name FROM ApexClass WHERE Id IN :ids]) {
+      granted.add(c.Name);
+    }
+    for (
+      String name : new List<String>{
+        'RfpBulkController',
+        'RfpBulkService',
+        'RfpBidController',
+        'RfpLaneController',
+        'RfpHistoryController',
+        'RfpProjectController'
+      }
+    ) {
+      System.assert(
+        granted.contains(name),
+        'RFP_Tool_User grants no class access to ' + name
+      );
+    }
+  }
 }

@@ -136,6 +136,27 @@
             ></lightning-input>
           </div>
           <div class="slds-col">
+            <lightning-input
+              data-id="radius"
+              type="number"
+              min="1"
+              max="500"
+              label="Radius"
+              field-level-help="Used for Radius precision, and when a city has no history of its own."
+              value={radius}
+              onchange={handleRadius}
+            ></lightning-input>
+          </div>
+          <div class="slds-col">
+            <lightning-combobox
+              data-id="radius-unit"
+              label="Unit"
+              value={radiusUnit}
+              options={unitOptions}
+              onchange={handleRadiusUnit}
+            ></lightning-combobox>
+          </div>
+          <div class="slds-col">
             <lightning-button
               data-id="load-history"
               variant="brand"
@@ -178,20 +199,91 @@
           </p>
         </template>
 
+        <c-rfp-bulk-bar
+          selected-count={selectedCount}
+          total-count={lanes.length}
+          currency={currency}
+          busy={busy}
+          last-result={bulkResult}
+          onbulk={handleBulk}
+        ></c-rfp-bulk-bar>
+
+        <div
+          class="slds-grid slds-wrap slds-grid_vertical-align-end slds-gutters_x-small slds-m-bottom_x-small"
+        >
+          <div class="slds-col">
+            <lightning-combobox
+              data-id="filter-status"
+              label="Show"
+              value={filter.status}
+              options={statusOptions}
+              onchange={handleFilterStatus}
+            ></lightning-combobox>
+          </div>
+          <div class="slds-col">
+            <lightning-input
+              data-id="filter-text"
+              type="search"
+              label="Search origin, destination, equipment"
+              value={filter.text}
+              onchange={handleFilterText}
+            ></lightning-input>
+          </div>
+          <div class="slds-col">
+            <span data-id="filter-count" class="slds-text-color_weak"
+              >{filterCount}</span
+            >
+          </div>
+        </div>
+
+        <template lwc:if={twinOffer}>
+          <div
+            data-id="twin-offer"
+            class="slds-notify slds-notify_alert slds-theme_info slds-m-bottom_x-small"
+            role="status"
+          >
+            <span>{twinText}</span>
+            <lightning-button
+              data-id="twin-apply"
+              class="slds-m-left_x-small"
+              label="Apply"
+              variant="brand"
+              disabled={busy}
+              onclick={handleTwinApply}
+            ></lightning-button>
+            <lightning-button
+              data-id="twin-dismiss"
+              class="slds-m-left_x-small"
+              label="Not now"
+              onclick={handleTwinDismiss}
+            ></lightning-button>
+          </div>
+        </template>
+
         <div class="slds-grid slds-wrap slds-gutters_x-small">
           <div class="slds-col slds-size_1-of-1 slds-large-size_8-of-12">
             <c-rfp-lane-table
-              lanes={lanes}
+              lanes={visibleLanes}
               selected-id={selectedId}
+              selected-ids={selectedIds}
+              pending-ids={pendingIds}
+              row-errors={rowErrors}
+              default-margin={defaultMargin}
+              locked={busy}
               currency={currency}
               onselect={handleSelect}
+              onselectionchange={handleSelectionChange}
+              onpricingchange={handlePricingChange}
               onresolveend={handleResolveEnd}
             ></c-rfp-lane-table>
           </div>
-          <div class="slds-col slds-size_1-of-1 slds-large-size_4-of-12">
+          <div
+            class="slds-col slds-size_1-of-1 slds-large-size_4-of-12 panel-col"
+          >
             <c-rfp-lane-panel
               lane={selectedLane}
               project={project}
+              busy={busy}
               onpricingchange={handlePricingChange}
             ></c-rfp-lane-panel>
           </div>

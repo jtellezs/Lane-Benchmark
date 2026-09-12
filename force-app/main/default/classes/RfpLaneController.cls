@@ -7,7 +7,7 @@ public with sharing class RfpLaneController {
     'Mode__c, Equipment_Category__c, Equipment_Type__c, Commodity__c, Quantity__c, Quantity_Unit__c, Shipments_Per_Year__c, ' +
     'Hazmat__c, Customer_Fuel_Surcharge__c, Customer_FSC_Included__c, Hist_Count__c, Hist_Min__c, Hist_Median__c, ' +
     'Hist_Average__c, Hist_Max__c, Hist_Precision__c, Hist_Lookback_Days__c, Hist_As_Of__c, Hist_Status__c, Cost__c, ' +
-    'Cost_Source__c, Selected_Bid__c, Selected_Bid__r.Carrier_Display__c, Margin__c, Sell__c, Notes__c, CurrencyIsoCode';
+    'Cost_Source__c, Selected_Bid__c, Selected_Bid__r.Carrier_Display__c, Margin__c, Sell__c, Sell_Source__c, Notes__c, CurrencyIsoCode';
 
   @AuraEnabled
   public static RfpImportService.Summary importLanes(
@@ -80,6 +80,7 @@ public with sharing class RfpLaneController {
         Selected_Bid__c = posted.Selected_Bid__c,
         Margin__c = posted.Margin__c,
         Sell__c = posted.Sell__c,
+        Sell_Source__c = posted.Sell_Source__c,
         Notes__c = posted.Notes__c
       );
       Database.update(

@@ -2,12 +2,15 @@
 public with sharing class RfpHistoryService {
   private static final Integer MAX_LANES = 10;
   private static final Integer ROW_LIMIT = 500;
-  private static final Decimal FALLBACK_RADIUS_KM = 50;
+  private static final Integer DEFAULT_RADIUS = 50;
+  private static final Integer MAX_RADIUS = 500;
 
   public static List<RFP_Lane__c> run(
     List<Id> laneIds,
     String precision,
-    Integer lookbackDays
+    Integer lookbackDays,
+    Decimal radius,
+    String radiusUnit
   ) {
     if (laneIds == null || laneIds.size() > MAX_LANES) {
       throw new LaneSearchException(
@@ -15,13 +18,33 @@ public with sharing class RfpHistoryService {
       );
     }
     Integer days = lookbackDays == null || lookbackDays < 1 ? 90 : lookbackDays;
+    Integer km = radiusOf(radius);
+    String unit = radiusUnit == 'MI' ? 'MI' : 'KM';
     List<RFP_Lane__c> lanes = RfpLaneController.lanesByIds(laneIds);
     List<RFP_Lane__c> updates = new List<RFP_Lane__c>();
     for (RFP_Lane__c lane : lanes) {
-      updates.add(snapshot(lane, precision, days));
+      updates.add(snapshot(lane, precision, days, km, unit));
     }
     saveSnapshots(updates);
     return RfpLaneController.lanesByIds(laneIds);
+  }
+
+  /**
+   * Null or non-positive means the 50 km default; anything above 500 is refused, not
+   * clamped. A value that rounds to 0 (e.g. 0.4) is not a usable radius either, so it
+   * also falls back to the default instead of stamping a zero-radius search.
+   */
+  private static Integer radiusOf(Decimal radius) {
+    if (radius == null || radius <= 0) {
+      return DEFAULT_RADIUS;
+    }
+    if (radius > MAX_RADIUS) {
+      throw new LaneSearchException(
+        'Radius must be between 1 and ' + MAX_RADIUS + '.'
+      );
+    }
+    Integer whole = radius.round().intValue();
+    return whole < 1 ? DEFAULT_RADIUS : whole;
   }
 
   /**
@@ -71,7 +94,9 @@ public with sharing class RfpHistoryService {
   private static RFP_Lane__c snapshot(
     RFP_Lane__c lane,
     String precision,
-    Integer days
+    Integer days,
+    Integer radius,
+    String unit
   ) {
     RFP_Lane__c u = new RFP_Lane__c(
       Id = lane.Id,
@@ -97,14 +122,14 @@ public with sharing class RfpHistoryService {
     try {
       String used = precision;
       LaneSearchResult r = LaneSearchService.search(
-        request(lane, precision, days)
+        request(lane, precision, days, radius, unit)
       );
       if (r.rows.isEmpty() && precision == 'CITY') {
         used = 'RADIUS';
-        r = LaneSearchService.search(request(lane, used, days));
+        r = LaneSearchService.search(request(lane, used, days, radius, unit));
       }
       fill(u, r, lane.CurrencyIsoCode);
-      u.Hist_Precision__c = used == 'RADIUS' ? 'RADIUS-50KM' : used;
+      u.Hist_Precision__c = used == 'RADIUS' ? 'RADIUS-' + radius + unit : used;
       u.Hist_Status__c = r.rows.isEmpty() ? 'No match' : 'Done';
     } catch (LaneSearchException e) {
       u.Hist_Status__c = 'No match';
@@ -117,7 +142,9 @@ public with sharing class RfpHistoryService {
   private static LaneSearchRequest request(
     RFP_Lane__c lane,
     String precision,
-    Integer days
+    Integer days,
+    Integer radius,
+    String unit
   ) {
     LaneSearchRequest req = new LaneSearchRequest();
     req.originKey = lane.Origin_Place__r.Key__c;
@@ -128,9 +155,11 @@ public with sharing class RfpHistoryService {
     if (precision == 'RADIUS') {
       req.originPrecision = LaneSearchRequest.Precision.RADIUS;
       req.destinationPrecision = LaneSearchRequest.Precision.RADIUS;
-      req.originRadius = FALLBACK_RADIUS_KM;
-      req.destinationRadius = FALLBACK_RADIUS_KM;
-      req.radiusUnit = LaneSearchRequest.Unit.KM;
+      req.originRadius = radius;
+      req.destinationRadius = radius;
+      req.radiusUnit = unit == 'MI'
+        ? LaneSearchRequest.Unit.MI
+        : LaneSearchRequest.Unit.KM;
     } else if (precision == 'PROVINCE') {
       req.originPrecision = LaneSearchRequest.Precision.PROVINCE;
       req.destinationPrecision = LaneSearchRequest.Precision.PROVINCE;

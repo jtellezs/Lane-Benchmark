@@ -57,7 +57,9 @@ private class RfpHistoryServiceTest {
     List<RFP_Lane__c> out = RfpHistoryService.run(
       new List<Id>{ direct.Id, nearby.Id, noCoords.Id, unresolved.Id },
       'CITY',
-      90
+      90,
+      120,
+      'KM'
     );
     Test.stopTest();
     Map<Id, RFP_Lane__c> byId = new Map<Id, RFP_Lane__c>(out);
@@ -70,9 +72,9 @@ private class RfpHistoryServiceTest {
     System.assertEquals(90, byId.get(direct.Id).Hist_Lookback_Days__c);
     System.assertNotEquals(null, byId.get(direct.Id).Hist_As_Of__c);
     System.assertEquals(
-      'RADIUS-50KM',
+      'RADIUS-120KM',
       byId.get(nearby.Id).Hist_Precision__c,
-      'fell back to radius'
+      'fell back to the radius the run was given'
     );
     System.assertEquals('Done', byId.get(nearby.Id).Hist_Status__c);
     System.assertEquals(
@@ -90,7 +92,7 @@ private class RfpHistoryServiceTest {
       ids.add('a00000000000' + String.valueOf(100 + i));
     }
     try {
-      RfpHistoryService.run(ids, 'CITY', 90);
+      RfpHistoryService.run(ids, 'CITY', 90, null, null);
       System.assert(false, 'expected an exception');
     } catch (LaneSearchException e) {
       System.assert(e.getMessage().contains('10'), e.getMessage());
@@ -107,7 +109,7 @@ private class RfpHistoryServiceTest {
       ids.add('a00000000000' + String.valueOf(200 + i));
     }
     try {
-      RfpHistoryController.loadHistory(ids, 'CITY', 90);
+      RfpHistoryController.loadHistory(ids, 'CITY', 90, null, null);
       System.assert(false, 'expected an error');
     } catch (AuraHandledException e) {
       System.assert(e.getMessage().contains('10'), e.getMessage());
@@ -146,7 +148,9 @@ private class RfpHistoryServiceTest {
     List<RFP_Lane__c> out = RfpHistoryService.run(
       new List<Id>{ a.Id, b.Id },
       'CITY',
-      999999
+      999999,
+      null,
+      null
     );
     Map<Id, RFP_Lane__c> byId = new Map<Id, RFP_Lane__c>(out);
     System.assertEquals(
@@ -187,7 +191,9 @@ private class RfpHistoryServiceTest {
     List<RFP_Lane__c> out = RfpHistoryService.run(
       new List<Id>{ lane.Id },
       'PROVINCE',
-      90
+      90,
+      null,
+      null
     );
     RFP_Lane__c result = out[0];
     System.assertEquals('No match', result.Hist_Status__c);
@@ -232,7 +238,9 @@ private class RfpHistoryServiceTest {
     List<RFP_Lane__c> out = RfpHistoryService.run(
       new List<Id>{ lane.Id },
       'CITY',
-      90
+      90,
+      null,
+      null
     );
     Test.stopTest();
     RFP_Lane__c result = out[0];
@@ -289,7 +297,13 @@ private class RfpHistoryServiceTest {
     }
     System.runAs(viewer) {
       try {
-        RfpHistoryController.loadHistory(new List<Id>{ lane.Id }, 'CITY', 90);
+        RfpHistoryController.loadHistory(
+          new List<Id>{ lane.Id },
+          'CITY',
+          90,
+          null,
+          null
+        );
         System.assert(false, 'expected an error');
       } catch (AuraHandledException e) {
         System.assertEquals(
@@ -298,6 +312,69 @@ private class RfpHistoryServiceTest {
         );
       }
     }
+  }
+
+  @IsTest
+  static void radiusUsesTheGivenUnitAndRefusesMoreThan500() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c mtl = RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    Pricing_Place__c tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(p, mtl, tor);
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    insert PricingTestDataFactory.buildQuote(g, load, 1000);
+    Test.startTest();
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ lane.Id },
+      'RADIUS',
+      90,
+      75.4,
+      'MI'
+    );
+    try {
+      RfpHistoryService.run(new List<Id>{ lane.Id }, 'RADIUS', 90, 600, 'KM');
+      System.assert(false, 'expected an exception');
+    } catch (LaneSearchException e) {
+      System.assert(e.getMessage().contains('500'), e.getMessage());
+    }
+    List<RFP_Lane__c> zero = RfpHistoryService.run(
+      new List<Id>{ lane.Id },
+      'RADIUS',
+      90,
+      0.4,
+      'KM'
+    );
+    Test.stopTest();
+    System.assertEquals(
+      'RADIUS-75MI',
+      out[0].Hist_Precision__c,
+      'whole number, unit kept'
+    );
+    System.assertEquals('Done', out[0].Hist_Status__c);
+    System.assertEquals(
+      'RADIUS-50KM',
+      zero[0].Hist_Precision__c,
+      'a radius that rounds to 0 falls back to the 50 km default'
+    );
   }
 
   /** Same shape as RfpSecurityTest.restrictedUser: a user holding only the named permission

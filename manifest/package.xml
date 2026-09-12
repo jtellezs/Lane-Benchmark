@@ -48,6 +48,9 @@
         <members>rfpSheetLoader</members>
         <members>rfpUpload</members>
         <members>rfpWorkbook</members>
+        <members>rfpLaneFilter</members>
+        <members>rfpBulk</members>
+        <members>rfpBulkBar</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>
@@ -104,6 +107,13 @@
         <members>RfpProjectControllerTest</members>
         <members>RfpBidController</members>
         <members>RfpBidControllerTest</members>
+        <members>RfpPricingMath</members>
+        <members>RfpPricingMathTest</members>
+        <members>RfpPricingInput</members>
+        <members>RfpBulkService</members>
+        <members>RfpBulkServiceTest</members>
+        <members>RfpBulkController</members>
+        <members>RfpBulkControllerTest</members>
         <name>ApexClass</name>
     </types>
     <types>
@@ -240,6 +250,7 @@
         <members>RFP_Lane__c.Row_Number__c</members>
         <members>RFP_Lane__c.Selected_Bid__c</members>
         <members>RFP_Lane__c.Sell__c</members>
+        <members>RFP_Lane__c.Sell_Source__c</members>
         <members>RFP_Lane__c.Shipments_Per_Year__c</members>
         <members>Benchmark_Rate__c.Carrier_Display__c</members>
         <members>Benchmark_Rate__c.Carrier_Name__c</members>
