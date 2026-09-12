@@ -16,11 +16,13 @@ const COPY = {
   en: {
     card: "Help",
     filter: "Find a section",
+    empty: "No section matches.",
     error: "The help content did not load. Reload the page or ask your admin."
   },
   fr: {
     card: "Aide",
     filter: "Trouver une section",
+    empty: "Aucune section ne correspond.",
     error:
       "Le contenu de l'aide n'a pas pu être chargé. Rechargez la page ou demandez à votre administrateur."
   }
@@ -41,6 +43,9 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
   error = null;
   loading = true;
   indexReady = false;
+  // Bumped by every show(); a request whose token is stale by the time it
+  // settles has been superseded by a later click and must not paint.
+  requestSeq = 0;
 
   @wire(CurrentPageReference)
   handlePageReference(ref) {
@@ -60,6 +65,12 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
   }
   get filterLabel() {
     return this.copy.filter;
+  }
+  get emptyLabel() {
+    return this.copy.empty;
+  }
+  get noMatches() {
+    return this.indexReady && this.visibleSections.length === 0;
   }
   get enVariant() {
     return this.lang === "en" ? "brand" : "neutral";
@@ -93,7 +104,26 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
       }));
   }
 
+  /**
+   * The asked-for slug when the index has it, otherwise the overview, otherwise
+   * the first section there is. An index without an "overview" is still usable.
+   */
+  resolveSlug(slug) {
+    const index = { sections: this.sections };
+    if (findSection(index, slug)) {
+      return slug;
+    }
+    if (findSection(index, DEFAULT_SLUG)) {
+      return DEFAULT_SLUG;
+    }
+    if (this.sections.length) {
+      return this.sections[0].slug;
+    }
+    return DEFAULT_SLUG;
+  }
+
   async show(slug, lang) {
+    const token = ++this.requestSeq;
     this.lang = lang;
     this.loading = true;
     this.error = null;
@@ -103,11 +133,19 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
         this.sections = index.sections;
         this.indexReady = true;
       }
-      this.slug = findSection({ sections: this.sections }, slug)
-        ? slug
-        : DEFAULT_SLUG;
-      this.html = await loadSection(this.slug, this.lang);
+      if (token !== this.requestSeq) {
+        return;
+      }
+      this.slug = this.resolveSlug(slug);
+      const html = await loadSection(this.slug, this.lang);
+      if (token !== this.requestSeq) {
+        return;
+      }
+      this.html = html;
     } catch {
+      if (token !== this.requestSeq) {
+        return;
+      }
       this.error = this.copy.error;
     }
     this.loading = false;
@@ -120,11 +158,16 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
     // so render the choice directly as well.
     this.show(slug, lang);
   }
+  /** A filter typed against one language's titles cannot survive the switch. */
+  pickLang(lang) {
+    this.filter = "";
+    this.go(this.slug, lang);
+  }
   handleEn() {
-    this.go(this.slug, "en");
+    this.pickLang("en");
   }
   handleFr() {
-    this.go(this.slug, "fr");
+    this.pickLang("fr");
   }
   handlePick(event) {
     this.go(event.currentTarget.dataset.slug, this.lang);

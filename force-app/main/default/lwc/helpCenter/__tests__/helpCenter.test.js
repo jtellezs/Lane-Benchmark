@@ -61,7 +61,21 @@ const pages = {
   "/resource/helpCenter/en/overview.html": "<h2>Overview EN</h2>",
   "/resource/helpCenter/fr/overview.html": "<h2>Aperçu FR</h2>",
   "/resource/helpCenter/en/rfp-pricing.html": "<h2>Pricing EN</h2>",
-  "/resource/helpCenter/fr/rfp-pricing.html": "<h2>Tarifer FR</h2>"
+  "/resource/helpCenter/fr/rfp-pricing.html": "<h2>Tarifer FR</h2>",
+  "/resource/helpCenter/en/faq.html": "<h2>FAQ EN</h2>",
+  "/resource/helpCenter/fr/faq.html": "<h2>FAQ FR</h2>"
+};
+
+const respond = (map, url) => {
+  const body = map[url];
+  if (body === undefined) {
+    return Promise.resolve({ ok: false, status: 404 });
+  }
+  return Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve(JSON.parse(body)),
+    text: () => Promise.resolve(body)
+  });
 };
 
 const flush = () => Promise.resolve().then(() => Promise.resolve());
@@ -90,17 +104,7 @@ describe("c-help-center", () => {
     } catch {
       // ignore
     }
-    global.fetch = jest.fn((url) => {
-      const body = pages[url];
-      if (body === undefined) {
-        return Promise.resolve({ ok: false, status: 404 });
-      }
-      return Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve(JSON.parse(body)),
-        text: () => Promise.resolve(body)
-      });
-    });
+    global.fetch = jest.fn((url) => respond(pages, url));
   });
   afterEach(() => {
     while (document.body.firstChild) {
@@ -173,6 +177,82 @@ describe("c-help-center", () => {
     );
     await settle();
     expect(items(el).map((i) => i.dataset.slug)).toEqual(["rfp-pricing"]);
+  });
+
+  it("ignores a slow response that a later click has superseded", async () => {
+    const el = await mount({ c__lang: "en" });
+    let releaseSlow;
+    const slow = new Promise((resolve) => {
+      releaseSlow = resolve;
+    });
+    global.fetch = jest.fn((url) => {
+      if (url === "/resource/helpCenter/en/rfp-pricing.html") {
+        return slow;
+      }
+      return respond(pages, url);
+    });
+
+    items(el)[1].click(); // rfp-pricing: its response is held open
+    await flush();
+    items(el)[2].click(); // faq: answers straight away and must win
+    await settle();
+    expect(field(el, "title").textContent).toBe("Questions and problems");
+    expect(field(el, "body").value).toBe("<h2>FAQ EN</h2>");
+
+    releaseSlow({
+      ok: true,
+      text: () => Promise.resolve("<h2>Pricing EN</h2>")
+    });
+    await settle();
+    expect(field(el, "title").textContent).toBe("Questions and problems");
+    expect(field(el, "body").value).toBe("<h2>FAQ EN</h2>");
+  });
+
+  it("falls back to the first section when the index has no overview", async () => {
+    const noOverview = {
+      sections: [
+        {
+          slug: "faq",
+          order: 10,
+          title: { en: "Questions and problems", fr: "Questions et problèmes" },
+          hint: { en: "e", fr: "f" }
+        },
+        {
+          slug: "rfp-pricing",
+          order: 100,
+          title: { en: "Pricing a lane", fr: "Tarifer une voie" },
+          hint: { en: "c", fr: "d" }
+        }
+      ]
+    };
+    const otherPages = {
+      "/resource/helpCenter/index.json": JSON.stringify(noOverview),
+      "/resource/helpCenter/en/faq.html": "<h2>FAQ EN</h2>"
+    };
+    global.fetch = jest.fn((url) => respond(otherPages, url));
+    const el = await mount({ c__lang: "en" });
+    expect(field(el, "title").textContent).toBe("Questions and problems");
+    expect(field(el, "body").value).toBe("<h2>FAQ EN</h2>");
+  });
+
+  it("says when nothing matches and clears the filter on a language switch", async () => {
+    const el = await mount({ c__lang: "en" });
+    field(el, "filter").dispatchEvent(
+      new CustomEvent("change", { detail: { value: "zzz" } })
+    );
+    await settle();
+    expect(items(el)).toHaveLength(0);
+    expect(field(el, "nav-empty").textContent).toContain("No section matches.");
+
+    field(el, "lang-fr").click();
+    await settle();
+    expect(field(el, "filter").value).toBe("");
+    expect(field(el, "nav-empty")).toBeNull();
+    expect(items(el).map((i) => i.dataset.slug)).toEqual([
+      "overview",
+      "rfp-pricing",
+      "faq"
+    ]);
   });
 
   it("shows an error when the content does not load", async () => {

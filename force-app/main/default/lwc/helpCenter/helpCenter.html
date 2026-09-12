@@ -52,6 +52,14 @@
                     </button>
                   </li>
                 </template>
+                <template lwc:if={noMatches}>
+                  <li
+                    data-id="nav-empty"
+                    class="slds-nav-vertical__item slds-p-around_x-small slds-text-color_weak"
+                  >
+                    {emptyLabel}
+                  </li>
+                </template>
               </ul>
             </nav>
           </lightning-layout-item>
