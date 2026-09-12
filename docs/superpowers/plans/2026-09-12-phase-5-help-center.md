@@ -1445,7 +1445,7 @@ git commit -m "Add the helpContent module for the help center"
 
 **Interfaces:**
 
-- Consumes: `loadIndex`, `findSection`, `defaultLang`, `readLang`, `sectionUrl` from `c/helpContent`; `LOCALE` from `@salesforce/i18n/locale`; `NavigationMixin`.
+- Consumes: `loadIndex`, `findSection`, `defaultLang`, `readLang`, `sectionUrl` from `c/helpContent`; `LANG` from `@salesforce/i18n/lang` (the user's Salesforce language, per spec D3 — not the locale, which a French user in Quebec often has set to `en_CA`); `NavigationMixin`.
 - Produces: `<c-help-hint topic="<slug>" label="Help about pricing">`. `data-id`s: `open`, `popover`, `text`, `more`, `close`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1472,7 +1472,7 @@ jest.mock("lightning/navigation", () => {
 jest.mock("@salesforce/resourceUrl/helpCenter", () => "/resource/helpCenter", {
   virtual: true
 });
-jest.mock("@salesforce/i18n/locale", () => ({ default: "en-US" }), {
+jest.mock("@salesforce/i18n/lang", () => ({ default: "en-US" }), {
   virtual: true
 });
 
@@ -1554,7 +1554,7 @@ describe("c-help-hint", () => {
     await flush();
     await flush();
     expect(field(el, "popover")).not.toBeNull();
-    el.shadowRoot.dispatchEvent(
+    field(el, "popover").dispatchEvent(
       new KeyboardEvent("keydown", {
         key: "Escape",
         bubbles: true,
@@ -1687,7 +1687,7 @@ Expected: FAIL, cannot find module `c/helpHint`.
 ```js
 import { LightningElement, api } from "lwc";
 import { NavigationMixin } from "lightning/navigation";
-import LOCALE from "@salesforce/i18n/locale";
+import LANG from "@salesforce/i18n/lang";
 import {
   loadIndex,
   findSection,
@@ -1734,6 +1734,11 @@ export default class HelpHint extends NavigationMixin(LightningElement) {
     return COPY[this.lang].close;
   }
 
+  connectedCallback() {
+    // Warm the shared index so the first click shows the hint, not the
+    // "no help" line while it loads. A failure here is reported on click.
+    loadIndex().catch(() => {});
+  }
   disconnectedCallback() {
     this.detach();
   }
@@ -1744,7 +1749,7 @@ export default class HelpHint extends NavigationMixin(LightningElement) {
       this.close();
       return;
     }
-    this.lang = readLang() || defaultLang(LOCALE);
+    this.lang = readLang() || defaultLang(LANG);
     this.open = true;
     this.attach();
     try {
@@ -1810,7 +1815,7 @@ export default class HelpHint extends NavigationMixin(LightningElement) {
 - [ ] **Step 4: Run to verify it passes**
 
 Run: `npx sfdx-lwc-jest -- force-app/main/default/lwc/helpHint && npx eslint force-app/main/default/lwc/helpHint`
-Expected: 5 tests pass, ESLint clean. The Escape test dispatches on the shadow root; if the handler on the wrapping `span` does not receive it, dispatch the event on `field(el, "popover")` instead (it bubbles up to the span).
+Expected: 5 tests pass, ESLint clean.
 
 - [ ] **Step 5: Register and commit**
 
@@ -1833,7 +1838,7 @@ git commit -m "Add the helpHint popover"
 
 **Interfaces:**
 
-- Consumes: `c/helpContent` (all exports), `CurrentPageReference`, `NavigationMixin`, `LOCALE`.
+- Consumes: `c/helpContent` (all exports), `CurrentPageReference`, `NavigationMixin`, `LANG` from `@salesforce/i18n/lang`.
 - Produces: the Help tab at `/lightning/n/Help_Center` accepting `c__section` and `c__lang`. `data-id`s: `nav`, `nav-item` (one per section, with `data-slug`), `lang-en`, `lang-fr`, `filter`, `title`, `body`, `error`, `loading`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -1865,7 +1870,7 @@ jest.mock("lightning/navigation", () => {
 jest.mock("@salesforce/resourceUrl/helpCenter", () => "/resource/helpCenter", {
   virtual: true
 });
-jest.mock("@salesforce/i18n/locale", () => ({ default: "fr-CA" }), {
+jest.mock("@salesforce/i18n/lang", () => ({ default: "fr" }), {
   virtual: true
 });
 
@@ -1945,7 +1950,7 @@ describe("c-help-center", () => {
     }
   });
 
-  it("opens the overview in the locale's language when the URL says nothing", async () => {
+  it("opens the overview in the user's language when the URL says nothing", async () => {
     const el = await mount();
     expect(items(el).map((i) => i.dataset.slug)).toEqual([
       "overview",
@@ -1986,7 +1991,7 @@ describe("c-help-center", () => {
     });
   });
 
-  it("prefers the remembered language over the locale", async () => {
+  it("prefers the remembered language over the user's language", async () => {
     window.localStorage.setItem("helpCenter.lang.v1", "en");
     const el = await mount();
     expect(field(el, "title").textContent).toBe("What these tools do");
@@ -2141,7 +2146,7 @@ Expected: FAIL, cannot find module `c/helpCenter`.
 ```js
 import { LightningElement, wire } from "lwc";
 import { CurrentPageReference, NavigationMixin } from "lightning/navigation";
-import LOCALE from "@salesforce/i18n/locale";
+import LANG from "@salesforce/i18n/lang";
 import {
   loadIndex,
   loadSection,
@@ -2188,7 +2193,7 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
     const state = (ref && ref.state) || {};
     const lang = ["en", "fr"].includes(state.c__lang)
       ? state.c__lang
-      : readLang() || defaultLang(LOCALE);
+      : readLang() || defaultLang(LANG);
     const slug = state.c__section || DEFAULT_SLUG;
     this.show(slug, lang);
   }
@@ -2665,7 +2670,7 @@ In the roadmap table add a row after phase 4:
 | 5   | Help center         | Bilingual user guide on a Help tab built from `docs/help`, plus "?" hints in every tool area linking to it | Done 2026-09-12 (PostProduc) |
 ```
 
-Append `## Outcome — phase 5 (2026-09-12)` to the phase 5 spec: branch, the eight commits, deploy ids from Tasks 3, 6, 7 and this task, Jest suites/tests before and after, rulings R54 (tab motif) and R55 (`lb-lane` hint in the container card), and a "Browser check" line reading "pending (controller)".
+Append `## Outcome — phase 5 (2026-09-12)` to the phase 5 spec: branch, the eight commits, deploy ids from Tasks 3, 6, 7 and this task, Jest suites/tests before and after, rulings R54 (tab motif) and R55 (`lb-lane` hint in the container card), the known limit that hint `label`s ("Help: pricing a lane") are English in both languages, and a "Browser check" line reading "pending (controller)".
 
 - [ ] **Step 4: Final full deploy with tests**
 
@@ -2687,7 +2692,7 @@ git commit -m "Document the help center and run its content check in CI"
 
 In PostProduc, after deleting the `ComponentDefStorage` IndexedDB database and reloading:
 
-1. The Help tab is in the Lane Benchmark app after RFP Tool; it opens on "What these tools do" in English (the test user's locale is en).
+1. The Help tab is in the Lane Benchmark app after RFP Tool; it opens on "What these tools do" in the language of the user record (`SELECT LanguageLocaleKey FROM User WHERE Id = :UserInfo.getUserId()` before the pass tells you which to expect).
 2. FR switches the column and the body to French; reload keeps FR; EN switches back.
 3. The filter box narrows the column ("pric" → one entry).
 4. On the RFP Tool, open a project, click the "?" next to a lane title in the panel: the popover shows the pricing hint; "Read more" opens the Help tab on "Pricing a lane" in the current language; the browser back button returns to the workbench.
