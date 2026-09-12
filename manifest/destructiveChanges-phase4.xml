@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Package xmlns="http://soap.sforce.com/2006/04/metadata">
+    <!--
+      Phase 4 (2026-09-12): run once per org after the code deploy - see README
+      "Retired: Pricing Department page". Not part of the routine deploy; once these
+      are gone from an org, re-running this file fails.
+    -->
+    <types>
+        <members>PricingDepartmentController</members>
+        <members>PricingDepartmentControllerTest</members>
+        <name>ApexClass</name>
+    </types>
+    <types>
+        <members>pricingDepartment</members>
+        <name>LightningComponentBundle</name>
+    </types>
+    <types>
+        <members>Pricing_Department</members>
+        <name>FlexiPage</name>
+    </types>
+    <types>
+        <members>Pricing_Department</members>
+        <name>CustomTab</name>
+    </types>
+    <types>
+        <members>Pricing_Department_User</members>
+        <name>PermissionSet</name>
+    </types>
+    <version>64.0</version>
+</Package>
