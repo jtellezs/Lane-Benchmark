@@ -105,14 +105,22 @@ describe("c-rfp-toolbar", () => {
 
   it("disables everything a run owns while busy, and nothing else", () => {
     const el = mount({ busy: true });
-    ["upload-more", "load-history", "refresh-history", "retry-failed"].forEach(
-      (id) => expect(field(el, id).disabled).toBe(true)
-    );
+    [
+      "upload-more",
+      "include-bids",
+      "load-history",
+      "refresh-history",
+      "retry-failed"
+    ].forEach((id) => expect(field(el, id).disabled).toBe(true));
     expect(field(el, "back").disabled).toBeFalsy();
     const idle = mount();
-    ["upload-more", "load-history", "refresh-history", "retry-failed"].forEach(
-      (id) => expect(field(idle, id).disabled).toBe(false)
-    );
+    [
+      "upload-more",
+      "include-bids",
+      "load-history",
+      "refresh-history",
+      "retry-failed"
+    ].forEach((id) => expect(field(idle, id).disabled).toBe(false));
   });
 
   it("emits the navigation and history events with no payload", () => {

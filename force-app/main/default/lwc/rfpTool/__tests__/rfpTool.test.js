@@ -649,6 +649,13 @@ describe("c-rfp-tool", () => {
         includeBids: true
       });
     });
+    it("hands the toolbar the project and lanes its export needs", async () => {
+      const el = await openFromUrl(lanes(2));
+      expect(toolbar(el).project).toEqual(
+        expect.objectContaining({ Id: expect.any(String) })
+      );
+      expect(toolbar(el).lanes.map((l) => l.Id)).toEqual(["a0L1", "a0L2"]);
+    });
     it("sends the bids toggle, on by default, with every history run", async () => {
       loadHistory.mockResolvedValue([]);
       const el = await openFromUrl(lanes(1));

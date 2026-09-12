@@ -44,7 +44,9 @@ function historyCount(lane) {
   if (bids <= 0) {
     return `${count}`;
   }
-  return `${plural(count - bids, "load")} + ${plural(bids, "bid")}`;
+  // A count below the bid count cannot come from the server; guard the
+  // arithmetic anyway so a hand-edited lane never reads "-1 loads".
+  return `${plural(Math.max(count - bids, 0), "load")} + ${plural(bids, "bid")}`;
 }
 
 /**

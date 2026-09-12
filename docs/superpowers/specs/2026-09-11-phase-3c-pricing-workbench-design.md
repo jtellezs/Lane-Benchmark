@@ -480,22 +480,24 @@ projects, not only Revenova loads.
 
 Four commits, one per task:
 
-| Commit    | Subject                                                                |
-| --------- | ---------------------------------------------------------------------- |
-| `5d0f8ac` | Extract the workbench toolbar into c/rfpToolbar                        |
-| `925f9a0` | Let a lane search exclude one RFP project's bids and keep expired ones |
-| `075c678` | Count other RFPs' carrier bids in the lane history                     |
-| this one  | Show other RFPs' bids in the workbench history and export              |
+| Commit    | Subject                                                                                 |
+| --------- | --------------------------------------------------------------------------------------- |
+| `5d0f8ac` | Extract the workbench toolbar into c/rfpToolbar                                         |
+| `925f9a0` | Let a lane search exclude one RFP project's bids and keep expired ones                  |
+| `075c678` | Count other RFPs' carrier bids in the lane history                                      |
+| `8fc8109` | Show other RFPs' bids in the workbench history and export                               |
+| see below | Review fix wave: History cell wraps, toggle disabled while busy, toolbar props asserted |
 
 Deploys, all to `sandbox` (PostProduc):
 
-| Deploy               | What                                                                           | Result                        |
-| -------------------- | ------------------------------------------------------------------------------ | ----------------------------- |
-| `0AfbZ00000CpaIfSAJ` | Task 2 — `LaneSearchRequest`, `BidSearchQueryBuilder` and their tests          | 30/30 tests, 0 errors         |
-| `0AfbZ00000CpaNVSAZ` | Task 3 — `Hist_Bid_Count__c`, `RFP_Lane__c`, the permission sets (`NoTestRun`) | 48 components, 0 errors       |
-| `0AfbZ00000CpaQjSAJ` | Task 3 — `RfpHistoryService`/`Controller`, `RfpLaneController` and the tests   | 24/24 tests, 0 errors         |
-| `0AfbZ00000CpaVZSAZ` | Task 4 — full manifest, `NoTestRun`                                            | 243 components, 0 errors      |
-| `0AfbZ00000CpaXBSAZ` | Task 4 — full manifest, `RunSpecifiedTests` over the 22 classes                | 243 components, 132/132 tests |
+| Deploy                                     | What                                                                           | Result                        |
+| ------------------------------------------ | ------------------------------------------------------------------------------ | ----------------------------- |
+| `0AfbZ00000CpaIfSAJ`                       | Task 2 — `LaneSearchRequest`, `BidSearchQueryBuilder` and their tests          | 30/30 tests, 0 errors         |
+| `0AfbZ00000CpaNVSAZ`                       | Task 3 — `Hist_Bid_Count__c`, `RFP_Lane__c`, the permission sets (`NoTestRun`) | 48 components, 0 errors       |
+| `0AfbZ00000CpaQjSAJ`                       | Task 3 — `RfpHistoryService`/`Controller`, `RfpLaneController` and the tests   | 24/24 tests, 0 errors         |
+| `0AfbZ00000CpaVZSAZ`                       | Task 4 — full manifest, `NoTestRun`                                            | 243 components, 0 errors      |
+| `0AfbZ00000CpaXBSAZ`                       | Task 4 — full manifest, `RunSpecifiedTests` over the 22 classes                | 243 components, 132/132 tests |
+| `0AfbZ00000CpaqXSAR`, `0AfbZ00000Cpas9SAB` | Review fix wave — `rfpLaneTable`, `rfpToolbar` (LWC only, `NoTestRun`)         | 1 + 2 components, 0 errors    |
 
 Final state: **Apex 132/132** across the 22-class `RunSpecifiedTests` list,
 **Jest 33 suites / 273 tests** (32/260 before 3d, plus the new `c/rfpToolbar`
@@ -539,4 +541,32 @@ up in that lane's panel after the next Refresh history.
   count" column that the lanes sheet does not have. It went in after "Bid
   carrier" instead, leaving "Notes" last.
 
-**Browser check.** Pending (controller).
+**Review and fix wave.** The task review passed spec compliance and
+approved the code. Its two Important findings and two of its minors were
+fixed in the commit after `8fc8109`: the commit-table placeholder above; a
+`rfpTool` test now asserts the toolbar receives `project` and `lanes` (so
+dropping either binding cannot leave Export silently empty); the
+"Include RFP bids" checkbox is disabled while a run is busy, like the other
+toolbar controls; and the loads arithmetic in the History cell is guarded
+against a count below the bid count. R47 — `includeExpiredBids` is left null
+by `applyDefaults()` on purpose: every reader treats null as "active bids
+only", the class comment says so, and adding a default would only restate
+that. The reviewer's other notes (SOQL per history chunk rose from about 42 to
+62 of the 100-query limit; per-lane bid queries) are recorded here as the
+next thing to watch if the history chunk size ever grows past 10 lanes.
+
+**Browser check (controller, Chrome, PostProduc, 2026-09-12).** After
+clearing the `ComponentDefStorage` cache: the toolbar renders with the
+"Include RFP bids" checkbox on by default. Refresh history on the 68-lane
+"Phase 3c browser check" project: lane 1 (Laredo, TX → Brampton, ON) reads
+"5 loads + 1 bid · median 5500.00" — the 3b project's 5500 bid counts and
+the three 4800 bids recorded on this project are excluded, which proves
+the count, the provenance wording and the exclusion. Toggle off and
+Refresh: "5 · median 5800.00" with the box still unchecked. The longer text
+overflowed into the Cost column on the first run; the History cell now
+wraps (`slds-cell-wrap`), re-verified after deploy `0AfbZ00000CpaqXSAR`.
+One false alarm: a synthetic click on the checkbox's inner input toggled
+the box without firing lightning-input's change event, so the parent kept
+"on"; a real click on the label behaves. Also closed from the 3c pass: the
+user confirmed they entered lane 2's cost 543 / sell 600 themselves from
+another tab, so no write in the 3c pass is unaccounted for.
