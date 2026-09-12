@@ -130,7 +130,7 @@ private class PlaceBuilderBatchTest {
       25.7973,
       -100.3183
     );
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     PlaceBuilderBatch pbb = new PlaceBuilderBatch();
     Test.startTest();
     rtms__Load__c mxLoad = PricingTestDataFactory.createLoad(

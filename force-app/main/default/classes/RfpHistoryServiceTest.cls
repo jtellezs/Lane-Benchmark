@@ -35,7 +35,7 @@ private class RfpHistoryServiceTest {
       null,
       'Z9Z'
     );
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
     RFP_Lane__c direct = RfpTestDataFactory.createLane(p, mtl, tor); // CITY hit
     RFP_Lane__c nearby = RfpTestDataFactory.createLane(p, laval, tor); // CITY miss, RADIUS hit (Laval->Montréal 15 km)
@@ -142,7 +142,7 @@ private class RfpHistoryServiceTest {
       -79.3832,
       'M5V'
     );
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
     RFP_Lane__c a = RfpTestDataFactory.createLane(p, mtl, tor);
     RFP_Lane__c b = RfpTestDataFactory.createLane(p, mtl, tor);
@@ -187,7 +187,7 @@ private class RfpHistoryServiceTest {
       'M5V'
     );
     PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
     RFP_Lane__c lane = RfpTestDataFactory.createLane(p, nowhere, tor);
     List<RFP_Lane__c> out = RfpHistoryService.run(
@@ -228,7 +228,7 @@ private class RfpHistoryServiceTest {
       -79.3832,
       'M5V'
     );
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     RFP_Project__c p = RfpTestDataFactory.createProject(g.customer); // CAD
     RFP_Lane__c lane = RfpTestDataFactory.createLane(p, mtl, tor); // CAD
     Test.startTest();
@@ -288,7 +288,7 @@ private class RfpHistoryServiceTest {
       -79.3832,
       'M5V'
     );
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
     RFP_Lane__c lane = RfpTestDataFactory.createLane(p, mtl, tor);
     User viewer = restrictedUser('Lane_Benchmark_User');
@@ -338,7 +338,7 @@ private class RfpHistoryServiceTest {
       -79.3832,
       'M5V'
     );
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
     RFP_Lane__c lane = RfpTestDataFactory.createLane(p, mtl, tor);
     rtms__Load__c load = PricingTestDataFactory.createLoad(
@@ -516,7 +516,7 @@ private class RfpHistoryServiceTest {
       -79.3832,
       'M5V'
     );
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     f.lane = RfpTestDataFactory.createLane(
       RfpTestDataFactory.createProject(f.g.customer),
       mtl,

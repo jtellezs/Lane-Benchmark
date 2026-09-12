@@ -57,7 +57,7 @@ private class LaneSearchServiceTest {
       place('Laval', 'QC', 'CA', 45.6066, -73.7124, 'H7P', null),
       place('Toronto', 'ON', 'CA', 43.6532, -79.3832, 'A1A', null)
     };
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     return f;
   }
 
@@ -640,7 +640,7 @@ private class LaneSearchServiceTest {
     LaneSearchResult rm = LaneSearchService.search(m);
     LaneSearchResult ra = LaneSearchService.search(a);
     LaneSearchResult rd = LaneSearchService.search(d);
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>{
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>{
       String.valueOf(f.g.quoteContact.Id).left(15)
     };
     LaneSearchResult none = LaneSearchService.search(req(null, null));

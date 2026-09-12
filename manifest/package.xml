@@ -60,8 +60,6 @@
     </types>
     <!-- Apex -->
     <types>
-        <members>PricingDepartmentController</members>
-        <members>PricingDepartmentControllerTest</members>
         <members>PlaceNormalizer</members>
         <members>PlaceNormalizerTest</members>
         <members>PricingTestDataFactory</members>
@@ -74,6 +72,8 @@
         <members>LaneBenchmarkControllerTest</members>
         <members>LaneBenchmarkPlaceService</members>
         <members>LaneSearchException</members>
+        <members>LaneSearchExclusions</members>
+        <members>LaneSearchExclusionsTest</members>
         <members>LaneSearchFilters</members>
         <members>LaneSearchQueryBuilder</members>
         <members>LaneSearchRequest</members>
