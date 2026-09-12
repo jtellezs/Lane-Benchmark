@@ -228,6 +228,7 @@
         <members>RFP_Lane__c.Hazmat__c</members>
         <members>RFP_Lane__c.Hist_As_Of__c</members>
         <members>RFP_Lane__c.Hist_Average__c</members>
+        <members>RFP_Lane__c.Hist_Bid_Count__c</members>
         <members>RFP_Lane__c.Hist_Count__c</members>
         <members>RFP_Lane__c.Hist_Lookback_Days__c</members>
         <members>RFP_Lane__c.Hist_Max__c</members>

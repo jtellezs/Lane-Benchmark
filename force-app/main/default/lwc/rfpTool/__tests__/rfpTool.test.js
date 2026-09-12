@@ -645,7 +645,8 @@ describe("c-rfp-tool", () => {
         precision: "CITY",
         lookbackDays: 90,
         radius: 150,
-        radiusUnit: "MI"
+        radiusUnit: "MI",
+        includeBids: true
       });
     });
     it("falls back to 50 km when the radius box is emptied", async () => {

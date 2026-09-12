@@ -427,7 +427,8 @@ export default class RfpTool extends LightningElement {
         precision: this.precision,
         lookbackDays: this.lookbackDays,
         radius: this.radius,
-        radiusUnit: this.radiusUnit
+        radiusUnit: this.radiusUnit,
+        includeBids: this.includeBids
       });
       this.lanes = mergeLanes(this.lanes, updated);
     } catch (e) {

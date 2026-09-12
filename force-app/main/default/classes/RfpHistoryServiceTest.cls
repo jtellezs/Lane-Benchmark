@@ -59,7 +59,8 @@ private class RfpHistoryServiceTest {
       'CITY',
       90,
       120,
-      'KM'
+      'KM',
+      true
     );
     Test.stopTest();
     Map<Id, RFP_Lane__c> byId = new Map<Id, RFP_Lane__c>(out);
@@ -92,7 +93,7 @@ private class RfpHistoryServiceTest {
       ids.add('a00000000000' + String.valueOf(100 + i));
     }
     try {
-      RfpHistoryService.run(ids, 'CITY', 90, null, null);
+      RfpHistoryService.run(ids, 'CITY', 90, null, null, true);
       System.assert(false, 'expected an exception');
     } catch (LaneSearchException e) {
       System.assert(e.getMessage().contains('10'), e.getMessage());
@@ -109,7 +110,7 @@ private class RfpHistoryServiceTest {
       ids.add('a00000000000' + String.valueOf(200 + i));
     }
     try {
-      RfpHistoryController.loadHistory(ids, 'CITY', 90, null, null);
+      RfpHistoryController.loadHistory(ids, 'CITY', 90, null, null, true);
       System.assert(false, 'expected an error');
     } catch (AuraHandledException e) {
       System.assert(e.getMessage().contains('10'), e.getMessage());
@@ -150,7 +151,8 @@ private class RfpHistoryServiceTest {
       'CITY',
       999999,
       null,
-      null
+      null,
+      true
     );
     Map<Id, RFP_Lane__c> byId = new Map<Id, RFP_Lane__c>(out);
     System.assertEquals(
@@ -193,7 +195,8 @@ private class RfpHistoryServiceTest {
       'PROVINCE',
       90,
       null,
-      null
+      null,
+      true
     );
     RFP_Lane__c result = out[0];
     System.assertEquals('No match', result.Hist_Status__c);
@@ -240,7 +243,8 @@ private class RfpHistoryServiceTest {
       'CITY',
       90,
       null,
-      null
+      null,
+      true
     );
     Test.stopTest();
     RFP_Lane__c result = out[0];
@@ -302,7 +306,8 @@ private class RfpHistoryServiceTest {
           'CITY',
           90,
           null,
-          null
+          null,
+          true
         );
         System.assert(false, 'expected an error');
       } catch (AuraHandledException e) {
@@ -348,10 +353,18 @@ private class RfpHistoryServiceTest {
       'RADIUS',
       90,
       75.4,
-      'MI'
+      'MI',
+      true
     );
     try {
-      RfpHistoryService.run(new List<Id>{ lane.Id }, 'RADIUS', 90, 600, 'KM');
+      RfpHistoryService.run(
+        new List<Id>{ lane.Id },
+        'RADIUS',
+        90,
+        600,
+        'KM',
+        true
+      );
       System.assert(false, 'expected an exception');
     } catch (LaneSearchException e) {
       System.assert(e.getMessage().contains('500'), e.getMessage());
@@ -361,7 +374,8 @@ private class RfpHistoryServiceTest {
       'RADIUS',
       90,
       0.4,
-      'KM'
+      'KM',
+      true
     );
     Test.stopTest();
     System.assertEquals(
@@ -375,6 +389,162 @@ private class RfpHistoryServiceTest {
       zero[0].Hist_Precision__c,
       'a radius that rounds to 0 falls back to the 50 km default'
     );
+  }
+
+  // Phase 3d. The four tests below cover the bid side of a snapshot: what is counted, whose bids
+  // are left out, what the toggle turns off, and that an expired bid inside the lookback counts.
+
+  @IsTest
+  static void countsAnotherProjectsBidAlongsideTheLoads() {
+    Fixture f = fixture();
+    insert RfpTestDataFactory.buildBid(f.otherLane, 2000);
+    Test.startTest();
+    addLoads(f.g, 1000, 3000);
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ f.lane.Id },
+      'CITY',
+      90,
+      null,
+      null,
+      true
+    );
+    Test.stopTest();
+    System.assertEquals('Done', out[0].Hist_Status__c);
+    System.assertEquals(3, out[0].Hist_Count__c, 'two loads and one bid');
+    System.assertEquals(1, out[0].Hist_Bid_Count__c);
+    System.assertEquals(
+      2000,
+      out[0].Hist_Median__c,
+      'the median runs over the loads and the bid together'
+    );
+  }
+
+  // Ruling R46: the bids on the project being priced are the pricer's own inputs - the panel
+  // already lists them - so a run over one of its lanes must not count them as market evidence.
+  @IsTest
+  static void leavesThePricedProjectsOwnBidsOut() {
+    Fixture f = fixture();
+    insert RfpTestDataFactory.buildBid(f.lane, 2000);
+    Test.startTest();
+    addLoads(f.g, 1000, 3000);
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ f.lane.Id },
+      'CITY',
+      90,
+      null,
+      null,
+      true
+    );
+    Test.stopTest();
+    System.assertEquals('Done', out[0].Hist_Status__c);
+    System.assertEquals(2, out[0].Hist_Count__c, 'the loads only');
+    System.assertEquals(0, out[0].Hist_Bid_Count__c);
+  }
+
+  @IsTest
+  static void theToggleOffLeavesEveryBidOut() {
+    Fixture f = fixture();
+    insert RfpTestDataFactory.buildBid(f.otherLane, 2000);
+    Test.startTest();
+    addLoads(f.g, 1000, 3000);
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ f.lane.Id },
+      'CITY',
+      90,
+      null,
+      null,
+      false
+    );
+    Test.stopTest();
+    System.assertEquals('Done', out[0].Hist_Status__c);
+    System.assertEquals(2, out[0].Hist_Count__c, 'the loads only');
+    System.assertEquals(0, out[0].Hist_Bid_Count__c);
+  }
+
+  // Ruling R45: an old RFP's bids have almost always expired (30-day default validity) and are
+  // exactly the quotes the pricer asked for; the lookback is what bounds their relevance.
+  @IsTest
+  static void countsAnExpiredBidInsideTheLookback() {
+    Fixture f = fixture();
+    Benchmark_Rate__c expired = RfpTestDataFactory.buildBid(f.otherLane, 2000);
+    // save() only defaults these when they are null and never refuses a past date.
+    expired.Valid_From__c = Date.today().addDays(-40);
+    expired.Expires_On__c = Date.today().addDays(-10);
+    insert expired;
+    Test.startTest();
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ f.lane.Id },
+      'CITY',
+      90,
+      null,
+      null,
+      true
+    );
+    Test.stopTest();
+    System.assertEquals('Done', out[0].Hist_Status__c);
+    System.assertEquals(1, out[0].Hist_Count__c);
+    System.assertEquals(1, out[0].Hist_Bid_Count__c);
+    System.assertEquals(2000, out[0].Hist_Median__c);
+  }
+
+  private class Fixture {
+    PricingTestDataFactory.Graph g;
+    RFP_Lane__c lane;
+    RFP_Lane__c otherLane;
+  }
+
+  /**
+   * Montréal -> Toronto twice: once on the project a run prices, once on a second project whose
+   * bids are the "another RFP" evidence phase 3d counts.
+   */
+  private static Fixture fixture() {
+    Fixture f = new Fixture();
+    f.g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c mtl = RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    Pricing_Place__c tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    f.lane = RfpTestDataFactory.createLane(
+      RfpTestDataFactory.createProject(f.g.customer),
+      mtl,
+      tor
+    );
+    f.otherLane = RfpTestDataFactory.createLane(
+      RfpTestDataFactory.createProject(f.g.customer),
+      mtl,
+      tor
+    );
+    return f;
+  }
+
+  /** The two Revenova carrier quotes a CITY match finds on Montréal -> Toronto. */
+  private static void addLoads(
+    PricingTestDataFactory.Graph g,
+    Decimal low,
+    Decimal high
+  ) {
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    insert new List<rtms__CarrierQuote__c>{
+      PricingTestDataFactory.buildQuote(g, load, low),
+      PricingTestDataFactory.buildQuote(g, load, high)
+    };
   }
 
   /** Same shape as RfpSecurityTest.restrictedUser: a user holding only the named permission

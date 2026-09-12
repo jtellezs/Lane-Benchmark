@@ -129,6 +129,7 @@ checkbox(L, "Hazmat__c", "Hazmat")
 number(L, "Customer_Fuel_Surcharge__c", "Customer fuel surcharge", 10, 2)
 checkbox(L, "Customer_FSC_Included__c", "Customer FSC included")
 number(L, "Hist_Count__c", "History count", 8, 0)
+number(L, "Hist_Bid_Count__c", "History bid count", 8, 0)
 for n, lab in (("Hist_Min__c", "History min"), ("Hist_Median__c", "History median"),
                ("Hist_Average__c", "History average"), ("Hist_Max__c", "History max")):
     currency(L, n, lab)
