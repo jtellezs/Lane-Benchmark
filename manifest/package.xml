@@ -104,6 +104,8 @@
         <members>RfpProjectControllerTest</members>
         <members>RfpBidController</members>
         <members>RfpBidControllerTest</members>
+        <members>RfpPricingMath</members>
+        <members>RfpPricingMathTest</members>
         <name>ApexClass</name>
     </types>
     <types>
