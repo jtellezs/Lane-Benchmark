@@ -240,6 +240,7 @@
         <members>RFP_Lane__c.Row_Number__c</members>
         <members>RFP_Lane__c.Selected_Bid__c</members>
         <members>RFP_Lane__c.Sell__c</members>
+        <members>RFP_Lane__c.Sell_Source__c</members>
         <members>RFP_Lane__c.Shipments_Per_Year__c</members>
         <members>Benchmark_Rate__c.Carrier_Display__c</members>
         <members>Benchmark_Rate__c.Carrier_Name__c</members>
