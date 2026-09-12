@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>Help: how to use Lane Benchmark and the RFP Tool</description>
+    <flexiPage>Help_Center</flexiPage>
+    <label>Help</label>
+    <motif>Custom80: Motorcycle</motif>
+</CustomTab>

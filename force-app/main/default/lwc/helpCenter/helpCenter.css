@@ -1,0 +1,10 @@
+.nav-button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.body {
+  line-height: 1.5;
+}

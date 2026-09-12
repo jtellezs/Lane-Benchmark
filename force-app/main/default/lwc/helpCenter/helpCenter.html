@@ -1,0 +1,88 @@
+<template>
+  <lightning-card title={cardTitle} icon-name="utility:help">
+    <lightning-button-group slot="actions">
+      <lightning-button
+        data-id="lang-en"
+        label="EN"
+        variant={enVariant}
+        onclick={handleEn}
+      ></lightning-button>
+      <lightning-button
+        data-id="lang-fr"
+        label="FR"
+        variant={frVariant}
+        onclick={handleFr}
+      ></lightning-button>
+    </lightning-button-group>
+    <div class="slds-p-horizontal_medium">
+      <template lwc:if={error}>
+        <p data-id="error" class="slds-text-color_error">{error}</p>
+      </template>
+      <template lwc:else>
+        <lightning-layout multiple-rows>
+          <lightning-layout-item
+            size="12"
+            medium-device-size="4"
+            padding="around-x-small"
+          >
+            <lightning-input
+              data-id="filter"
+              type="search"
+              label={filterLabel}
+              value={filter}
+              onchange={handleFilter}
+            ></lightning-input>
+            <nav
+              data-id="nav"
+              class="slds-nav-vertical slds-m-top_small"
+              aria-label={cardTitle}
+            >
+              <ul>
+                <template for:each={visibleSections} for:item="s">
+                  <li key={s.slug} class={s.itemClass}>
+                    <button
+                      type="button"
+                      data-id="nav-item"
+                      data-slug={s.slug}
+                      class="slds-nav-vertical__action nav-button"
+                      aria-current={s.current}
+                      onclick={handlePick}
+                    >
+                      {s.label}
+                    </button>
+                  </li>
+                </template>
+              </ul>
+            </nav>
+          </lightning-layout-item>
+          <lightning-layout-item
+            size="12"
+            medium-device-size="8"
+            padding="around-x-small"
+          >
+            <template lwc:if={loading}>
+              <lightning-spinner
+                data-id="loading"
+                alternative-text="Loading"
+                size="small"
+              ></lightning-spinner>
+            </template>
+            <template lwc:if={section}>
+              <h2
+                data-id="title"
+                class="slds-text-heading_medium slds-m-bottom_small"
+              >
+                {title}
+              </h2>
+              <lightning-formatted-rich-text
+                data-id="body"
+                class="body"
+                value={html}
+              ></lightning-formatted-rich-text>
+            </template>
+          </lightning-layout-item>
+        </lightning-layout>
+      </template>
+    </div>
+  </lightning-card>
+</template>

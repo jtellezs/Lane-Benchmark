@@ -772,6 +772,7 @@
     <tabs>TproCall__c</tabs>
     <tabs>Lane_Benchmark</tabs>
     <tabs>RFP_Tool</tabs>
+    <tabs>Help_Center</tabs>
     <uiType>Lightning</uiType>
     <utilityBar>Trans_Pro_UtilityBar</utilityBar>
 </CustomApplication>
