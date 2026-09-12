@@ -1,0 +1,13 @@
+.hint {
+  position: relative;
+  display: inline-block;
+  margin-left: 0.25rem;
+  vertical-align: middle;
+}
+.popover {
+  position: absolute;
+  top: 1.75rem;
+  left: -0.5rem;
+  width: 20rem;
+  z-index: 9000;
+}

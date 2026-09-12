@@ -1,0 +1,37 @@
+<template>
+  <span class="hint" onkeydown={handleKeydown}>
+    <lightning-button-icon
+      data-id="open"
+      icon-name="utility:info"
+      size="x-small"
+      variant="bare"
+      alternative-text={label}
+      title={label}
+      onclick={handleToggle}
+    ></lightning-button-icon>
+    <template lwc:if={open}>
+      <section
+        data-id="popover"
+        class="slds-popover slds-nubbin_top-left popover"
+        role="dialog"
+        aria-label={label}
+      >
+        <lightning-button-icon
+          data-id="close"
+          class="slds-float_right"
+          icon-name="utility:close"
+          size="small"
+          variant="bare"
+          alternative-text={closeLabel}
+          onclick={handleClose}
+        ></lightning-button-icon>
+        <div class="slds-popover__body">
+          <p data-id="text">{text}</p>
+          <template lwc:if={hasSection}>
+            <a data-id="more" href="#" onclick={handleMore}>{moreLabel}</a>
+          </template>
+        </div>
+      </section>
+    </template>
+  </span>
+</template>

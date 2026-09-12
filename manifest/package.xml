@@ -20,6 +20,7 @@
     <types>
         <members>marginMath</members>
         <members>helpContent</members>
+        <members>helpHint</members>
         <members>laneBenchmarkCsv</members>
         <members>laneBenchmarkStorage</members>
         <members>laneBenchmarkPlacePicker</members>
