@@ -13,7 +13,7 @@
 > (wire filters, selection, bulk, twins, sticky panel): final commit
 > `c009537`. Task 12 (export annual sell, sell source, Summary sheet):
 > final commit `1f65b40`. Task 13 (docs, final deploy with tests): this
-> commit. Final fix wave (R40–R42): the commit after `e67f9af`. Rulings
+> commit. Final fix wave (R40–R42): `e19f3a3`. Rulings
 > made during execution are recorded in the spec's `## Outcome — 3c`
 > section, not repeated here.
 

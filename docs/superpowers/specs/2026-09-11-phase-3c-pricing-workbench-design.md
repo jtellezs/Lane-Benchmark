@@ -270,8 +270,8 @@ except Task 13's, which are from the commands run for this task.
 | 13 — docs, final deploy with tests (this task)                  | `0AfbZ00000CpXvtSAF` (full-manifest NoTestRun); `0AfbZ00000CpXnqSAF` (full-manifest RunSpecifiedTests, 22 classes) | 241 components deployed, 0 errors; Apex 124/124 across the 22 classes; `npm test` 32 suites / 258 tests; PMD clean           |
 | Final fix wave — class access, panel busy, rollback breadth     | `0AfbZ00000CpY7BSAV` (full-manifest NoTestRun); `0AfbZ00000CpY8nSAF` (full-manifest RunSpecifiedTests, 22 classes) | 241 components deployed, 0 errors; Apex 125/125 (the new class-access test included); Jest 32 suites / 260 tests; PMD clean  |
 
-Final state: **Apex 124/124** tests across the 22-class `RunSpecifiedTests`
-list (deploy `0AfbZ00000CpXnqSAF`), **Jest 32 suites / 258 tests**, **PMD
+Final state after the fix wave: **Apex 125/125** tests across the 22-class `RunSpecifiedTests`
+list (deploy `0AfbZ00000CpY8nSAF`), **Jest 32 suites / 260 tests**, **PMD
 clean** with 0 violations at minimum priority 3, 0 component errors on both
 final deploys.
 
