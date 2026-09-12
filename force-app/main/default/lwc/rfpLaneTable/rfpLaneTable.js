@@ -1,4 +1,23 @@
 import { LightningElement, api } from "lwc";
+import { inlineEdit } from "c/rfpPricing";
+
+/** The three columns the pricer can type into, in column order. */
+const EDITABLE = ["cost", "margin", "sell"];
+
+/** Why a typed value was refused, shown under the cell it was typed in. */
+const ERRORS = {
+  cost: "Enter a cost above zero",
+  sell: "Enter a sell above zero",
+  margin: "Margin must be 0 to 100"
+};
+
+/** The stored value as text, so an untouched draft can be recognised. */
+const rawText = (lane, field) => {
+  const v = { cost: lane.Cost__c, margin: lane.Margin__c, sell: lane.Sell__c }[
+    field
+  ];
+  return v === null || v === undefined ? "" : String(v);
+};
 
 /** Money is shown with two decimals and no grouping, so the columns line up. */
 function money(value) {
@@ -47,8 +66,13 @@ function historyTitle(lane) {
 export default class RfpLaneTable extends LightningElement {
   @api selectedId;
   @api currency = "CAD";
+  @api pendingIds = [];
+  @api rowErrors = {};
+  @api defaultMargin;
+  @api locked = false;
 
   _lanes = [];
+  _selectedIds = [];
 
   @api
   get lanes() {
@@ -56,6 +80,30 @@ export default class RfpLaneTable extends LightningElement {
   }
   set lanes(value) {
     this._lanes = value || [];
+  }
+
+  @api
+  get selectedIds() {
+    return this._selectedIds;
+  }
+  set selectedIds(value) {
+    this._selectedIds = value || [];
+  }
+
+  editing = null; // { laneId, field }
+  draft = "";
+  cellError = null;
+  focusPending = false;
+
+  renderedCallback() {
+    if (!this.focusPending) {
+      return;
+    }
+    this.focusPending = false;
+    const input = this.template.querySelector('[data-id="cell-input"]');
+    if (input && typeof input.focus === "function") {
+      input.focus();
+    }
   }
 
   get costHeader() {
@@ -68,7 +116,16 @@ export default class RfpLaneTable extends LightningElement {
     return this._lanes.length > 0;
   }
 
+  get allChecked() {
+    const selected = new Set(this._selectedIds);
+    return (
+      this._lanes.length > 0 && this._lanes.every((l) => selected.has(l.Id))
+    );
+  }
+
   get viewRows() {
+    const selected = new Set(this._selectedIds);
+    const pending = new Set(this.pendingIds || []);
     return this._lanes.map((l) => ({
       id: l.Id,
       rowNumber: l.Row_Number__c,
@@ -98,8 +155,28 @@ export default class RfpLaneTable extends LightningElement {
           ? ""
           : String(l.Margin__c),
       sellText: money(l.Sell__c),
-      statusText: l.Cost__c ? "Priced" : ""
+      statusText: l.Cost__c ? "Priced" : "",
+      checked: selected.has(l.Id),
+      pending: pending.has(l.Id),
+      error: (this.rowErrors || {})[l.Id] || null,
+      marginClass:
+        "slds-text-align_right cell" +
+        (l.Margin__c !== null && l.Margin__c !== undefined && l.Margin__c < 0
+          ? " slds-text-color_error"
+          : ""),
+      manualSell: l.Sell_Source__c === "Manual",
+      editingCost: this.isEditing(l.Id, "cost"),
+      editingMargin: this.isEditing(l.Id, "margin"),
+      editingSell: this.isEditing(l.Id, "sell")
     }));
+  }
+
+  isEditing(laneId, field) {
+    return (
+      !!this.editing &&
+      this.editing.laneId === laneId &&
+      this.editing.field === field
+    );
   }
 
   handleRowClick(event) {
@@ -154,5 +231,119 @@ export default class RfpLaneTable extends LightningElement {
     this.dispatchEvent(
       new CustomEvent("resolveend", { detail: { laneId, side, key } })
     );
+  }
+
+  handleRowCheck(event) {
+    const laneId = event.currentTarget.dataset.laneId;
+    const next = event.currentTarget.checked
+      ? [...this._selectedIds.filter((id) => id !== laneId), laneId]
+      : this._selectedIds.filter((id) => id !== laneId);
+    this.emitSelection(next);
+  }
+
+  /** Toggles the rows currently shown; ids the table does not show are left as they are. */
+  handleCheckAll() {
+    const shown = this._lanes.map((l) => l.Id);
+    const next = this.allChecked
+      ? this._selectedIds.filter((id) => !shown.includes(id))
+      : [
+          ...this._selectedIds,
+          ...shown.filter((id) => !this._selectedIds.includes(id))
+        ];
+    this.emitSelection(next);
+  }
+
+  emitSelection(laneIds) {
+    this.dispatchEvent(
+      new CustomEvent("selectionchange", { detail: { laneIds } })
+    );
+  }
+
+  handleCellClick(event) {
+    this.open(event.currentTarget.dataset);
+  }
+
+  handleCellKey(event) {
+    if (event.target !== event.currentTarget || event.key !== "Enter") {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.open(event.currentTarget.dataset);
+  }
+
+  open({ laneId, field }) {
+    if (this.locked || !EDITABLE.includes(field)) {
+      return;
+    }
+    if (this.isEditing(laneId, field)) {
+      return;
+    }
+    const lane = this._lanes.find((l) => l.Id === laneId);
+    if (!lane) {
+      return;
+    }
+    this.editing = { laneId, field };
+    this.draft = rawText(lane, field);
+    this.cellError = null;
+    this.focusPending = true;
+  }
+
+  handleDraft(event) {
+    this.draft = event.detail.value;
+  }
+
+  handleInputKey(event) {
+    event.stopPropagation();
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.close();
+    } else if (event.key === "Enter" || event.key === "Tab") {
+      event.preventDefault();
+      this.commit(event.shiftKey ? -1 : 1);
+    }
+  }
+
+  handleInputBlur(event) {
+    const { laneId, field } = event.currentTarget.dataset;
+    // A commit that already moved on leaves a blur behind on the old input.
+    if (!this.isEditing(laneId, field)) {
+      return;
+    }
+    if (!this.commit(0)) {
+      this.close(); // an unusable value is dropped on blur rather than trapping focus
+    }
+  }
+
+  close() {
+    this.editing = null;
+    this.draft = "";
+    this.cellError = null;
+  }
+
+  /**
+   * Saves the draft and moves `step` rows down the same column (0 = just
+   * close). Returns false when the draft is unusable; the cell stays open
+   * with the reason under it.
+   */
+  commit(step) {
+    const { laneId, field } = this.editing;
+    const index = this._lanes.findIndex((l) => l.Id === laneId);
+    const lane = this._lanes[index];
+    const text = String(this.draft ?? "").trim();
+    if (text !== rawText(lane, field)) {
+      const detail = inlineEdit(lane, field, text, this.defaultMargin);
+      if (!detail) {
+        this.cellError = ERRORS[field];
+        return false;
+      }
+      this.dispatchEvent(new CustomEvent("pricingchange", { detail }));
+    }
+    const next = this._lanes[index + step];
+    this.close();
+    if (step !== 0 && next) {
+      this.open({ laneId: next.Id, field });
+    }
+    return true;
   }
 }

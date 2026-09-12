@@ -28,3 +28,18 @@
 .w-8 {
   width: 8rem;
 }
+.w-2 {
+  width: 2rem;
+}
+/* The three pricing cells are typed into, so they read as text fields rather
+   than borrowing the row's pointer cursor. */
+.cell {
+  cursor: text;
+}
+.cell:focus {
+  outline: 2px solid #0176d3;
+  outline-offset: -2px;
+}
+.check-cell {
+  cursor: default;
+}
