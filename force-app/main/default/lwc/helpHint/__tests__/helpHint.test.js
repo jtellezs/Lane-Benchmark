@@ -14,9 +14,13 @@ jest.mock("lightning/navigation", () => {
   NavigationMixin.Navigate = Navigate;
   return { NavigationMixin, CurrentPageReference: { emit: () => {} } };
 });
-jest.mock("@salesforce/resourceUrl/helpCenter", () => "/resource/helpCenter", {
-  virtual: true
-});
+jest.mock(
+  "@salesforce/resourceUrl/helpCenter",
+  () => ({ __esModule: true, default: "/resource/helpCenter" }),
+  {
+    virtual: true
+  }
+);
 jest.mock("@salesforce/i18n/lang", () => ({ default: "en-US" }), {
   virtual: true
 });

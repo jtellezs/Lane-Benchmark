@@ -1,5 +1,10 @@
 <template>
   <lightning-card title="Statistics" icon-name="standard:metrics">
+    <c-help-hint
+      slot="actions"
+      topic="lb-stats"
+      label="Help: reading the statistics"
+    ></c-help-hint>
     <div class="slds-p-horizontal_medium">
       <template lwc:if={isEmpty}>
         <p class="slds-text-color_weak">

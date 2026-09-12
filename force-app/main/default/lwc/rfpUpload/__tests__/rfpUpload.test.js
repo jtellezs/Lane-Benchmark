@@ -14,24 +14,32 @@ global.TextDecoder = require("util").TextDecoder;
 // The SheetJS loader (c/rfpSheetLoader) caches its load promise in module scope,
 // so every test takes a fresh copy of the module graph — and an unused loadScript
 // mock — instead of inheriting whatever the test before it left cached.
-let createElement;
+//
+// rfpUpload.html now mounts a real c/helpHint custom element, and jsdom's custom
+// element registry is a single, file-wide instance that the LWC engine cannot
+// re-register a tag name against. A full jest.resetModules() would reload
+// "lwc" itself, giving each test its own empty upgradable-constructor cache and
+// making the second and later mounts of <c-help-hint> collide with the first
+// engine's registration. jest.isolateModules() keeps "lwc" pinned to the one
+// instance loaded below (so the constructor cache — and its "c-help-hint" and
+// "c-rfp-upload" entries — carries across tests) while still giving every test
+// its own fresh copy of c/rfpUpload, c/rfpSheetLoader and the apex/loadScript
+// mocks.
+const lwc = require("lwc");
+const { createElement } = lwc;
 let RfpUpload;
 let loadScript;
 let attachFile;
-// Resetting the module registry also makes a new LWC engine, and jsdom's custom
-// element registry is global, so each test mounts under its own tag name rather
-// than trying to re-upgrade one the previous engine already claimed.
-let tagSeq = 0;
-let tagName;
+const tagName = "c-rfp-upload";
 
 function freshModules() {
-  jest.resetModules();
-  ({ createElement } = require("lwc"));
-  RfpUpload = require("c/rfpUpload").default;
-  ({ loadScript } = require("lightning/platformResourceLoader"));
-  attachFile =
-    require("@salesforce/apex/RfpProjectController.attachFile").default;
-  tagName = `c-rfp-upload-${tagSeq++}`;
+  jest.isolateModules(() => {
+    jest.doMock("lwc", () => lwc);
+    RfpUpload = require("c/rfpUpload").default;
+    ({ loadScript } = require("lightning/platformResourceLoader"));
+    attachFile =
+      require("@salesforce/apex/RfpProjectController.attachFile").default;
+  });
 }
 
 const flush = () => Promise.resolve().then(() => Promise.resolve());

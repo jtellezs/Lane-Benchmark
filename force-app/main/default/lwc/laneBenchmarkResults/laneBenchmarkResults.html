@@ -1,5 +1,10 @@
 <template>
   <lightning-card title="Results" icon-name="standard:quotes">
+    <c-help-hint
+      slot="actions"
+      topic="lb-results"
+      label="Help: results and export"
+    ></c-help-hint>
     <template lwc:if={hasRows}>
       <lightning-button
         slot="actions"

@@ -1,5 +1,12 @@
 <template>
   <div class="slds-box slds-box_x-small slds-theme_shade bid-form">
+    <div class="slds-m-bottom_xx-small">
+      <span class="slds-form-element__label">Carrier rate</span>
+      <c-help-hint
+        topic="rfp-bids"
+        label="Help: recording carrier bids"
+      ></c-help-hint>
+    </div>
     <div class="slds-grid slds-wrap slds-gutters_x-small">
       <div class="slds-col slds-size_1-of-2">
         <template lwc:if={newCarrier}>
