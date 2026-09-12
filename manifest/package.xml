@@ -2,13 +2,11 @@
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <!-- Pricing Department app: Lightning App Page + tab -->
     <types>
-        <members>Pricing_Department</members>
         <members>Lane_Benchmark</members>
         <members>RFP_Tool</members>
         <name>FlexiPage</name>
     </types>
     <types>
-        <members>Pricing_Department</members>
         <members>Lane_Benchmark</members>
         <members>RFP_Tool</members>
         <name>CustomTab</name>
@@ -20,8 +18,6 @@
     </types>
     <!-- UI -->
     <types>
-        <members>pricingDepartment</members>
-        <members>quoteStats</members>
         <members>marginMath</members>
         <members>laneBenchmarkCsv</members>
         <members>laneBenchmarkStorage</members>
@@ -60,8 +56,6 @@
     </types>
     <!-- Apex -->
     <types>
-        <members>PricingDepartmentController</members>
-        <members>PricingDepartmentControllerTest</members>
         <members>PlaceNormalizer</members>
         <members>PlaceNormalizerTest</members>
         <members>PricingTestDataFactory</members>
@@ -74,6 +68,8 @@
         <members>LaneBenchmarkControllerTest</members>
         <members>LaneBenchmarkPlaceService</members>
         <members>LaneSearchException</members>
+        <members>LaneSearchExclusions</members>
+        <members>LaneSearchExclusionsTest</members>
         <members>LaneSearchFilters</members>
         <members>LaneSearchQueryBuilder</members>
         <members>LaneSearchRequest</members>
@@ -135,7 +131,6 @@
     </types>
     <!-- Security -->
     <types>
-        <members>Pricing_Department_User</members>
         <members>Lane_Benchmark_User</members>
         <members>RFP_Tool_User</members>
         <name>PermissionSet</name>

@@ -73,7 +73,7 @@ private class RfpSecurityTest {
       f.mtl,
       f.tor
     );
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     return f;
   }
   private static LaneSearchRequest req(

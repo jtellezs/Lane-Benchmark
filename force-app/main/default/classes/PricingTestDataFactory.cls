@@ -22,8 +22,8 @@
  *   rtms__Location2__c (see createLoadWithAdHocOrigin()) is left alone by that trigger and keeps
  *   its own city/postal/geolocation fields exactly as written.
  *
- * The graph is verified end to end in PostProduc: deploy request 0AfbZ00000CnJYrSAN,
- * PricingDepartmentControllerTest 12/12 passing.
+ * The graph is verified end to end in PostProduc by every RunSpecifiedTests deploy;
+ * LaneSearchServiceTest and RfpHistoryServiceTest are its heaviest consumers.
  */
 @IsTest
 public class PricingTestDataFactory {

@@ -58,8 +58,9 @@ public without sharing class LaneSearchService {
   }
 
   /**
-   * Dedupes rows (same fingerprint as PricingDepartmentController.UniqueCarrierQuote for quotes,
-   * on rtms__Carrier_Total__c instead of the CAD-converted total so USD quotes dedupe too; bid
+   * Dedupes rows (a quote's fingerprint is carrier name, origin, destination, mode, equipment
+   * and total, on rtms__Carrier_Total__c rather than the CAD-converted total so USD quotes
+   * dedupe too; bid
    * rows never collapse - see BidSearchService.fingerprint) into result.rows/dedupedCount, and
    * rolls the surviving totals up into result.statsByCurrency.
    */

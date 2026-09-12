@@ -28,7 +28,7 @@ public with sharing class LaneSearchQueryBuilder {
     conditions.add(
       'CreatedDate = LAST_N_DAYS:' + String.valueOf(req.lookbackDays)
     ); // validated positive integer, not user text
-    binds.put('excluded', PricingDepartmentController.excludedContactIdSet());
+    binds.put('excluded', LaneSearchExclusions.excludedContactIdSet());
     conditions.add('Contact_ID__c NOT IN :excluded');
     addEnd(conditions, binds, req, originEnd(req), places);
     addEnd(conditions, binds, req, destinationEnd(req), places);

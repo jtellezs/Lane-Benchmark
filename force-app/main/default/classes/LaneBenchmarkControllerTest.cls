@@ -85,7 +85,7 @@ private class LaneBenchmarkControllerTest {
 
   @IsTest
   static void searchDeserializesJsonKeepsDefaultsAndTranslatesErrors() {
-    PricingDepartmentController.excludedContactIdsOverride = new Set<String>();
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     LaneSearchResult r = LaneBenchmarkController.search(
       '{"originKey":"montreal|qc|ca","destinationKey":"toronto|on|ca"}'
     );

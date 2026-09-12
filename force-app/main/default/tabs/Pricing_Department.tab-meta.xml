@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<CustomTab xmlns="http://soap.sforce.com/2006/04/metadata">
-    <description>Created by Lightning App Builder</description>
-    <flexiPage>Pricing_Department</flexiPage>
-    <label>Pricing Department</label>
-    <motif>Custom80: Motorcycle</motif>
-</CustomTab>
