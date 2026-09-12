@@ -1,0 +1,138 @@
+<template>
+  <div class="slds-box slds-box_x-small slds-m-bottom_x-small">
+    <div
+      class="slds-grid slds-wrap slds-grid_vertical-align-end slds-gutters_x-small"
+    >
+      <div class="slds-col">
+        <lightning-button-group>
+          <lightning-button
+            data-id="scope-selected"
+            label={selectedLabel}
+            variant={selectedVariant}
+            disabled={noSelection}
+            onclick={handleScopeSelected}
+          ></lightning-button>
+          <lightning-button
+            data-id="scope-all"
+            label={allLabel}
+            variant={allVariant}
+            onclick={handleScopeAll}
+          ></lightning-button>
+        </lightning-button-group>
+      </div>
+      <div class="slds-col">
+        <lightning-button
+          data-id="use-median"
+          label="Use median"
+          title="Cost each lane from its history median (lanes costed from a bid or by hand are left alone)"
+          disabled={busy}
+          onclick={handleUseMedian}
+        ></lightning-button>
+      </div>
+      <div class="slds-col">
+        <lightning-input
+          data-id="margin"
+          label="Margin %"
+          value={marginText}
+          onchange={handleMargin}
+        ></lightning-input>
+      </div>
+      <div class="slds-col">
+        <lightning-button
+          data-id="apply-margin"
+          label="Apply margin"
+          disabled={busy}
+          onclick={handleApplyMargin}
+        ></lightning-button>
+      </div>
+      <div class="slds-col">
+        <lightning-input
+          data-id="cost"
+          type="number"
+          step="0.01"
+          label={costLabel}
+          value={costText}
+          onchange={handleCost}
+        ></lightning-input>
+      </div>
+      <div class="slds-col">
+        <lightning-button
+          data-id="apply-cost"
+          label="Apply cost"
+          disabled={busy}
+          onclick={handleApplyCost}
+        ></lightning-button>
+      </div>
+      <div class="slds-col">
+        <lightning-input
+          data-id="sell"
+          type="number"
+          step="0.01"
+          label={sellLabel}
+          value={sellText}
+          onchange={handleSell}
+        ></lightning-input>
+      </div>
+      <div class="slds-col">
+        <lightning-button
+          data-id="apply-sell"
+          label="Apply sell"
+          disabled={busy}
+          onclick={handleApplySell}
+        ></lightning-button>
+      </div>
+      <div class="slds-col">
+        <lightning-button
+          data-id="add-bid"
+          label="Add carrier rate"
+          disabled={busy}
+          onclick={handleAddBid}
+        ></lightning-button>
+      </div>
+      <template lwc:if={isSelectedScope}>
+        <div class="slds-col">
+          <lightning-button
+            data-id="delete"
+            variant="destructive"
+            label={deleteLabel}
+            disabled={busy}
+            onclick={handleDelete}
+          ></lightning-button>
+        </div>
+      </template>
+    </div>
+    <template lwc:if={error}>
+      <p
+        data-id="bar-error"
+        class="slds-text-color_error slds-m-top_xx-small"
+        role="alert"
+      >
+        {error}
+      </p>
+    </template>
+    <template lwc:if={skippedCount}>
+      <p
+        data-id="skipped-note"
+        class="slds-text-color_weak slds-m-top_xx-small"
+      >
+        {skippedNote}
+        <lightning-button
+          data-id="overwrite"
+          class="slds-m-left_x-small"
+          label="Overwrite them"
+          disabled={busy}
+          onclick={handleOverwrite}
+        ></lightning-button>
+      </p>
+    </template>
+    <template lwc:if={showBidForm}>
+      <div class="slds-m-top_x-small">
+        <c-rfp-bid-form
+          currency={currency}
+          onsave={handleSaveBid}
+          oncancel={handleCancelBid}
+        ></c-rfp-bid-form>
+      </div>
+    </template>
+  </div>
+</template>
