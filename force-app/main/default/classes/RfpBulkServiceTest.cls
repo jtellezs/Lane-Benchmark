@@ -331,4 +331,31 @@ private class RfpBulkServiceTest {
       System.assert(e.getMessage().contains('rate'), e.getMessage());
     }
   }
+
+  /** Nothing to price: every lane is in another currency, so no bid is written at all. */
+  @IsTest
+  static void applyBidSkipsEveryLaneInAnotherCurrency() {
+    Fx f = fx();
+    update new List<RFP_Lane__c>{
+      new RFP_Lane__c(Id = f.a.Id, CurrencyIsoCode = 'USD'),
+      new RFP_Lane__c(Id = f.b.Id, CurrencyIsoCode = 'USD'),
+      new RFP_Lane__c(Id = f.c.Id, CurrencyIsoCode = 'USD')
+    };
+    RfpBulkService.Result r = RfpBulkService.applyBid(
+      new List<Id>{ f.a.Id, f.b.Id, f.c.Id },
+      '{"Carrier_Name__c":"Bulk Carrier","Rate__c":1200,"CurrencyIsoCode":"CAD"}'
+    );
+    System.assertEquals(0, r.updated);
+    System.assertEquals(3, r.skipped);
+    System.assert(r.skippedIds.contains(f.a.Id), 'a skipped');
+    System.assert(r.skippedIds.contains(f.b.Id), 'b skipped');
+    System.assert(r.skippedIds.contains(f.c.Id), 'c skipped');
+    System.assert(r.errors.isEmpty(), String.join(r.errors, '; '));
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Project__c = :f.p.Id],
+      'no bid was written'
+    );
+    System.assertEquals(null, fetch(f.a.Id).Cost__c, 'no lane was costed');
+  }
 }

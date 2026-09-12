@@ -202,15 +202,26 @@ private class RfpSecurityTest {
     Id laneId = lane.Id;
     Test.startTest();
     RfpBulkService.Result r;
+    Id bidId;
     System.runAs(pricing) {
-      BenchmarkRateService.save(RfpTestDataFactory.buildBid(lane, 900));
+      bidId = BenchmarkRateService.save(RfpTestDataFactory.buildBid(lane, 900))
+        .Id;
       r = RfpBulkController.deleteLanes(new List<Id>{ laneId });
     }
     Test.stopTest();
     System.assertEquals(1, r.updated, String.join(r.errors, '; '));
+    // deleteLanes collects the bid pass with count=false, and Benchmark_Rate__c.RFP_Lane__c is a
+    // SetNull lookup: a bid the user may not delete would survive with a null lookup and every
+    // count-by-lane assertion would still read 0. Assert on the bid's own Id, and on no errors.
+    System.assert(r.errors.isEmpty(), String.join(r.errors, '; '));
     System.assertEquals(
       0,
       [SELECT COUNT() FROM RFP_Lane__c WHERE Id = :laneId]
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE Id = :bidId],
+      'the bid itself is gone, not merely unlinked'
     );
     System.assertEquals(
       0,
