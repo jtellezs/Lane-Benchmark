@@ -94,15 +94,27 @@ export default class RfpLaneTable extends LightningElement {
   draft = "";
   cellError = null;
   focusPending = false;
+  refocus = null; // the { laneId, field } cell to hand focus back to
 
   renderedCallback() {
-    if (!this.focusPending) {
+    if (this.focusPending) {
+      this.focusPending = false;
+      const input = this.template.querySelector('[data-id="cell-input"]');
+      if (input && typeof input.focus === "function") {
+        input.focus();
+      }
       return;
     }
-    this.focusPending = false;
-    const input = this.template.querySelector('[data-id="cell-input"]');
-    if (input && typeof input.focus === "function") {
-      input.focus();
+    if (!this.refocus) {
+      return;
+    }
+    const { laneId, field } = this.refocus;
+    this.refocus = null;
+    const cell = this.template.querySelector(
+      `td[data-field="${field}"][data-lane-id="${laneId}"]`
+    );
+    if (cell && typeof cell.focus === "function") {
+      cell.focus();
     }
   }
 
@@ -180,7 +192,7 @@ export default class RfpLaneTable extends LightningElement {
   }
 
   handleRowClick(event) {
-    this.emitSelect(event.currentTarget);
+    this.emitSelect(event.currentTarget.dataset.laneId);
   }
 
   /**
@@ -200,7 +212,7 @@ export default class RfpLaneTable extends LightningElement {
       return;
     }
     event.preventDefault();
-    this.emitSelect(event.currentTarget);
+    this.emitSelect(event.currentTarget.dataset.laneId);
   }
 
   /**
@@ -212,10 +224,8 @@ export default class RfpLaneTable extends LightningElement {
     event.stopPropagation();
   }
 
-  emitSelect(row) {
-    this.dispatchEvent(
-      new CustomEvent("select", { detail: { laneId: row.dataset.laneId } })
-    );
+  emitSelect(laneId) {
+    this.dispatchEvent(new CustomEvent("select", { detail: { laneId } }));
   }
 
   /**
@@ -260,6 +270,8 @@ export default class RfpLaneTable extends LightningElement {
   }
 
   handleCellClick(event) {
+    // open() does the selecting, so the row handler must not select again.
+    event.stopPropagation();
     this.open(event.currentTarget.dataset);
   }
 
@@ -273,20 +285,28 @@ export default class RfpLaneTable extends LightningElement {
   }
 
   open({ laneId, field }) {
-    if (this.locked || !EDITABLE.includes(field)) {
-      return;
-    }
-    if (this.isEditing(laneId, field)) {
+    if (!EDITABLE.includes(field)) {
       return;
     }
     const lane = this._lanes.find((l) => l.Id === laneId);
     if (!lane) {
       return;
     }
+    // The panel follows the cell that was pointed at however it was reached —
+    // a click, Enter on a focused cell, or stepping down the column — so a
+    // keyboard pricer never types into one lane while reading another.
+    if (laneId !== this.selectedId) {
+      this.emitSelect(laneId);
+    }
+    // A locked table still navigates; it just refuses the typing.
+    if (this.locked || this.isEditing(laneId, field)) {
+      return;
+    }
     this.editing = { laneId, field };
     this.draft = rawText(lane, field);
     this.cellError = null;
     this.focusPending = true;
+    this.refocus = null;
   }
 
   handleDraft(event) {
@@ -297,7 +317,7 @@ export default class RfpLaneTable extends LightningElement {
     event.stopPropagation();
     if (event.key === "Escape") {
       event.preventDefault();
-      this.close();
+      this.close(true);
     } else if (event.key === "Enter" || event.key === "Tab") {
       event.preventDefault();
       this.commit(event.shiftKey ? -1 : 1);
@@ -315,7 +335,15 @@ export default class RfpLaneTable extends LightningElement {
     }
   }
 
-  close() {
+  /**
+   * `keepFocus` hands focus back to the cell itself, so Escape and the end of a
+   * column leave the keyboard inside the table. A blur must not: the user has
+   * already moved focus somewhere else and pulling it back would trap them.
+   */
+  close(keepFocus = false) {
+    if (keepFocus && this.editing) {
+      this.refocus = this.editing;
+    }
     this.editing = null;
     this.draft = "";
     this.cellError = null;
@@ -329,6 +357,11 @@ export default class RfpLaneTable extends LightningElement {
   commit(step) {
     const { laneId, field } = this.editing;
     const index = this._lanes.findIndex((l) => l.Id === laneId);
+    if (index < 0) {
+      // the lane left the table while its cell was open; there is nothing to save
+      this.close();
+      return true;
+    }
     const lane = this._lanes[index];
     const text = String(this.draft ?? "").trim();
     if (text !== rawText(lane, field)) {
@@ -340,7 +373,7 @@ export default class RfpLaneTable extends LightningElement {
       this.dispatchEvent(new CustomEvent("pricingchange", { detail }));
     }
     const next = this._lanes[index + step];
-    this.close();
+    this.close(step !== 0);
     if (step !== 0 && next) {
       this.open({ laneId: next.Id, field });
     }
