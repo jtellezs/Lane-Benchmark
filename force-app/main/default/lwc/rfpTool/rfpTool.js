@@ -11,6 +11,8 @@ import loadHistory from "@salesforce/apex/RfpHistoryController.loadHistory";
 import { toImportRows } from "c/rfpSheet";
 import { guess } from "c/rfpHeaderGuess";
 import { chunk, mergeLanes, lanesForHistory, series } from "c/rfpBatch";
+import { applyFilter, STATUS_FILTERS, siblings } from "c/rfpLaneFilter";
+import { runBulk, applyBulkResult, summaryText } from "c/rfpBulk";
 
 // Apex caps a single importLanes call at 200 rows and a loadHistory call at 10
 // lane ids, so both run as a sequence of chunks with a progress bar and a Stop.
@@ -47,6 +49,12 @@ export default class RfpTool extends LightningElement {
   project = null;
   lanes = [];
   selectedId = null;
+  selectedIds = [];
+  filter = { status: "all", text: "" };
+  pendingIds = [];
+  rowErrors = {};
+  twinOffer = null; // { sourceLaneId, laneIds }
+  bulkResult = null;
 
   fileName = "";
   headers = [];
@@ -116,6 +124,28 @@ export default class RfpTool extends LightningElement {
   get precisionOptions() {
     return PRECISIONS;
   }
+  get statusOptions() {
+    return STATUS_FILTERS;
+  }
+  get visibleLanes() {
+    return applyFilter(this.lanes, {
+      ...this.filter,
+      selectedIds: this.selectedIds
+    });
+  }
+  get filterCount() {
+    return `${this.visibleLanes.length} of ${this.lanes.length} lanes`;
+  }
+  get selectedCount() {
+    return this.selectedIds.length;
+  }
+  get defaultMargin() {
+    return this.project ? this.project.Default_Margin__c : null;
+  }
+  get twinText() {
+    const n = this.twinOffer ? this.twinOffer.laneIds.length : 0;
+    return `Apply the same cost and sell to ${n} identical lane${n === 1 ? "" : "s"}?`;
+  }
   get unitOptions() {
     return UNITS;
   }
@@ -159,6 +189,33 @@ export default class RfpTool extends LightningElement {
   }
   handleSelect(event) {
     this.selectedId = event.detail.laneId;
+  }
+  handleFilterStatus(event) {
+    this.filter = { ...this.filter, status: event.detail.value };
+  }
+  handleFilterText(event) {
+    this.filter = { ...this.filter, text: event.detail.value };
+  }
+  /**
+   * Assigned straight from the event, with nothing awaited first: the table's
+   * header checkbox reads this back as its own state, and a later assignment
+   * would leave it a tick behind the rows.
+   */
+  handleSelectionChange(event) {
+    this.selectedIds = event.detail.laneIds || [];
+  }
+  handleTwinDismiss() {
+    this.twinOffer = null;
+  }
+  handleTwinApply() {
+    const { sourceLaneId, laneIds } = this.twinOffer;
+    this.twinOffer = null;
+    this.bulk({
+      action: "copy",
+      scope: "ids",
+      ids: laneIds,
+      params: { sourceLaneId }
+    });
   }
   handleMappingChange(event) {
     this.mapping = event.detail.mapping;
@@ -218,8 +275,14 @@ export default class RfpTool extends LightningElement {
     }
   }
 
+  /** A reload is a fresh sheet: the selection, the row errors and any offer go. */
   async loadLanes() {
     this.lanes = (await getLanes({ projectId: this.projectId })) || [];
+    this.selectedIds = [];
+    this.pendingIds = [];
+    this.rowErrors = {};
+    this.twinOffer = null;
+    this.bulkResult = null;
   }
 
   handleParsed(event) {
@@ -393,16 +456,77 @@ export default class RfpTool extends LightningElement {
     return this.lanes.find((l) => l.Id === laneId) || { Id: laneId };
   }
 
+  /**
+   * One lane's save, from the panel or from a table cell. Several lanes may be
+   * saving at once (a quick Enter-Enter-Enter down a column); a lane already
+   * saving ignores a second request until the first returns. The failure lands
+   * on the row, not on the page banner, so the rest of the sheet stays usable.
+   */
   async handlePricingChange(event) {
     const { laneId, ...fields } = event.detail;
-    this.error = null;
+    if (this.busy || this.pendingIds.includes(laneId)) {
+      return;
+    }
+    this.pendingIds = [...this.pendingIds, laneId];
+    // A new object rather than a delete in place: LWC reacts to the assignment.
+    this.rowErrors = { ...this.rowErrors, [laneId]: undefined };
     try {
       const lane = await saveLanePricing({
         laneJson: JSON.stringify({ Id: laneId, ...fields })
       });
       this.lanes = mergeLanes(this.lanes, lane);
+      const twins = siblings(this.lanes, lane);
+      this.twinOffer = twins.length
+        ? { sourceLaneId: laneId, laneIds: twins.map((l) => l.Id) }
+        : null;
     } catch (e) {
-      this.error = apexMessage(e, "The price could not be saved.");
+      this.rowErrors = {
+        ...this.rowErrors,
+        [laneId]: apexMessage(e, "The price could not be saved.")
+      };
+    } finally {
+      this.pendingIds = this.pendingIds.filter((id) => id !== laneId);
+    }
+  }
+
+  handleBulk(event) {
+    const { action, scope, ...params } = event.detail;
+    const ids =
+      scope === "selected"
+        ? this.selectedIds
+        : scope === "skipped"
+          ? (this.bulkResult && this.bulkResult.skippedIds) || []
+          : this.lanes.map((l) => l.Id);
+    this.bulk({ action, scope, ids, params });
+  }
+
+  /** Every many-lane call goes through here: progress bar, Stop, merge, summary. */
+  async bulk({ action, ids, params }) {
+    if (this.busy || !ids.length) {
+      return;
+    }
+    this.stopRequested = false;
+    this.busy = true;
+    this.error = null;
+    this.twinOffer = null;
+    this.progress = { done: 0, total: ids.length };
+    try {
+      const result = await runBulk({
+        action,
+        ids,
+        params,
+        onProgress: (n) => {
+          this.progress = { done: this.progress.done + n, total: ids.length };
+        },
+        isStopped: () => this.stopRequested
+      });
+      const next = applyBulkResult(this.lanes, this.selectedIds, result);
+      this.lanes = next.lanes;
+      this.selectedIds = next.selectedIds;
+      this.bulkResult = result;
+      this.summary = summaryText(result);
+    } finally {
+      this.busy = false;
     }
   }
 

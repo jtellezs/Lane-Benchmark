@@ -10,6 +10,9 @@ import saveLanePricing from "@salesforce/apex/RfpLaneController.saveLanePricing"
 import resolveLaneEnd from "@salesforce/apex/RfpLaneController.resolveLaneEnd";
 import loadHistory from "@salesforce/apex/RfpHistoryController.loadHistory";
 import getBids from "@salesforce/apex/RfpBidController.getBids";
+import applyMedian from "@salesforce/apex/RfpBulkController.applyMedian";
+import copyPricing from "@salesforce/apex/RfpBulkController.copyPricing";
+import deleteLanes from "@salesforce/apex/RfpBulkController.deleteLanes";
 
 // babel-plugin-jest-hoist only hoists literal jest.mock() calls, so each Apex
 // module the workbench tree imports is listed out here.
@@ -80,6 +83,31 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/RfpBidController.saveBid",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/RfpBulkController.applyMedian",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/RfpBulkController.applyPricing",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/RfpBulkController.applyBid",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/RfpBulkController.copyPricing",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/RfpBulkController.deleteLanes",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -725,6 +753,190 @@ describe("c-rfp-tool", () => {
       );
       await settle(8);
       expect(loadHistory).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("workbench wiring", () => {
+    it("filters the table and selects only the rows shown", async () => {
+      const el = await openFromUrl([
+        { ...pendingLane(1), Cost__c: 100 },
+        { ...pendingLane(2), Destination_City__c: "Calgary" },
+        pendingLane(3)
+      ]);
+      field(el, "filter-status").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "unpriced" } })
+      );
+      await settle();
+      let table = child(el, "c-rfp-lane-table");
+      expect(table.lanes.map((l) => l.Id)).toEqual(["a0L2", "a0L3"]);
+      expect(field(el, "filter-count").textContent).toContain("2 of 3");
+      field(el, "filter-text").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "calg" } })
+      );
+      await settle();
+      table = child(el, "c-rfp-lane-table");
+      expect(table.lanes.map((l) => l.Id)).toEqual(["a0L2"]);
+      table.dispatchEvent(
+        new CustomEvent("selectionchange", { detail: { laneIds: ["a0L2"] } })
+      );
+      await settle();
+      expect(child(el, "c-rfp-bulk-bar").selectedCount).toBe(1);
+      expect(child(el, "c-rfp-bulk-bar").totalCount).toBe(3);
+    });
+
+    it("runs a bulk action over the chosen scope and merges the lanes back", async () => {
+      applyMedian.mockResolvedValue({
+        lanes: [{ ...pendingLane(1), Cost__c: 2000 }],
+        updated: 1,
+        skipped: 2,
+        skippedIds: ["a0L2", "a0L3"],
+        errors: []
+      });
+      const el = await openFromUrl(lanes(3));
+      child(el, "c-rfp-bulk-bar").dispatchEvent(
+        new CustomEvent("bulk", { detail: { action: "median", scope: "all" } })
+      );
+      await settle();
+      expect(applyMedian).toHaveBeenCalledWith({
+        laneIds: ["a0L1", "a0L2", "a0L3"],
+        overwrite: false
+      });
+      expect(child(el, "c-rfp-lane-table").lanes[0].Cost__c).toBe(2000);
+      expect(field(el, "summary").textContent).toContain(
+        "Median applied to 1 lane; 2 skipped"
+      );
+      expect(child(el, "c-rfp-bulk-bar").lastResult.skippedIds).toEqual([
+        "a0L2",
+        "a0L3"
+      ]);
+      child(el, "c-rfp-bulk-bar").dispatchEvent(
+        new CustomEvent("bulk", {
+          detail: { action: "median", scope: "skipped", overwrite: true }
+        })
+      );
+      await settle();
+      expect(applyMedian).toHaveBeenLastCalledWith({
+        laneIds: ["a0L2", "a0L3"],
+        overwrite: true
+      });
+    });
+
+    it("deletes the selection and drops the rows", async () => {
+      deleteLanes.mockResolvedValue({
+        lanes: [],
+        updated: 2,
+        skipped: 0,
+        skippedIds: [],
+        errors: []
+      });
+      const el = await openFromUrl(lanes(3));
+      child(el, "c-rfp-lane-table").dispatchEvent(
+        new CustomEvent("selectionchange", {
+          detail: { laneIds: ["a0L1", "a0L3"] }
+        })
+      );
+      await settle();
+      child(el, "c-rfp-bulk-bar").dispatchEvent(
+        new CustomEvent("bulk", {
+          detail: { action: "delete", scope: "selected" }
+        })
+      );
+      await settle();
+      expect(deleteLanes).toHaveBeenCalledWith({ laneIds: ["a0L1", "a0L3"] });
+      expect(child(el, "c-rfp-lane-table").lanes.map((l) => l.Id)).toEqual([
+        "a0L2"
+      ]);
+      expect(child(el, "c-rfp-bulk-bar").selectedCount).toBe(0);
+    });
+
+    it("marks a row pending while an inline save runs and offers the twins afterwards", async () => {
+      const twin = {
+        ...pendingLane(2),
+        Origin_Place__c: "p1",
+        Destination_Place__c: "p2",
+        Mode__c: "TL"
+      };
+      let release;
+      saveLanePricing.mockImplementation(
+        () =>
+          new Promise((r) => {
+            release = r;
+          })
+      );
+      copyPricing.mockResolvedValue({
+        lanes: [{ ...twin, Cost__c: 900 }],
+        updated: 1,
+        skipped: 0,
+        skippedIds: [],
+        errors: []
+      });
+      const el = await openFromUrl([
+        {
+          ...pendingLane(1),
+          Origin_Place__c: "p1",
+          Destination_Place__c: "p2",
+          Mode__c: "TL"
+        },
+        twin
+      ]);
+      child(el, "c-rfp-lane-table").dispatchEvent(
+        new CustomEvent("pricingchange", {
+          detail: {
+            laneId: "a0L1",
+            Cost__c: 900,
+            Cost_Source__c: "Manual",
+            Selected_Bid__c: null,
+            Margin__c: 15,
+            Sell__c: 1035,
+            Sell_Source__c: "Margin",
+            Notes__c: null
+          }
+        })
+      );
+      await settle();
+      expect(child(el, "c-rfp-lane-table").pendingIds).toEqual(["a0L1"]);
+      release({
+        ...pendingLane(1),
+        Origin_Place__c: "p1",
+        Destination_Place__c: "p2",
+        Mode__c: "TL",
+        Cost__c: 900,
+        Sell__c: 1035
+      });
+      await settle();
+      expect(child(el, "c-rfp-lane-table").pendingIds).toEqual([]);
+      expect(field(el, "twin-offer").textContent).toContain("1 identical lane");
+      field(el, "twin-apply").click();
+      await settle();
+      expect(copyPricing).toHaveBeenCalledWith({
+        sourceLaneId: "a0L1",
+        laneIds: ["a0L2"]
+      });
+      expect(field(el, "twin-offer")).toBeNull();
+      expect(child(el, "c-rfp-lane-table").lanes[1].Cost__c).toBe(900);
+    });
+
+    it("records a failed inline save on the row instead of the banner", async () => {
+      saveLanePricing.mockRejectedValue({
+        body: { message: "The lane price could not be saved. Boom" }
+      });
+      const el = await openFromUrl(lanes(1));
+      child(el, "c-rfp-lane-table").dispatchEvent(
+        new CustomEvent("pricingchange", {
+          detail: {
+            laneId: "a0L1",
+            Cost__c: 1,
+            Cost_Source__c: "Manual",
+            Selected_Bid__c: null,
+            Margin__c: 15,
+            Sell__c: 1.15,
+            Sell_Source__c: "Margin",
+            Notes__c: null
+          }
+        })
+      );
+      await settle();
+      expect(child(el, "c-rfp-lane-table").rowErrors.a0L1).toContain("Boom");
     });
   });
 });

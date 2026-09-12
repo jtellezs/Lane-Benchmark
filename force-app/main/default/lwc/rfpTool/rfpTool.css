@@ -1,0 +1,10 @@
+/* The pricing panel stays in view while the lane table scrolls underneath it.
+   align-self keeps the grid from stretching the sticky item to the table's
+   height (a stretched item has nowhere to stick). */
+.panel-col {
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  max-height: calc(100vh - 8rem);
+  overflow-y: auto;
+}
