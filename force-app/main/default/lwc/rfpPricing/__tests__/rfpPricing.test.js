@@ -9,7 +9,11 @@ import {
   pricingDetail,
   historyKey,
   historyRequest,
-  parseRadius
+  parseRadius,
+  inlineEdit,
+  recompute,
+  pricingFingerprint,
+  parseMoney
 } from "c/rfpPricing";
 
 const LANE = {
@@ -17,7 +21,14 @@ const LANE = {
   Hist_Median__c: 2000,
   Hist_Precision__c: "CITY",
   Origin_Place__r: { Key__c: "montreal|qc|ca" },
-  Destination_Place__r: { Key__c: "toronto|on|ca" }
+  Destination_Place__r: { Key__c: "toronto|on|ca" },
+  Cost__c: 1000,
+  Cost_Source__c: "History median",
+  Selected_Bid__c: null,
+  Margin__c: 15,
+  Sell__c: 1150,
+  Sell_Source__c: "Margin",
+  Notes__c: "n"
 };
 
 const ACTIVE = {
@@ -132,6 +143,7 @@ describe("rfpPricing", () => {
       Selected_Bid__c: "a0B1",
       Margin__c: 20,
       Sell__c: 2160,
+      Sell_Source__c: "Margin",
       Notes__c: "Renewal"
     });
 
@@ -151,6 +163,7 @@ describe("rfpPricing", () => {
       Selected_Bid__c: null,
       Margin__c: null,
       Sell__c: null,
+      Sell_Source__c: "Margin",
       Notes__c: null
     });
   });
@@ -223,5 +236,113 @@ describe("historyRequest with a stamped radius", () => {
     expect(req.originRadius).toBe(150);
     expect(req.destinationRadius).toBe(150);
     expect(req.radiusUnit).toBe("MI");
+  });
+});
+
+describe("pricingDetail with a sell source", () => {
+  it("derives the sell from the margin when the margin drives", () => {
+    const d = pricingDetail({
+      laneId: "a0L1",
+      source: "Manual",
+      cost: 1000,
+      marginText: "20",
+      notes: "",
+      sellSource: "Margin",
+      sellText: "999"
+    });
+    expect(d).toMatchObject({
+      Margin__c: 20,
+      Sell__c: 1200,
+      Sell_Source__c: "Margin"
+    });
+  });
+  it("keeps the typed sell and derives the margin when the sell drives", () => {
+    const d = pricingDetail({
+      laneId: "a0L1",
+      source: "Manual",
+      cost: 1000,
+      marginText: "20",
+      notes: "",
+      sellSource: "Manual",
+      sellText: "1500"
+    });
+    expect(d).toMatchObject({
+      Margin__c: 50,
+      Sell__c: 1500,
+      Sell_Source__c: "Manual"
+    });
+  });
+});
+
+describe("inlineEdit", () => {
+  it("a typed margin recomputes the sell", () => {
+    expect(inlineEdit(LANE, "margin", "20", 15)).toMatchObject({
+      laneId: "a0L1",
+      Margin__c: 20,
+      Sell__c: 1200,
+      Sell_Source__c: "Margin",
+      Cost__c: 1000,
+      Notes__c: "n"
+    });
+  });
+  it("a typed sell flips the lane to Manual and derives the margin", () => {
+    expect(inlineEdit(LANE, "sell", "900", 15)).toMatchObject({
+      Sell__c: 900,
+      Sell_Source__c: "Manual",
+      Margin__c: -10
+    });
+  });
+  it("a typed cost becomes a manual cost and follows the sell source", () => {
+    expect(inlineEdit(LANE, "cost", "2000", 15)).toMatchObject({
+      Cost__c: 2000,
+      Cost_Source__c: "Manual",
+      Selected_Bid__c: null,
+      Sell__c: 2300,
+      Margin__c: 15
+    });
+    const manual = { ...LANE, Sell_Source__c: "Manual", Sell__c: 1500 };
+    expect(inlineEdit(manual, "cost", "2000", 15)).toMatchObject({
+      Cost__c: 2000,
+      Sell__c: 1500,
+      Margin__c: -25,
+      Sell_Source__c: "Manual"
+    });
+  });
+  it("uses the project default margin when the lane has none", () => {
+    expect(inlineEdit({ Id: "a0L2" }, "cost", "100", 12)).toMatchObject({
+      Margin__c: 12,
+      Sell__c: 112
+    });
+  });
+  it("rejects blanks, junk, non-positive money and out-of-range margins", () => {
+    expect(inlineEdit(LANE, "cost", "", 15)).toBeNull();
+    expect(inlineEdit(LANE, "cost", "abc", 15)).toBeNull();
+    expect(inlineEdit(LANE, "sell", "0", 15)).toBeNull();
+    expect(inlineEdit(LANE, "margin", "101", 15)).toBeNull();
+    expect(inlineEdit(LANE, "notes", "x", 15)).toBeNull();
+  });
+});
+
+describe("recompute / fingerprint / parseMoney", () => {
+  it("recompute mirrors RfpPricingMath.recompute", () => {
+    expect(
+      recompute(
+        { Cost__c: 2000, Margin__c: null, Sell__c: null, Sell_Source__c: null },
+        15
+      )
+    ).toMatchObject({ Margin__c: 15, Sell__c: 2300, Sell_Source__c: "Margin" });
+  });
+  it("fingerprint changes with any of the six pricing fields", () => {
+    const a = pricingFingerprint(LANE);
+    expect(pricingFingerprint({ ...LANE, Notes__c: "other" })).toBe(a);
+    expect(pricingFingerprint({ ...LANE, Sell__c: 1151 })).not.toBe(a);
+    expect(pricingFingerprint(null)).toBe(pricingFingerprint(undefined));
+  });
+  it("parseMoney", () => {
+    expect(parseMoney("12.5")).toBe(12.5);
+    expect(parseMoney(" 7 ")).toBe(7);
+    expect(parseMoney("0")).toBeNull();
+    expect(parseMoney("")).toBeNull();
+    expect(parseMoney(null)).toBeNull();
   });
 });

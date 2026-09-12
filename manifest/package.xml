@@ -48,6 +48,7 @@
         <members>rfpSheetLoader</members>
         <members>rfpUpload</members>
         <members>rfpWorkbook</members>
+        <members>rfpLaneFilter</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>

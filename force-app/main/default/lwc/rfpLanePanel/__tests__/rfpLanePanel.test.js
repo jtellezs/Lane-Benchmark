@@ -191,6 +191,7 @@ describe("c-rfp-lane-panel", () => {
       Selected_Bid__c: null,
       Margin__c: 15,
       Sell__c: 2300,
+      Sell_Source__c: "Margin",
       Notes__c: "Watch the ferry surcharge"
     });
   });
