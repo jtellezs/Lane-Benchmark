@@ -916,6 +916,47 @@ describe("c-rfp-tool", () => {
       expect(child(el, "c-rfp-lane-table").lanes[1].Cost__c).toBe(900);
     });
 
+    it("will not start a bulk run while an inline save is still in flight", async () => {
+      saveLanePricing.mockImplementation(() => new Promise(() => {}));
+      const el = await openFromUrl(lanes(2));
+      child(el, "c-rfp-lane-table").dispatchEvent(
+        new CustomEvent("pricingchange", {
+          detail: {
+            laneId: "a0L1",
+            Cost__c: 900,
+            Cost_Source__c: "Manual",
+            Selected_Bid__c: null,
+            Margin__c: 15,
+            Sell__c: 1035,
+            Sell_Source__c: "Margin",
+            Notes__c: null
+          }
+        })
+      );
+      await settle();
+      child(el, "c-rfp-bulk-bar").dispatchEvent(
+        new CustomEvent("bulk", { detail: { action: "median", scope: "all" } })
+      );
+      await settle();
+      expect(applyMedian).not.toHaveBeenCalled();
+      expect(field(el, "error").textContent).toContain(
+        "Wait for the current save to finish."
+      );
+    });
+
+    it("shows a bulk run that threw outside a chunk on the banner", async () => {
+      const el = await openFromUrl(lanes(2));
+      child(el, "c-rfp-bulk-bar").dispatchEvent(
+        new CustomEvent("bulk", { detail: { action: "nope", scope: "all" } })
+      );
+      await settle();
+      expect(field(el, "error").textContent).toContain(
+        "The bulk action failed."
+      );
+      // The page is usable again: the run released the progress bar and Stop.
+      expect(field(el, "progress")).toBeNull();
+    });
+
     it("records a failed inline save on the row instead of the banner", async () => {
       saveLanePricing.mockRejectedValue({
         body: { message: "The lane price could not be saved. Boom" }

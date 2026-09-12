@@ -55,10 +55,15 @@ const equipmentOf = (l) => l.Equipment_Type__c || l.Equipment_Category__c || "";
 
 /**
  * The unpriced lanes that are the same lane again: same two places, same mode,
- * same equipment. An unresolved end has no place, so it never pairs.
+ * same equipment. An unresolved end has no place, so it never pairs, and a lane
+ * with no cost of its own has nothing to offer — a notes-only save must not
+ * offer to copy a null price onto its twins.
  */
 export function siblings(lanes, lane) {
   if (!lane || !lane.Origin_Place__c || !lane.Destination_Place__c) {
+    return [];
+  }
+  if (unpriced(lane)) {
     return [];
   }
   return (lanes || []).filter(

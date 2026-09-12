@@ -505,6 +505,13 @@ export default class RfpTool extends LightningElement {
     if (this.busy || !ids.length) {
       return;
     }
+    // An inline save is a lane's own round trip already in flight; a bulk run
+    // started on top of it would merge its own copy of that lane back over the
+    // save. Say so rather than swallowing the click.
+    if (this.pendingIds.length) {
+      this.error = "Wait for the current save to finish.";
+      return;
+    }
     this.stopRequested = false;
     this.busy = true;
     this.error = null;
@@ -525,6 +532,10 @@ export default class RfpTool extends LightningElement {
       this.selectedIds = next.selectedIds;
       this.bulkResult = result;
       this.summary = summaryText(result);
+    } catch (e) {
+      // runBulk keeps a failed chunk to itself; anything landing here failed
+      // outside one, so the whole run is off and the banner says so.
+      this.error = apexMessage(e, "The bulk action failed.");
     } finally {
       this.busy = false;
     }

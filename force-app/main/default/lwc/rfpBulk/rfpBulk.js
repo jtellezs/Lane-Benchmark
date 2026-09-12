@@ -48,6 +48,10 @@ export async function runBulk({
   const total = {
     action,
     ids: ids || [],
+    // The ids of the chunks that actually came back. A chunk that threw and a
+    // chunk a Stop skipped are not in here, so the caller can tell the lanes
+    // the server dealt with from the ones it never heard about.
+    doneIds: [],
     lanes: [],
     updated: 0,
     skipped: 0,
@@ -61,6 +65,7 @@ export async function runBulk({
     }
     try {
       const r = await call(part, params);
+      total.doneIds.push(...part);
       total.lanes.push(...(r.lanes || []));
       total.updated += r.updated || 0;
       total.skipped += r.skipped || 0;
@@ -78,15 +83,19 @@ export async function runBulk({
 }
 
 /**
- * Folds a run's outcome into the lanes on screen. Deleted lanes are the ids the
- * run was given that did not come back; they leave the list and the selection.
+ * Folds a run's outcome into the lanes on screen. Deleted lanes are the ids of
+ * the chunks that came back minus the lanes those calls returned; they leave
+ * the list and the selection. A chunk that failed and a chunk a Stop skipped
+ * are not in `doneIds`, so their lanes stay on screen — the server still has
+ * them. (`ids` is the fallback for a result recorded before `doneIds` existed.)
  */
 export function applyBulkResult(lanes, selectedIds, result) {
   if (result.action !== "delete") {
     return { lanes: mergeLanes(lanes, result.lanes), selectedIds };
   }
   const survivors = new Set((result.lanes || []).map((l) => l.Id));
-  const gone = new Set((result.ids || []).filter((id) => !survivors.has(id)));
+  const attempted = result.doneIds || result.ids || [];
+  const gone = new Set(attempted.filter((id) => !survivors.has(id)));
   return {
     lanes: (lanes || []).filter((l) => !gone.has(l.Id)),
     selectedIds: (selectedIds || []).filter((id) => !gone.has(id))

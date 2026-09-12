@@ -92,4 +92,11 @@ describe("siblings", () => {
     expect(siblings(L, L[2])).toEqual([]);
     expect(siblings(null, L[0])).toEqual([]);
   });
+  it("offers nothing when the lane just saved has no cost of its own", () => {
+    const twins = [
+      lane({ Id: "a", Cost__c: null }),
+      lane({ Id: "b", Cost__c: null })
+    ];
+    expect(siblings(twins, twins[0])).toEqual([]);
+  });
 });

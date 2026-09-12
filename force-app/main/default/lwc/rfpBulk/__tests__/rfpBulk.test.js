@@ -110,6 +110,24 @@ describe("runBulk", () => {
     expect(r.updated).toBe(200);
   });
 
+  it("only counts a chunk as done once the call has returned", async () => {
+    deleteLanes
+      .mockResolvedValueOnce({
+        lanes: [],
+        updated: 200,
+        skipped: 0,
+        skippedIds: [],
+        errors: []
+      })
+      .mockRejectedValueOnce({
+        body: { message: "The lanes were not deleted." }
+      });
+    const all = ids(400);
+    const r = await runBulk({ action: "delete", ids: all });
+    expect(r.doneIds).toEqual(all.slice(0, BULK_CHUNK));
+    expect(r.failedIds).toEqual(all.slice(BULK_CHUNK));
+  });
+
   it("refuses an unknown action", async () => {
     await expect(runBulk({ action: "nope", ids: ids(1) })).rejects.toThrow(
       "Unknown bulk action"
@@ -151,6 +169,56 @@ describe("applyBulkResult / summaryText", () => {
     expect(out.lanes.map((l) => l.Id)).toEqual(["b"]);
     expect(out.selectedIds).toEqual(["b"]);
   });
+  it("keeps the lanes a failed delete chunk never removed", async () => {
+    deleteLanes
+      .mockResolvedValueOnce({
+        lanes: [],
+        updated: 200,
+        skipped: 0,
+        skippedIds: [],
+        errors: []
+      })
+      .mockRejectedValueOnce({
+        body: { message: "The lanes were not deleted." }
+      });
+    const all = ids(400);
+    const result = await runBulk({ action: "delete", ids: all });
+    const out = applyBulkResult(
+      all.map((Id) => ({ Id })),
+      all,
+      result
+    );
+    expect(out.lanes.map((l) => l.Id)).toEqual(all.slice(200));
+    expect(out.selectedIds).toEqual(all.slice(200));
+  });
+
+  it("keeps the lanes a stopped delete never reached", async () => {
+    deleteLanes.mockResolvedValue({
+      lanes: [],
+      updated: 200,
+      skipped: 0,
+      skippedIds: [],
+      errors: []
+    });
+    let stop = false;
+    const all = ids(400);
+    const result = await runBulk({
+      action: "delete",
+      ids: all,
+      onProgress: () => {
+        stop = true;
+      },
+      isStopped: () => stop
+    });
+    const out = applyBulkResult(
+      all.map((Id) => ({ Id })),
+      all,
+      result
+    );
+    expect(out.lanes.map((l) => l.Id)).toEqual(all.slice(200));
+    expect(out.selectedIds).toEqual(all.slice(200));
+  });
+
   it("words the summary", () => {
     expect(
       summaryText({
