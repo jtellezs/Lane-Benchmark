@@ -137,6 +137,74 @@ private class BidSearchQueryBuilderTest {
     );
   }
 
+  // Phase 3d: an RFP history run asks for every other project's bids, expired ones included.
+  // The active-window pair drops out for includeExpiredBids, exactly as it already does for
+  // sourceFilter BIDS, and the excluded project becomes a bound inequality.
+  @IsTest
+  static void expiredBidsAndTheProjectExclusionChangeTheWhereClause() {
+    LaneSearchRequest r = req();
+    r.includeExpiredBids = true;
+    Map<String, Object> binds = new Map<String, Object>();
+    String soql = BidSearchQueryBuilder.buildSoql(r, binds, places());
+    System.assert(
+      !soql.contains('Expires_On__c >= TODAY'),
+      'an expired bid inside the lookback still counts: ' + soql
+    );
+    System.assert(!soql.contains('Valid_From__c <= TODAY'), soql);
+    System.assert(
+      !soql.contains('RFP_Project__c !='),
+      'no exclusion was asked for: ' + soql
+    );
+    System.assertEquals(null, binds.get('bExcludeProject'));
+
+    r = req();
+    r.excludeProjectId = fakeProjectId();
+    binds = new Map<String, Object>();
+    soql = BidSearchQueryBuilder.buildSoql(r, binds, places());
+    System.assert(soql.contains('RFP_Project__c != :bExcludeProject'), soql);
+    System.assertEquals(r.excludeProjectId, binds.get('bExcludeProject'));
+    System.assert(
+      soql.contains('Expires_On__c >= TODAY'),
+      'the window is untouched by the exclusion: ' + soql
+    );
+  }
+
+  // The two phase 3d members are auto-properties (see LaneSearchRequest's comment on the PMD
+  // field cap), and c/rfpPricing sends them as ordinary JSON keys, so this pins that
+  // JSON.deserialize fills a property exactly as it fills the fields beside it.
+  @IsTest
+  static void jsonFillsTheBidScopeMembers() {
+    LaneSearchRequest r = (LaneSearchRequest) JSON.deserialize(
+      '{"originKey":"montreal|qc|ca","sourceFilter":"ALL","includeExpiredBids":true,' +
+        '"excludeProjectId":"' +
+        fakeProjectId() +
+        '"}',
+      LaneSearchRequest.class
+    );
+    r.validate();
+    System.assertEquals(true, r.includeExpiredBids);
+    System.assertEquals(fakeProjectId(), r.excludeProjectId);
+    LaneSearchRequest plain = (LaneSearchRequest) JSON.deserialize(
+      '{"originKey":"montreal|qc|ca"}',
+      LaneSearchRequest.class
+    );
+    plain.validate();
+    System.assertEquals(
+      null,
+      plain.includeExpiredBids,
+      'a request that never mentions them reads as no exclusion, active bids only'
+    );
+    System.assertEquals(null, plain.excludeProjectId);
+  }
+
+  /** A syntactically valid, never-inserted RFP_Project__c Id: the object's own key prefix plus
+   * twelve digits. Built rather than written out, so PMD's AvoidHardcodingId (which matches on
+   * 15- and 18-character literals) has nothing to flag and no record has to be inserted. */
+  private static Id fakeProjectId() {
+    return RFP_Project__c.SObjectType.getDescribe().getKeyPrefix() +
+      '000000000001';
+  }
+
   @IsTest
   static void blankProvinceOrPostalPrefixLeavesTheEndUnconstrained() {
     Map<String, Pricing_Place__c> withBlankProvince = places();

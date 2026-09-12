@@ -38,9 +38,16 @@ public with sharing class BidSearchQueryBuilder {
     conditions.add(
       'CreatedDate = LAST_N_DAYS:' + String.valueOf(req.lookbackDays)
     );
-    if (req.sourceFilter != LaneSearchRequest.RowSource.BIDS) {
+    if (
+      req.sourceFilter != LaneSearchRequest.RowSource.BIDS &&
+      req.includeExpiredBids != true
+    ) {
       conditions.add('Valid_From__c <= TODAY');
       conditions.add('Expires_On__c >= TODAY');
+    }
+    if (req.excludeProjectId != null) {
+      binds.put('bExcludeProject', req.excludeProjectId);
+      conditions.add('RFP_Project__c != :bExcludeProject');
     }
     addEnd(conditions, binds, req, originEnd(req), places);
     addEnd(conditions, binds, req, destinationEnd(req), places);
