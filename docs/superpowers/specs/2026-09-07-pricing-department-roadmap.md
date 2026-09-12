@@ -42,13 +42,13 @@ object (delays the interactive features; possible later on top of B).
 
 ## Phases (revised 2026-09-09 evening: Mapbox key available, so geocoding and margin fold into phase 2)
 
-| #   | Phase               | Lands                                                                                                                                                                                                                                                                                                                                                                                                 | Status                                                                              |
-| --- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| 0   | Engineering hygiene | Toolchain, CI, real tests, bug-fix PR                                                                                                                                                                                                                                                                                                                                                                 | Done 2026-09-09                                                                     |
-| 1   | Search foundation   | Place dictionary + batches, PlaceNormalizer, LaneSearchService with typed request/result and per-currency stats, any lookback (default 90 days)                                                                                                                                                                                                                                                       | Done 2026-09-09 (index support case outstanding)                                    |
-| 2   | Lane Benchmark UI   | New page, tab and app (also in TransPro): place picker with dictionary autocomplete and Mapbox fallback, precision and radius, lookback, currency/mode/equipment filters, per-currency stats with margin and suggested sell (default 15 %, 20 % one click), results with carrier detail, CSV export, remembered filters, static map preview                                                           | Done 2026-09-10                                                                     |
-| 3   | RFP tool            | Upload an Excel/CSV of requested lanes; per row, show existing prices via LaneSearchService; add or update carrier prices WITHOUT creating loads as load-less Benchmark Rate records (carrier = existing Account lookup OR free-text carrier + contact name/email/phone; expiry date; parent RFP Project with name, file, customer); Benchmark Rates appear in lane search as a flagged second source | Done 2026-09-12 (3a objects and bids; 3b workbench; 3c pricing; 3d bids in history) |
-| 4   | Retire the old page | Remove the Pricing Department tab/page/LWC once pricing has switched                                                                                                                                                                                                                                                                                                                                  | Next                                                                                |
+| #   | Phase               | Lands                                                                                                                                                                                                                                                                                                                                                                                                 | Status                                                                                      |
+| --- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| 0   | Engineering hygiene | Toolchain, CI, real tests, bug-fix PR                                                                                                                                                                                                                                                                                                                                                                 | Done 2026-09-09                                                                             |
+| 1   | Search foundation   | Place dictionary + batches, PlaceNormalizer, LaneSearchService with typed request/result and per-currency stats, any lookback (default 90 days)                                                                                                                                                                                                                                                       | Done 2026-09-09 (index support case outstanding)                                            |
+| 2   | Lane Benchmark UI   | New page, tab and app (also in TransPro): place picker with dictionary autocomplete and Mapbox fallback, precision and radius, lookback, currency/mode/equipment filters, per-currency stats with margin and suggested sell (default 15 %, 20 % one click), results with carrier detail, CSV export, remembered filters, static map preview                                                           | Done 2026-09-10                                                                             |
+| 3   | RFP tool            | Upload an Excel/CSV of requested lanes; per row, show existing prices via LaneSearchService; add or update carrier prices WITHOUT creating loads as load-less Benchmark Rate records (carrier = existing Account lookup OR free-text carrier + contact name/email/phone; expiry date; parent RFP Project with name, file, customer); Benchmark Rates appear in lane search as a flagged second source | Done 2026-09-12 (3a objects and bids; 3b workbench; 3c pricing; 3d bids in history)         |
+| 4   | Retire the old page | Remove the Pricing Department tab/page/LWC once pricing has switched                                                                                                                                                                                                                                                                                                                                  | Done 2026-09-12 (PostProduc; production deploy is the admin's step, README has the command) |
 
 Former phases 4 (margin) and 5 (external autocomplete) are inside phase 2.
 
@@ -88,3 +88,39 @@ Apex `LaneBenchmark*` for UI-facing classes, permission set
 - LWC: dead `fetchModeOptions`; API version 57.0 vs project 64.0.
 - Sandbox admin profile lacks field-level read on `Quote_Date__c`
   (SOQL from the API reports "No such column").
+
+## Outcome — phase 4 (2026-09-12)
+
+Branch `phase-4/retire-pricing-department`, three commits:
+
+1. `e4bd684` Move the carrier-quote exclusions into LaneSearchExclusions and drop the
+   old controller — `excludedContactIdSet()`, `excludedContactIds()`,
+   `parseExcludedContactIds()` and the `@TestVisible excludedContactIdsOverride` hook
+   move verbatim into `LaneSearchExclusions` (`with sharing`, it only reads custom
+   metadata), with a new `LaneSearchExclusionsTest`. Every consumer, the 22-class test
+   list and both surviving permission sets are repointed.
+2. `870e6cc` Remove the Pricing Department page, tab, component and permission set.
+3. Document the retired Pricing Department page and the production steps (this commit).
+
+**PostProduc deploys:** `0AfbZ00000CpbZhSAJ` (the new class and the repointed consumers,
+124/124 Apex tests) and `0AfbZ00000CpaH4SAJ` (the destructive run, 124/124). An earlier
+attempt, `0AfbZ00000Cpb53SAB`, failed: Salesforce will not delete
+`PricingDepartmentController` while `lwc/pricingDepartment` imports `getCarrierQuotes`,
+so the two Apex classes are deleted together with the component rather than a step
+earlier. The single `Pricing_Department_User` assignment was removed by Id first.
+
+**Removed** from repo and org: the `Pricing_Department` tab and FlexiPage, the
+`pricingDepartment` LWC and its Jest suite, `PricingDepartmentController` and its test,
+the `Pricing_Department_User` permission set, and the reference-only `Pricing` profile.
+
+**Kept:** `Pricing_Department_Setting__mdt`, its `Excluded_Contact_Ids__c` field and its
+`Default` record (the lane search still reads the exclusions), and every
+`rtms__CarrierQuote__c` formula field - including the eight only the old page used, which
+the README lists as an admin follow-up because dropping a field cannot be undone. The
+standing constraint about `PricingDepartmentController` staying `without sharing` retires
+with the class; `LaneSearchExclusions` is `with sharing`.
+
+**Production** is not done: the admin assigns `Lane_Benchmark_User` and `RFP_Tool_User` to
+the pricing team, then runs the one-time
+`manifest/destructiveChanges-phase4.xml` deploy written out in full in the README section
+"Retired: Pricing Department page (phase 4)".
