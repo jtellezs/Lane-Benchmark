@@ -19,6 +19,7 @@ describe("rfpWorkbook", () => {
       Margin__c: 15,
       CurrencyIsoCode: "CAD",
       Notes__c: "=SUM(A1)",
+      Hist_Bid_Count__c: 3,
       Selected_Bid__r: { Carrier_Display__c: "Acme" }
     }
   ];
@@ -61,7 +62,16 @@ describe("rfpWorkbook", () => {
     expect(sheet[1][2]).toBe(1000);
     expect(sheet[1][5]).toBe(1150);
     expect(sheet[1][11]).toBe("Acme");
-    expect(sheet[1][12]).toBe("=SUM(A1)"); // typed string cell, no apostrophe
+    expect(sheet[1][13]).toBe("=SUM(A1)"); // typed string cell, no apostrophe
+
+    // Phase 3d: how much of the lane's history came from other RFPs' bids.
+    const bidCountIdx = 2 + OUR_COLUMNS.indexOf("History bids");
+    expect(OUR_COLUMNS[OUR_COLUMNS.indexOf("History bids") - 1]).toBe(
+      "Bid carrier"
+    );
+    expect(sheet[1][bidCountIdx]).toBe(3);
+    // A lane that has never run carries no count, so its cell stays blank.
+    expect(sheet[2][bidCountIdx]).toBe("");
     expect(sheet[2][2]).toBe("");
     expect(sheet[2][5]).toBe("");
     expect(bidSheet[0][0]).toBe("Lane row");

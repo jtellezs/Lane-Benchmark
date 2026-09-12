@@ -10,7 +10,8 @@ public with sharing class RfpHistoryService {
     String precision,
     Integer lookbackDays,
     Decimal radius,
-    String radiusUnit
+    String radiusUnit,
+    Boolean includeBids
   ) {
     if (laneIds == null || laneIds.size() > MAX_LANES) {
       throw new LaneSearchException(
@@ -20,10 +21,13 @@ public with sharing class RfpHistoryService {
     Integer days = lookbackDays == null || lookbackDays < 1 ? 90 : lookbackDays;
     Integer km = radiusOf(radius);
     String unit = radiusUnit == 'MI' ? 'MI' : 'KM';
+    // Null reads as true: a caller that never mentions bids gets the whole market, which is
+    // what the workbench's toggle shows by default.
+    Boolean bids = includeBids != false;
     List<RFP_Lane__c> lanes = RfpLaneController.lanesByIds(laneIds);
     List<RFP_Lane__c> updates = new List<RFP_Lane__c>();
     for (RFP_Lane__c lane : lanes) {
-      updates.add(snapshot(lane, precision, days, km, unit));
+      updates.add(snapshot(lane, precision, days, km, unit, bids));
     }
     saveSnapshots(updates);
     return RfpLaneController.lanesByIds(laneIds);
@@ -96,13 +100,15 @@ public with sharing class RfpHistoryService {
     String precision,
     Integer days,
     Integer radius,
-    String unit
+    String unit,
+    Boolean includeBids
   ) {
     RFP_Lane__c u = new RFP_Lane__c(
       Id = lane.Id,
       Hist_Lookback_Days__c = days,
       Hist_As_Of__c = Datetime.now(),
       Hist_Count__c = 0,
+      Hist_Bid_Count__c = 0,
       Hist_Min__c = null,
       Hist_Median__c = null,
       Hist_Average__c = null,
@@ -122,11 +128,13 @@ public with sharing class RfpHistoryService {
     try {
       String used = precision;
       LaneSearchResult r = LaneSearchService.search(
-        request(lane, precision, days, radius, unit)
+        request(lane, precision, days, radius, unit, includeBids)
       );
       if (r.rows.isEmpty() && precision == 'CITY') {
         used = 'RADIUS';
-        r = LaneSearchService.search(request(lane, used, days, radius, unit));
+        r = LaneSearchService.search(
+          request(lane, used, days, radius, unit, includeBids)
+        );
       }
       fill(u, r, lane.CurrencyIsoCode);
       u.Hist_Precision__c = used == 'RADIUS' ? 'RADIUS-' + radius + unit : used;
@@ -144,14 +152,22 @@ public with sharing class RfpHistoryService {
     String precision,
     Integer days,
     Integer radius,
-    String unit
+    String unit,
+    Boolean includeBids
   ) {
     LaneSearchRequest req = new LaneSearchRequest();
     req.originKey = lane.Origin_Place__r.Key__c;
     req.destinationKey = lane.Destination_Place__r.Key__c;
     req.lookbackDays = days;
     req.rowLimit = ROW_LIMIT;
-    req.sourceFilter = LaneSearchRequest.RowSource.LOADS;
+    // With bids in, the run counts every other RFP's carrier quotes for this lane match,
+    // expired ones included (ruling R45), but never this project's own - those are the pricer's
+    // inputs on the sheet in front of them, not market evidence (ruling R46).
+    req.sourceFilter = includeBids
+      ? LaneSearchRequest.RowSource.ALL
+      : LaneSearchRequest.RowSource.LOADS;
+    req.includeExpiredBids = includeBids;
+    req.excludeProjectId = lane.RFP_Project__c;
     if (precision == 'RADIUS') {
       req.originPrecision = LaneSearchRequest.Precision.RADIUS;
       req.destinationPrecision = LaneSearchRequest.Precision.RADIUS;
@@ -183,6 +199,15 @@ public with sharing class RfpHistoryService {
     String currencyCode
   ) {
     u.Hist_Count__c = r.rows.size();
+    // Counted before the stats lookup, so a Done lane with no bucket in its own currency still
+    // records how much of its history came from bids.
+    Integer bids = 0;
+    for (LaneSearchResult.Row row : r.rows) {
+      if (row.bid != null) {
+        bids++;
+      }
+    }
+    u.Hist_Bid_Count__c = bids;
     LaneSearchResult.Stats s = r.statsByCurrency.get(currencyCode);
     if (s == null) {
       return;

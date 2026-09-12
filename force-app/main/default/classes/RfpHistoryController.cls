@@ -6,7 +6,8 @@ public with sharing class RfpHistoryController {
     String precision,
     Integer lookbackDays,
     Decimal radius,
-    String radiusUnit
+    String radiusUnit,
+    Boolean includeBids
   ) {
     try {
       return RfpHistoryService.run(
@@ -14,7 +15,8 @@ public with sharing class RfpHistoryController {
         precision,
         lookbackDays,
         radius,
-        radiusUnit
+        radiusUnit,
+        includeBids
       );
     } catch (LaneSearchException e) {
       throw RfpUserError.of(e.getMessage());

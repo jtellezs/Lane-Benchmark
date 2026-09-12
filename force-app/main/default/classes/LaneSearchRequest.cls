@@ -59,6 +59,26 @@ public class LaneSearchRequest {
   // Field is sourceFilter, not source: a field named like its enum type (RowSource) does not
   // compile, the same collision documented above for acceptedFilter/Accepted.
   public RowSource sourceFilter = RowSource.ALL;
+  // The two phase 3d members below are auto-properties, not plain fields, because this class sat
+  // at exactly PMD's TooManyFields cap of 20 fields (the same cap LaneSearchResult.Row is at) and
+  // the ruleset forbids suppressions. Every alternative that keeps the count down - nesting them,
+  // or nesting an existing pair - would rename JSON keys the Lane Benchmark and RFP components
+  // already send, so the members stay where callers expect them and take the one form the rule
+  // does not count. They read and write exactly like the fields around them, and JSON.deserialize
+  // fills them in the same way (proved by BidSearchQueryBuilderTest.jsonFillsTheBidScopeMembers).
+  // Neither carries an initializer, so - like every field here under JSON.deserialize - they
+  // arrive null unless asked for, which every reader treats as "no exclusion" / "active bids
+  // only"; applyDefaults() therefore has nothing to do for them.
+  /**
+   * Bids recorded on this RFP project are left out of the search: they are the pricer's own
+   * inputs on the project being priced, not market evidence from elsewhere (ruling R46).
+   */
+  public Id excludeProjectId { get; set; }
+  /**
+   * true keeps bids whose validity window has already passed; the lookback (days since the bid
+   * was created) is then the only bound on relevance, as it is for Loads (ruling R45).
+   */
+  public Boolean includeExpiredBids { get; set; }
   public Integer rowLimit = 2000;
   public Boolean includeStopGeolocation = true;
 

@@ -263,6 +263,11 @@
     </fieldPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>RFP_Lane__c.Hist_Bid_Count__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>RFP_Lane__c.Hist_Count__c</field>
         <readable>true</readable>
     </fieldPermissions>

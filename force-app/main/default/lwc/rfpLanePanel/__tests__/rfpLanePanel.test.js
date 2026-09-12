@@ -41,7 +41,9 @@ const LANE = {
   Destination_Resolved__c: true,
   Destination_Place__r: { Key__c: "toronto|on|ca" },
   Mode__c: "Truckload",
+  RFP_Project__c: "a0R00000001",
   Hist_Count__c: 4,
+  Hist_Bid_Count__c: 1,
   Hist_Median__c: 2000,
   Hist_Precision__c: "CITY",
   Hist_Status__c: "Done",
@@ -125,7 +127,11 @@ describe("c-rfp-lane-panel", () => {
       destinationRadius: null,
       radiusUnit: "KM",
       lookbackDays: 90,
-      sourceFilter: "LOADS",
+      // The lane's own run counted bids (Hist_Bid_Count__c 1), so the panel's
+      // second search repeats it: every project but this one, expired kept.
+      sourceFilter: "ALL",
+      includeExpiredBids: true,
+      excludeProjectId: "a0R00000001",
       rowLimit: 500,
       includeStopGeolocation: true
     });

@@ -1,0 +1,102 @@
+<template>
+  <div
+    class="slds-grid slds-wrap slds-grid_vertical-align-end slds-gutters_x-small slds-m-bottom_x-small"
+  >
+    <div class="slds-col">
+      <lightning-button
+        data-id="back"
+        label="All projects"
+        onclick={handleBack}
+      ></lightning-button>
+    </div>
+    <div class="slds-col">
+      <lightning-button
+        data-id="upload-more"
+        label="Upload a file"
+        disabled={busy}
+        onclick={handleUploadMore}
+      ></lightning-button>
+    </div>
+    <div class="slds-col">
+      <lightning-combobox
+        data-id="precision"
+        label="History precision"
+        value={precision}
+        options={precisionOptions}
+        onchange={handlePrecision}
+      ></lightning-combobox>
+    </div>
+    <div class="slds-col">
+      <lightning-input
+        data-id="lookback"
+        type="number"
+        label="Lookback (days)"
+        value={lookbackDays}
+        onchange={handleLookback}
+      ></lightning-input>
+    </div>
+    <div class="slds-col">
+      <lightning-input
+        data-id="radius"
+        type="number"
+        min="1"
+        max="500"
+        label="Radius"
+        field-level-help="Used for Radius precision, and when a city has no history of its own."
+        value={radius}
+        onchange={handleRadius}
+      ></lightning-input>
+    </div>
+    <div class="slds-col">
+      <lightning-combobox
+        data-id="radius-unit"
+        label="Unit"
+        value={radiusUnit}
+        options={unitOptions}
+        onchange={handleRadiusUnit}
+      ></lightning-combobox>
+    </div>
+    <div class="slds-col">
+      <lightning-input
+        data-id="include-bids"
+        type="checkbox"
+        label="Include RFP bids"
+        checked={includeBids}
+        disabled={busy}
+        onchange={handleIncludeBids}
+      ></lightning-input>
+    </div>
+    <div class="slds-col">
+      <lightning-button
+        data-id="load-history"
+        variant="brand"
+        label="Load history"
+        disabled={busy}
+        onclick={handleLoadHistory}
+      ></lightning-button>
+    </div>
+    <div class="slds-col">
+      <lightning-button
+        data-id="refresh-history"
+        label="Refresh history"
+        disabled={busy}
+        onclick={handleRefreshHistory}
+      ></lightning-button>
+    </div>
+    <div class="slds-col">
+      <lightning-button
+        data-id="retry-failed"
+        label="Retry failed"
+        disabled={busy}
+        onclick={handleRetryFailed}
+      ></lightning-button>
+    </div>
+    <div class="slds-col">
+      <c-rfp-export
+        project={project}
+        lanes={lanes}
+        parent-busy={busy}
+      ></c-rfp-export>
+    </div>
+  </div>
+</template>

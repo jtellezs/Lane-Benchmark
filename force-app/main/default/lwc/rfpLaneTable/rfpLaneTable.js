@@ -32,15 +32,34 @@ function placeText(city, province) {
   return [city, province].filter(Boolean).join(", ");
 }
 
+/** "1 load" / "12 loads", "1 bid" / "3 bids". */
+function plural(n, word) {
+  return `${n} ${word}${n === 1 ? "" : "s"}`;
+}
+
+/** How many rows the snapshot counted, split by source when any were bids. */
+function historyCount(lane) {
+  const count = lane.Hist_Count__c || 0;
+  const bids = lane.Hist_Bid_Count__c || 0;
+  if (bids <= 0) {
+    return `${count}`;
+  }
+  // A count below the bid count cannot come from the server; guard the
+  // arithmetic anyway so a hand-edited lane never reads "-1 loads".
+  return `${plural(Math.max(count - bids, 0), "load")} + ${plural(bids, "bid")}`;
+}
+
 /**
- * "2 · median 2000.00" once the snapshot is Done, otherwise the status word
- * (Pending / Unresolved / No match / Failed) so the row says why it is empty.
+ * "2 · median 2000.00" once the snapshot is Done — or "12 loads + 3 bids ·
+ * median 5800.00" when carrier bids from other RFPs were counted too.
+ * Otherwise the status word (Pending / Unresolved / No match / Failed), so the
+ * row says why it is empty.
  */
 function historyText(lane) {
   if (lane.Hist_Status__c !== "Done") {
     return lane.Hist_Status__c || "";
   }
-  const count = lane.Hist_Count__c || 0;
+  const count = historyCount(lane);
   const median = money(lane.Hist_Median__c);
   // A Done snapshot with no median means matches were found but none priced.
   return median ? `${count} · median ${median}` : `${count} · no median`;

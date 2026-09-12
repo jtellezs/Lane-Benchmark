@@ -179,7 +179,7 @@ describe("rfpPricing", () => {
     );
   });
 
-  it("asks for loads on both keys, widening to 50 km on a radius fallback", () => {
+  it("asks for loads and other RFPs' bids on both keys, widening to 50 km on a radius fallback", () => {
     expect(JSON.parse(historyRequest(LANE))).toEqual({
       originKey: "montreal|qc|ca",
       destinationKey: "toronto|on|ca",
@@ -189,7 +189,9 @@ describe("rfpPricing", () => {
       destinationRadius: null,
       radiusUnit: "KM",
       lookbackDays: 90,
-      sourceFilter: "LOADS",
+      sourceFilter: "ALL",
+      includeExpiredBids: true,
+      excludeProjectId: null,
       rowLimit: 500,
       includeStopGeolocation: true
     });
@@ -206,6 +208,35 @@ describe("rfpPricing", () => {
     expect(wide.originRadius).toBe(50);
     expect(wide.destinationRadius).toBe(50);
     expect(wide.lookbackDays).toBe(180);
+  });
+});
+
+describe("historyRequest and the lane's bid count", () => {
+  const RUN = {
+    ...LANE,
+    RFP_Project__c: "a0R1"
+  };
+
+  it("repeats a bids run: every project but this one, expired bids kept", () => {
+    const req = JSON.parse(historyRequest({ ...RUN, Hist_Bid_Count__c: 3 }));
+    expect(req.sourceFilter).toBe("ALL");
+    expect(req.includeExpiredBids).toBe(true);
+    expect(req.excludeProjectId).toBe("a0R1");
+  });
+
+  it("repeats a loads-only run when the lane counted no bids", () => {
+    const req = JSON.parse(historyRequest({ ...RUN, Hist_Bid_Count__c: 0 }));
+    expect(req.sourceFilter).toBe("LOADS");
+    expect(req.includeExpiredBids).toBe(false);
+    expect(req.excludeProjectId).toBe("a0R1");
+  });
+
+  it("reads a lane that has never run as a bids run", () => {
+    expect(JSON.parse(historyRequest(RUN)).sourceFilter).toBe("ALL");
+    expect(
+      JSON.parse(historyRequest({ ...RUN, Hist_Bid_Count__c: null }))
+        .sourceFilter
+    ).toBe("ALL");
   });
 });
 

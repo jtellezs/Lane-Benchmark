@@ -18,15 +18,6 @@ import { runBulk, applyBulkResult, summaryText } from "c/rfpBulk";
 // lane ids, so both run as a sequence of chunks with a progress bar and a Stop.
 const IMPORT_CHUNK = 200;
 const HISTORY_CHUNK = 10;
-const PRECISIONS = [
-  { label: "City", value: "CITY" },
-  { label: "Province / state", value: "PROVINCE" },
-  { label: "Radius", value: "RADIUS" }
-];
-const UNITS = [
-  { label: "km", value: "KM" },
-  { label: "mi", value: "MI" }
-];
 const DEFAULT_RADIUS = 50;
 const MAX_RADIUS = 500;
 
@@ -66,6 +57,7 @@ export default class RfpTool extends LightningElement {
   lookbackDays = 90;
   radius = DEFAULT_RADIUS;
   radiusUnit = "KM";
+  includeBids = true;
 
   // `loading` is a single round trip (a spinner); `busy` is a chunked run that
   // owns the progress bar and the Stop button.
@@ -121,9 +113,6 @@ export default class RfpTool extends LightningElement {
   get sampleRows() {
     return this.rows.slice(0, 3);
   }
-  get precisionOptions() {
-    return PRECISIONS;
-  }
   get statusOptions() {
     return STATUS_FILTERS;
   }
@@ -145,9 +134,6 @@ export default class RfpTool extends LightningElement {
   get twinText() {
     const n = this.twinOffer ? this.twinOffer.laneIds.length : 0;
     return `Apply the same cost and sell to ${n} identical lane${n === 1 ? "" : "s"}?`;
-  }
-  get unitOptions() {
-    return UNITS;
   }
   get hasLanes() {
     return this.lanes.length > 0;
@@ -220,22 +206,29 @@ export default class RfpTool extends LightningElement {
   handleMappingChange(event) {
     this.mapping = event.detail.mapping;
   }
-  handlePrecision(event) {
-    this.precision = event.detail.value;
-  }
-  handleLookback(event) {
-    const days = Number(event.detail.value);
-    this.lookbackDays = Number.isFinite(days) && days > 0 ? days : 90;
-  }
-  handleRadius(event) {
-    const n = Number(event.detail.value);
-    this.radius =
-      Number.isFinite(n) && n >= 1 && n <= MAX_RADIUS
-        ? Math.round(n)
-        : DEFAULT_RADIUS;
-  }
-  handleRadiusUnit(event) {
-    this.radiusUnit = event.detail.value === "MI" ? "MI" : "KM";
+  /**
+   * One handler for every toolbar setting, keeping the normalisation the four
+   * separate handlers did: an unusable lookback or radius falls back to its
+   * default rather than reaching Apex, and the unit is only ever KM or MI.
+   */
+  handleSetting(event) {
+    const { name, value } = event.detail;
+    if (name === "precision") {
+      this.precision = value;
+    } else if (name === "lookbackDays") {
+      const days = Number(value);
+      this.lookbackDays = Number.isFinite(days) && days > 0 ? days : 90;
+    } else if (name === "radius") {
+      const n = Number(value);
+      this.radius =
+        Number.isFinite(n) && n >= 1 && n <= MAX_RADIUS
+          ? Math.round(n)
+          : DEFAULT_RADIUS;
+    } else if (name === "radiusUnit") {
+      this.radiusUnit = value === "MI" ? "MI" : "KM";
+    } else if (name === "includeBids") {
+      this.includeBids = value === true;
+    }
   }
   handleOpenProject(event) {
     this.openProject(event.detail.projectId);
@@ -436,7 +429,8 @@ export default class RfpTool extends LightningElement {
         precision: this.precision,
         lookbackDays: this.lookbackDays,
         radius: this.radius,
-        radiusUnit: this.radiusUnit
+        radiusUnit: this.radiusUnit,
+        includeBids: this.includeBids
       });
       this.lanes = mergeLanes(this.lanes, updated);
     } catch (e) {

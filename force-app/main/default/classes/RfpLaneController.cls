@@ -5,7 +5,7 @@ public with sharing class RfpLaneController {
     'Origin_Place__c, Origin_Place__r.Key__c, Origin_Resolved__c, Destination_City__c, Destination_Province__c, ' +
     'Destination_Country__c, Destination_Postal__c, Destination_Place__c, Destination_Place__r.Key__c, Destination_Resolved__c, ' +
     'Mode__c, Equipment_Category__c, Equipment_Type__c, Commodity__c, Quantity__c, Quantity_Unit__c, Shipments_Per_Year__c, ' +
-    'Hazmat__c, Customer_Fuel_Surcharge__c, Customer_FSC_Included__c, Hist_Count__c, Hist_Min__c, Hist_Median__c, ' +
+    'Hazmat__c, Customer_Fuel_Surcharge__c, Customer_FSC_Included__c, Hist_Count__c, Hist_Bid_Count__c, Hist_Min__c, Hist_Median__c, ' +
     'Hist_Average__c, Hist_Max__c, Hist_Precision__c, Hist_Lookback_Days__c, Hist_As_Of__c, Hist_Status__c, Cost__c, ' +
     'Cost_Source__c, Selected_Bid__c, Selected_Bid__r.Carrier_Display__c, Margin__c, Sell__c, Sell_Source__c, Notes__c, CurrencyIsoCode';
 

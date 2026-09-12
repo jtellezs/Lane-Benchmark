@@ -423,7 +423,8 @@ reads from `CurrentPageReference` and opens without showing the project list.
 columns to our fields (the mapping is remembered per customer) → import
 lanes (each end resolved to a `Pricing_Place__c` by city key, then postal
 prefix) → load carrier-quote history per lane (CITY, falling back to the
-chosen radius, default 50 km, on a CITY miss) → price each lane (from a bid, the history median, or
+chosen radius, default 50 km, on a CITY miss) and carrier bids from other
+RFPs → price each lane (from a bid, the history median, or
 a manual cost, plus margin) → record carrier bids → export the customer's
 file back with our prices and the selected bid filled in.
 
@@ -490,6 +491,14 @@ workbench tab and that permission.
 - **Export.** New columns Annual sell (sell × shipments per year) and Sell source; a third sheet, Summary (counts, total annual sell per currency, average margin, by mode).
 - **Permissions.** `RFP_Tool_User` can now delete `RFP_Lane__c` and `Benchmark_Rate__c`.
 - **Limits.** Bulk actions run 200 lanes per Apex call; a lane's twins are matched on origin place, destination place, mode and equipment; the delete confirm resets when the selection changes; the radius is 1–500.
+
+### Phase 3d — bids in history
+
+- **What is counted.** A lane's history counts Revenova carrier quotes _and_ the carrier bids (`Benchmark_Rate__c`) recorded on other RFP projects — plus bids with no project, from Lane Benchmark — for the same lane match and the same lookback. The count, the median and the min/avg/max tooltip all run over both sources.
+- **The exclusion.** Bids on the project being priced are left out: they are the pricer's own inputs on the sheet in front of them, not market evidence, and the lane panel already lists them separately (ruling R46).
+- **Expired bids.** A bid inside the lookback counts even when its validity window has passed — an old RFP's bids are nearly always expired (30-day default) and are exactly the quotes this is for; the lookback, not the expiry, bounds relevance (ruling R45). The panel's results table still greys them and shows "Expires <date>".
+- **The toggle.** "Include RFP bids" in the workbench toolbar (on by default) applies to the next Load history / Refresh history / Retry failed run. With it off a run is loads-only, exactly as before 3d.
+- **The new field.** `RFP_Lane__c.Hist_Bid_Count__c` records how many of the counted rows were bids. The History cell then reads `12 loads + 3 bids · median 5800.00` (and stays `12 · median …` when none were), the export carries a "History bids" column, and the lane panel's own results query repeats the lane's last run — bids and expired bids when the count is anything but 0, loads only when it is 0.
 
 ## Known issues worth fixing
 
