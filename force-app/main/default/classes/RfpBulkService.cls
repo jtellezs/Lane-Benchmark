@@ -21,20 +21,25 @@ public with sharing class RfpBulkService {
   }
 
   /** Everything one action needs: the lanes as read, their projects' default margins, and what to write. */
+  @TestVisible
   private class Context {
     List<Id> ids;
     List<RFP_Lane__c> lanes;
     Map<Id, Decimal> defaultMarginByProject = new Map<Id, Decimal>();
     List<RFP_Lane__c> updates = new List<RFP_Lane__c>();
+    @TestVisible
     Result result = new Result();
+    /** Failures of every DML pass of this action, listed or not. */
+    @TestVisible
+    Integer failedTotal = 0;
+    Boolean finished = false;
 
     Decimal defaultMarginFor(RFP_Lane__c lane) {
       return defaultMarginByProject.get(lane.RFP_Project__c);
     }
 
-    /** Counts the rows that saved and keeps the first few failures; count=false for cascade deletes. */
+    /** Counts the rows that saved and notes the failures; count=false for the cascade delete of bids. */
     void collect(List<Database.SaveResult> results, Boolean count) {
-      Integer failed = 0;
       for (Database.SaveResult r : results) {
         if (r.isSuccess()) {
           if (count) {
@@ -42,14 +47,11 @@ public with sharing class RfpBulkService {
           }
           continue;
         }
-        failed++;
         noteFailure(r.getId(), r.getErrors()[0].getMessage());
       }
-      finishErrors(failed);
     }
 
     void collect(List<Database.DeleteResult> results, Boolean count) {
-      Integer failed = 0;
       for (Database.DeleteResult r : results) {
         if (r.isSuccess()) {
           if (count) {
@@ -57,21 +59,29 @@ public with sharing class RfpBulkService {
           }
           continue;
         }
-        failed++;
         noteFailure(r.getId(), r.getErrors()[0].getMessage());
       }
-      finishErrors(failed);
     }
 
+    /** Lists the first few failures verbatim; the rest are only counted, so finish() can tally them. */
+    @TestVisible
     void noteFailure(Id recordId, String message) {
+      failedTotal++;
       if (result.errors.size() < MAX_ERRORS) {
         result.errors.add(recordId + ': ' + message.left(160));
       }
     }
 
-    void finishErrors(Integer failed) {
-      if (failed > MAX_ERRORS) {
-        result.errors.add('… and ' + (failed - MAX_ERRORS) + ' more');
+    /** One tail for the whole action, once every DML pass has been collected. */
+    @TestVisible
+    void finish() {
+      if (finished) {
+        return;
+      }
+      finished = true;
+      Integer unlisted = failedTotal - result.errors.size();
+      if (unlisted > 0) {
+        result.errors.add('… and ' + unlisted + ' more');
       }
     }
   }
@@ -202,6 +212,7 @@ public with sharing class RfpBulkService {
       c.collect(Database.delete(bids, false, AccessLevel.USER_MODE), false);
     }
     c.collect(Database.delete(c.lanes, false, AccessLevel.USER_MODE), true);
+    c.finish();
     c.result.lanes = RfpLaneController.lanesByIds(c.ids);
     return c.result;
   }
@@ -264,6 +275,7 @@ public with sharing class RfpBulkService {
         .getRecords();
       c.collect(Database.update(clean, allOrNone, AccessLevel.USER_MODE), true);
     }
+    c.finish();
     c.result.lanes = RfpLaneController.lanesByIds(c.ids);
     return c.result;
   }

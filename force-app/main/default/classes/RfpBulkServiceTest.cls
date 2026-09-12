@@ -86,6 +86,55 @@ private class RfpBulkServiceTest {
   }
 
   @IsTest
+  static void applyMedianDropsTheSelectedBid() {
+    Fx f = fx();
+    Benchmark_Rate__c bid = BenchmarkRateService.save(
+      RfpTestDataFactory.buildBid(f.a, 1000)
+    );
+    update new RFP_Lane__c(
+      Id = f.a.Id,
+      Cost__c = 1000,
+      Cost_Source__c = 'Bid',
+      Selected_Bid__c = bid.Id
+    );
+    RfpBulkService.Result r = RfpBulkService.applyMedian(
+      new List<Id>{ f.a.Id },
+      true
+    );
+    System.assertEquals(1, r.updated);
+    RFP_Lane__c a = fetch(f.a.Id);
+    System.assertEquals(2000, a.Cost__c);
+    System.assertEquals('History median', a.Cost_Source__c);
+    System.assertEquals(
+      null,
+      a.Selected_Bid__c,
+      'the bid link goes with the bid cost'
+    );
+  }
+
+  /** deleteLanes collects two DML passes: the cap and the tail must count both, not each pass. */
+  @IsTest
+  static void failuresAreCountedAcrossEveryDmlPass() {
+    Fx f = fx();
+    RfpBulkService.Context c = new RfpBulkService.Context();
+    for (Integer i = 0; i < 7; i++) {
+      c.noteFailure(f.a.Id, 'bid ' + i + ' could not be deleted');
+    }
+    for (Integer i = 0; i < 3; i++) {
+      c.noteFailure(f.b.Id, 'lane ' + i + ' could not be deleted');
+    }
+    c.finish();
+    c.finish();
+    System.assertEquals(10, c.failedTotal);
+    System.assertEquals(6, c.result.errors.size(), '5 listed and one tail');
+    System.assertEquals(
+      f.a.Id + ': bid 0 could not be deleted',
+      c.result.errors[0]
+    );
+    System.assertEquals('… and 5 more', c.result.errors[5]);
+  }
+
+  @IsTest
   static void applyPricingCostMarginAndSell() {
     Fx f = fx();
     List<Id> ids = new List<Id>{ f.a.Id, f.c.Id };
