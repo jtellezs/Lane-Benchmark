@@ -163,6 +163,14 @@ const lanes = (count) =>
 
 const field = (el, id) => el.shadowRoot.querySelector(`[data-id="${id}"]`);
 const child = (el, tag) => el.shadowRoot.querySelector(tag);
+const toolbar = (el) => el.shadowRoot.querySelector("c-rfp-toolbar");
+// The toolbar row is c/rfpToolbar now, so the flows it used to own arrive
+// here as its events instead of as clicks on buttons in this shadow root.
+const fire = (el, name, detail) =>
+  toolbar(el).dispatchEvent(
+    detail ? new CustomEvent(name, { detail }) : new CustomEvent(name)
+  );
+const setting = (el, name, value) => fire(el, "settingchange", { name, value });
 
 function mount() {
   const el = createElement("c-rfp-tool", { is: RfpTool });
@@ -243,7 +251,7 @@ describe("c-rfp-tool", () => {
         Hist_Status__c: "Done"
       }));
     });
-    field(el, "load-history").click();
+    fire(el, "loadhistory");
     await settle(10);
     expect(loadHistory).toHaveBeenCalledTimes(1);
     expect(field(el, "progress")).toBeNull();
@@ -386,7 +394,7 @@ describe("c-rfp-tool", () => {
 
     it("continues the row numbering into a second upload", async () => {
       const el = await openFromUrl(lanes(22));
-      field(el, "upload-more").click();
+      fire(el, "uploadmore");
       await settle();
       child(el, "c-rfp-upload").dispatchEvent(
         new CustomEvent("parsed", {
@@ -492,7 +500,7 @@ describe("c-rfp-tool", () => {
       loadHistory.mockImplementation(({ laneIds }) =>
         Promise.resolve(done(laneIds))
       );
-      field(el, "load-history").click();
+      fire(el, "loadhistory");
       await settle(14);
 
       expect(loadHistory).toHaveBeenCalledTimes(3);
@@ -519,16 +527,10 @@ describe("c-rfp-tool", () => {
       loadHistory.mockImplementation(({ laneIds }) =>
         Promise.resolve(done(laneIds))
       );
-      const precision = field(el, "precision");
-      precision.dispatchEvent(
-        new CustomEvent("change", { detail: { value: "RADIUS" } })
-      );
-      const lookback = field(el, "lookback");
-      lookback.dispatchEvent(
-        new CustomEvent("change", { detail: { value: "30" } })
-      );
+      setting(el, "precision", "RADIUS");
+      setting(el, "lookbackDays", "30");
       await flush();
-      field(el, "load-history").click();
+      fire(el, "loadhistory");
       await settle(8);
       expect(loadHistory.mock.calls[0][0].precision).toBe("RADIUS");
       expect(loadHistory.mock.calls[0][0].lookbackDays).toBe(30);
@@ -542,7 +544,7 @@ describe("c-rfp-tool", () => {
         .mockImplementationOnce(({ laneIds }) =>
           Promise.resolve(done(laneIds))
         );
-      field(el, "load-history").click();
+      fire(el, "loadhistory");
       await settle(16);
 
       expect(loadHistory).toHaveBeenCalledTimes(3);
@@ -557,7 +559,7 @@ describe("c-rfp-tool", () => {
       loadHistory.mockImplementation(({ laneIds }) =>
         Promise.resolve(done(laneIds))
       );
-      field(el, "retry-failed").click();
+      fire(el, "retryfailed");
       await settle(10);
       expect(loadHistory).toHaveBeenCalledTimes(1);
       expect(loadHistory.mock.calls[0][0].laneIds.length).toBe(10);
@@ -579,12 +581,12 @@ describe("c-rfp-tool", () => {
         Promise.resolve(done(laneIds))
       );
 
-      field(el, "load-history").click();
+      fire(el, "loadhistory");
       await settle(8);
       expect(loadHistory.mock.calls[0][0].laneIds).toEqual(["a0L1"]);
 
       loadHistory.mockClear();
-      field(el, "refresh-history").click();
+      fire(el, "refreshhistory");
       await settle(8);
       expect(loadHistory.mock.calls[0][0].laneIds).toEqual(["a0L1", "a0L2"]);
     });
@@ -593,20 +595,18 @@ describe("c-rfp-tool", () => {
       const el = await openFromUrl(lanes(23));
       loadHistory.mockImplementation(async ({ laneIds }) => {
         await flush();
-        expect(field(el, "load-history").disabled).toBe(true);
-        expect(field(el, "refresh-history").disabled).toBe(true);
-        expect(field(el, "retry-failed").disabled).toBe(true);
-        expect(field(el, "upload-more").disabled).toBe(true);
-        expect(child(el, "c-rfp-export").parentBusy).toBe(true);
-        // A click that gets through anyway (a keyboard repeat, a stale render)
-        // must not start a second pass over the same 23 lanes.
-        field(el, "load-history").click();
+        // The toolbar takes its disabled states and the export's from this
+        // flag, and its own suite covers them; an event that gets through
+        // anyway (a keyboard repeat, a stale render) must not start a second
+        // pass over the same 23 lanes.
+        expect(toolbar(el).busy).toBe(true);
+        fire(el, "loadhistory");
         return done(laneIds);
       });
-      field(el, "load-history").click();
+      fire(el, "loadhistory");
       await settle(16);
       expect(loadHistory).toHaveBeenCalledTimes(3);
-      expect(field(el, "load-history").disabled).toBe(false);
+      expect(toolbar(el).busy).toBe(false);
     });
 
     it("stops between chunks when Stop is pressed", async () => {
@@ -620,7 +620,7 @@ describe("c-rfp-tool", () => {
         stop.click();
         return done(laneIds);
       });
-      field(el, "load-history").click();
+      fire(el, "loadhistory");
       await settle(12);
       expect(loadHistory).toHaveBeenCalledTimes(1);
       expect(child(el, "c-rfp-lane-table").lanes[0].Hist_Status__c).toBe(
@@ -636,13 +636,9 @@ describe("c-rfp-tool", () => {
         laneIds.map((Id) => ({ ...pendingLane(1), Id, Hist_Status__c: "Done" }))
       );
       const el = await openFromUrl(lanes(2));
-      field(el, "radius").dispatchEvent(
-        new CustomEvent("change", { detail: { value: "150" } })
-      );
-      field(el, "radius-unit").dispatchEvent(
-        new CustomEvent("change", { detail: { value: "MI" } })
-      );
-      field(el, "load-history").click();
+      setting(el, "radius", "150");
+      setting(el, "radiusUnit", "MI");
+      fire(el, "loadhistory");
       await settle();
       expect(loadHistory).toHaveBeenCalledTimes(1);
       expect(loadHistory.mock.calls[0][0]).toMatchObject({
@@ -655,10 +651,8 @@ describe("c-rfp-tool", () => {
     it("falls back to 50 km when the radius box is emptied", async () => {
       loadHistory.mockResolvedValue([]);
       const el = await openFromUrl(lanes(1));
-      field(el, "radius").dispatchEvent(
-        new CustomEvent("change", { detail: { value: "" } })
-      );
-      field(el, "load-history").click();
+      setting(el, "radius", "");
+      fire(el, "loadhistory");
       await settle();
       expect(loadHistory.mock.calls[0][0].radius).toBe(50);
       expect(loadHistory.mock.calls[0][0].radiusUnit).toBe("KM");
