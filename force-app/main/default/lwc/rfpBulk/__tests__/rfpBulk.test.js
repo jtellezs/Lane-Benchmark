@@ -40,6 +40,7 @@ describe("runBulk", () => {
       updated: laneIds.length - 1,
       skipped: 1,
       skippedIds: [laneIds[0]],
+      unmatched: 2,
       errors: []
     }));
     const progress = [];
@@ -57,6 +58,7 @@ describe("runBulk", () => {
     expect(r.updated).toBe(447);
     expect(r.skipped).toBe(3);
     expect(r.skippedIds).toEqual(["a0L1", "a0L201", "a0L401"]);
+    expect(r.unmatched).toBe(6);
     expect(r.lanes).toHaveLength(450);
     expect(progress).toEqual([200, 200, 50]);
   });
@@ -225,10 +227,13 @@ describe("applyBulkResult / summaryText", () => {
         action: "median",
         updated: 143,
         skipped: 12,
+        unmatched: 30,
         failedIds: [],
         errors: []
       })
-    ).toBe("Median applied to 143 lanes; 12 skipped");
+    ).toBe(
+      "Median applied to 143 lanes; 12 skipped; 30 without a history median"
+    );
     expect(
       summaryText({
         action: "delete",

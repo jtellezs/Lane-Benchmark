@@ -56,6 +56,7 @@ export async function runBulk({
     updated: 0,
     skipped: 0,
     skippedIds: [],
+    unmatched: 0,
     errors: [],
     failedIds: []
   };
@@ -70,6 +71,7 @@ export async function runBulk({
       total.updated += r.updated || 0;
       total.skipped += r.skipped || 0;
       total.skippedIds.push(...(r.skippedIds || []));
+      total.unmatched += r.unmatched || 0;
       total.errors.push(...(r.errors || []));
     } catch (e) {
       total.failedIds.push(...part);
@@ -109,6 +111,9 @@ export function summaryText(r) {
   ];
   if (r.skipped) {
     parts.push(`${r.skipped} skipped`);
+  }
+  if (r.unmatched) {
+    parts.push(`${r.unmatched} without a history median`);
   }
   const failed = (r.failedIds || []).length;
   if (failed) {

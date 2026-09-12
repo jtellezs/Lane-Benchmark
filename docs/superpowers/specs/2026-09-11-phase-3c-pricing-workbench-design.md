@@ -102,14 +102,14 @@ Common contract:
 
 - Input ids: 1..200, all lanes of one project; more than 200 → `RfpUserError.of('Apply to at most 200 lanes per call.')`. The client chunks larger sets.
 - Every read and write is user mode (`lanesByIds`, `stripInaccessible`, `Database.update(list, false, AccessLevel.USER_MODE)`).
-- Return type `RfpBulkService.Result { List<RFP_Lane__c> lanes; Integer updated; Integer skipped; List<Id> skippedIds; List<String> errors; }` — `lanes` are the refreshed lanes (`RfpLaneController.lanesByIds`, same field list as `getLanes`), `errors` hold at most five per-record messages (`Id + ': ' + message`, each cut to 160 chars) plus, when more failed, `'… and N more'`.
+- Return type `RfpBulkService.Result { List<RFP_Lane__c> lanes; Integer updated; Integer skipped; List<Id> skippedIds; Integer unmatched; List<String> errors; }` — `lanes` are the refreshed lanes (`RfpLaneController.lanesByIds`, same field list as `getLanes`), `errors` hold at most five per-record messages (`Id + ': ' + message`, each cut to 160 chars) plus, when more failed, `'… and N more'`.
 - Per-record DML failures do not abort the others (`allOrNone = false`), except `applyBid`, which runs inside a `Savepoint` and rolls back when the lane update fails, so no bid is left behind without the lane pointing at it.
 
 Actions:
 
 | Method                                  | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `applyMedian(ids, overwrite)`           | Lanes with `Hist_Median__c != null`. A lane already costed (`Cost__c != null`) from `Bid` or `Manual` is skipped (counted, id listed) unless `overwrite`. Sets `Cost__c = Hist_Median__c`, `Cost_Source__c = 'History median'`, `Selected_Bid__c = null`, then §4.4 recompute.                                                                                                                                                                                                   |
+| `applyMedian(ids, overwrite)`           | Lanes with `Hist_Median__c != null`. A lane already costed (`Cost__c != null`) from `Bid` or `Manual` is skipped (counted, id listed) unless `overwrite`; a lane without a median is counted in `unmatched` and never listed as skipped (R43). Sets `Cost__c = Hist_Median__c`, `Cost_Source__c = 'History median'`, `Selected_Bid__c = null`, then §4.4 recompute.                                                                                                              |
 | `applyPricing(ids, cost, sell, margin)` | At least one non-null; `sell` and `margin` together → user error. `cost` (> 0): `Cost__c = cost`, `Cost_Source__c = 'Manual'`, `Selected_Bid__c = null`, then recompute. `sell` (> 0): `Sell__c = sell`, `Sell_Source__c = 'Manual'`, `Margin__c = marginFor(Cost__c, sell)` (null when uncosted). `margin` (0..100): `Margin__c = margin`, `Sell_Source__c = 'Margin'`, `Sell__c = sellFor(Cost__c, margin)` (null while uncosted, so the margin is ready when a cost arrives). |
 | `applyBid(ids, bidJson)`                | `bidJson` is a `Benchmark_Rate__c` template without `Id`/`RFP_Lane__c`. Lanes whose `CurrencyIsoCode` differs from the bid's are skipped (ruling R19 stands: no cross-currency cost). One bid per remaining lane via `saveAll`; then each lane gets `Cost__c = Rate__c`, `Cost_Source__c = 'Bid'`, `Selected_Bid__c = new bid`, recompute.                                                                                                                                       |
 | `copyPricing(sourceLaneId, ids)`        | Copies `Cost__c`, `Cost_Source__c`, `Selected_Bid__c`, `Margin__c`, `Sell__c`, `Sell_Source__c` verbatim from the source lane onto the target lanes (the twin references the same bid record). Source not costed → user error.                                                                                                                                                                                                                                                   |
@@ -182,7 +182,7 @@ Client validation mirrors the server (margin 0..100, cost and sell > 0) with a `
 - `historyChunk` passes `radius` and `radiusUnit`.
 - `visibleLanes` = `applyFilter(lanes, {...filter, selectedIds})`; the table gets `visibleLanes`; a filter bar (`data-id="filter-status"` combobox, `data-id="filter-text"` search input, "N of M lanes" text) sits above the table. Select-all toggles the visible set only.
 - `handlePricingChange` marks the lane pending, saves, merges, clears pending or records `rowErrors[id]`; on success computes `siblings(lanes, saved)` and, when any, shows `data-id="twin-offer"`: "Apply the same cost and sell to N identical lanes" with Apply (→ `copyPricing`) and Dismiss. Concurrent inline saves on different lanes are allowed; a second save on a lane still pending is ignored.
-- `handleBulk` resolves the id list (selected, all, or `bulkResult.skippedIds`), runs it 200 ids per call through `c/rfpBulk` (§6.8) with the existing progress bar and Stop, merges returned lanes, and for `delete` removes the ids from `lanes` and `selectedIds`. The summary line reads e.g. "Median applied to 143 lanes; 12 skipped; 2 failed".
+- `handleBulk` resolves the id list (selected, all, or `bulkResult.skippedIds`), runs it 200 ids per call through `c/rfpBulk` (§6.8) with the existing progress bar and Stop, merges returned lanes, and for `delete` removes the ids from `lanes` and `selectedIds`. The summary line reads e.g. "Median applied to 143 lanes; 12 skipped; 30 without a history median; 2 failed".
 - Sticky panel: `rfpTool.css` (new) gives the panel column `position: sticky; top: 0; align-self: flex-start; max-height: calc(100vh - 8rem); overflow-y: auto`. Jest cannot verify this; it is a browser check.
 - `rfpTool.js` is at 399 lines; the bulk and filter logic lives in the modules below so the container lands around 520 lines. If it passes 560, the workbench toolbar (precision, lookback, radius, history buttons, export) moves into a `c/rfpToolbar` component in the same plan.
 
@@ -253,27 +253,30 @@ except Task 13's, which are from the commands run for this task.
 
 **Deploys and tests.**
 
-| Task                                                            | Deploy id(s)                                                                                                       | What it proved                                                                                                               |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| 1 — `Sell_Source__c` field, `RFP_Tool_User` delete permission   | `0AfbZ00000CpW3lSAF`                                                                                               | Field and delete permissions deployed clean, 10/10 Apex tests                                                                |
-| 2 — `RfpPricingMath` (Apex) and `c/marginMath` (JS)             | `0AfbZ00000CpWJtSAN`                                                                                               | Shared sell/margin math deployed, Apex 2/2, Jest 6/6                                                                         |
-| 3 — radius precision and unit                                   | `0AfbZ00000CpWdFSAV`, `0AfbZ00000CpWgTSAV`; fix round `0AfbZ00000CpWi5SAF`                                         | Radius choice and the city-to-radius fallback deployed, Apex 8/8, Jest 200/200; the zero-radius-rounds-to-50 fix re-verified |
-| 4 — `BenchmarkRateService.saveAll`                              | not logged in the ledger                                                                                           | `BenchmarkRateServiceTest` 9/9, PMD clean                                                                                    |
-| 5 — `RfpBulkService` (median, pricing, copy, delete)            | `0AfbZ00000CpWzpSAF` (5/5); PMD restructuring `0AfbZ00000CpX4fSAF` (5/5); fix round `0AfbZ00000CpX9VSAV` (7/7)     | Bulk service deployed and re-verified through the PMD restructuring and the error-cap-across-DML-passes fix                  |
-| 6 — `RfpBulkController` wrappers, delete permission             | `0AfbZ00000CpXW5SAN` (NoTestRun), `0AfbZ00000CpXXhSAN` (123/123); fix round `0AfbZ00000CpXZJSA3` (13/13)           | Bulk controller wrappers deployed; bid-deletion proof and the README "Apex tests" order fixed                                |
-| 7 — pricing details, inline edit math, lane filter module       | — (LWC only)                                                                                                       | Jest 216/216, ESLint clean                                                                                                   |
-| 8 — bulk runner module, bulk action bar                         | — (LWC only)                                                                                                       | Jest 230/230, ESLint clean                                                                                                   |
-| 9 — lane selection, spreadsheet cells                           | — (LWC only)                                                                                                       | Jest 236/236, then 241/241 after the Enter-selects fix round                                                                 |
-| 10 — pricing panel takes a sell price                           | — (LWC only)                                                                                                       | Jest 245/245, ESLint clean                                                                                                   |
-| 11 — wire filters, selection, bulk actions, twins, sticky panel | `0AfbZ00000CpXnpSAF` (NoTestRun); fix round `0AfbZ00000CpXsfSAF`                                                   | Jest 250/250, then 258/258 after the doneIds-diff and unpriced-source-twin fixes                                             |
-| 12 — export: annual sell, sell source, Summary sheet            | — (LWC only)                                                                                                       | Jest 13/13 in the two suites, ESLint clean                                                                                   |
-| 13 — docs, final deploy with tests (this task)                  | `0AfbZ00000CpXvtSAF` (full-manifest NoTestRun); `0AfbZ00000CpXnqSAF` (full-manifest RunSpecifiedTests, 22 classes) | 241 components deployed, 0 errors; Apex 124/124 across the 22 classes; `npm test` 32 suites / 258 tests; PMD clean           |
-| Final fix wave — class access, panel busy, rollback breadth     | `0AfbZ00000CpY7BSAV` (full-manifest NoTestRun); `0AfbZ00000CpY8nSAF` (full-manifest RunSpecifiedTests, 22 classes) | 241 components deployed, 0 errors; Apex 125/125 (the new class-access test included); Jest 32 suites / 260 tests; PMD clean  |
+| Task                                                            | Deploy id(s)                                                                                                                                          | What it proved                                                                                                                                         |
+| --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1 — `Sell_Source__c` field, `RFP_Tool_User` delete permission   | `0AfbZ00000CpW3lSAF`                                                                                                                                  | Field and delete permissions deployed clean, 10/10 Apex tests                                                                                          |
+| 2 — `RfpPricingMath` (Apex) and `c/marginMath` (JS)             | `0AfbZ00000CpWJtSAN`                                                                                                                                  | Shared sell/margin math deployed, Apex 2/2, Jest 6/6                                                                                                   |
+| 3 — radius precision and unit                                   | `0AfbZ00000CpWdFSAV`, `0AfbZ00000CpWgTSAV`; fix round `0AfbZ00000CpWi5SAF`                                                                            | Radius choice and the city-to-radius fallback deployed, Apex 8/8, Jest 200/200; the zero-radius-rounds-to-50 fix re-verified                           |
+| 4 — `BenchmarkRateService.saveAll`                              | not logged in the ledger                                                                                                                              | `BenchmarkRateServiceTest` 9/9, PMD clean                                                                                                              |
+| 5 — `RfpBulkService` (median, pricing, copy, delete)            | `0AfbZ00000CpWzpSAF` (5/5); PMD restructuring `0AfbZ00000CpX4fSAF` (5/5); fix round `0AfbZ00000CpX9VSAV` (7/7)                                        | Bulk service deployed and re-verified through the PMD restructuring and the error-cap-across-DML-passes fix                                            |
+| 6 — `RfpBulkController` wrappers, delete permission             | `0AfbZ00000CpXW5SAN` (NoTestRun), `0AfbZ00000CpXXhSAN` (123/123); fix round `0AfbZ00000CpXZJSA3` (13/13)                                              | Bulk controller wrappers deployed; bid-deletion proof and the README "Apex tests" order fixed                                                          |
+| 7 — pricing details, inline edit math, lane filter module       | — (LWC only)                                                                                                                                          | Jest 216/216, ESLint clean                                                                                                                             |
+| 8 — bulk runner module, bulk action bar                         | — (LWC only)                                                                                                                                          | Jest 230/230, ESLint clean                                                                                                                             |
+| 9 — lane selection, spreadsheet cells                           | — (LWC only)                                                                                                                                          | Jest 236/236, then 241/241 after the Enter-selects fix round                                                                                           |
+| 10 — pricing panel takes a sell price                           | — (LWC only)                                                                                                                                          | Jest 245/245, ESLint clean                                                                                                                             |
+| 11 — wire filters, selection, bulk actions, twins, sticky panel | `0AfbZ00000CpXnpSAF` (NoTestRun); fix round `0AfbZ00000CpXsfSAF`                                                                                      | Jest 250/250, then 258/258 after the doneIds-diff and unpriced-source-twin fixes                                                                       |
+| 12 — export: annual sell, sell source, Summary sheet            | — (LWC only)                                                                                                                                          | Jest 13/13 in the two suites, ESLint clean                                                                                                             |
+| 13 — docs, final deploy with tests (this task)                  | `0AfbZ00000CpXvtSAF` (full-manifest NoTestRun); `0AfbZ00000CpXnqSAF` (full-manifest RunSpecifiedTests, 22 classes)                                    | 241 components deployed, 0 errors; Apex 124/124 across the 22 classes; `npm test` 32 suites / 258 tests; PMD clean                                     |
+| Final fix wave — class access, panel busy, rollback breadth     | `0AfbZ00000CpY7BSAV` (full-manifest NoTestRun); `0AfbZ00000CpY8nSAF` (full-manifest RunSpecifiedTests, 22 classes)                                    | 241 components deployed, 0 errors; Apex 125/125 (the new class-access test included); Jest 32 suites / 260 tests; PMD clean                            |
+| Browser-pass fix wave — sticky offset, unmatched vs skipped     | `0AfbZ00000CpZknSAF` (`RfpBulkService`, `RfpBulkServiceTest`, `rfpBulk`, `rfpTool`; RunSpecifiedTests `RfpBulkServiceTest` + `RfpBulkControllerTest`) | 4 components, 0 errors; Apex 13/13, `RfpBulkService` 197 of 199 lines covered; Jest 32 suites / 260 tests; PMD clean; both fixes re-verified in Chrome |
 
 Final state after the fix wave: **Apex 125/125** tests across the 22-class `RunSpecifiedTests`
 list (deploy `0AfbZ00000CpY8nSAF`), **Jest 32 suites / 260 tests**, **PMD
 clean** with 0 violations at minimum priority 3, 0 component errors on both
-final deploys.
+final deploys. The browser pass below then found two defects, fixed on the
+branch and deployed as `0AfbZ00000CpZknSAF` (rulings R43 and R44); the
+22-class list is unchanged and the counts above still hold.
 
 **Rulings recorded during implementation** (ledger R31–R39, continuing the
 numbering above; full text in the ledger):
@@ -321,6 +324,21 @@ numbering above; full text in the ledger):
 - R42 (final fix wave) — `applyBid`'s rollback catches `Exception` rather
   than only `DmlException`, so a non-DML failure between the bid save and
   the lane update also rolls the savepoint back.
+- R43 (browser pass) — `applyMedian` no longer counts a lane without a
+  history median as "skipped": those lanes go into a new
+  `Result.unmatched` count, and `skipped`/`skippedIds` hold only the lanes
+  left alone because their cost came from a bid or by hand. Before this,
+  a 70-lane project with 16 no-match lanes reported "20 lanes already
+  costed from a bid or manually" and offered to overwrite lanes that had
+  nothing to overwrite. The summary now reads "Median applied to 51
+  lanes; 1 skipped; 16 without a history median". Cost if wrong: a
+  miscounted note; no data path changed.
+- R44 (browser pass) — the sticky panel's `top` moved from 0 to 8.75rem
+  and its `max-height` to `calc(100vh - 10rem)`, because Lightning's fixed
+  header and tab bar (98 px + 40 px in a sandbox with its banner, 90 px in
+  production) hid the panel's title and cost/margin/sell inputs while the
+  table scrolled. The sandbox height wins, so production shows a small
+  gap under the tab bar rather than hidden inputs.
 
 **Known limits and deferred minors** (from the ledger's `minor (deferred)`
 and `parked` lines, grouped by area).
@@ -385,35 +403,68 @@ Export:
   `CurrencyIsoCode` would key "Total annual sell (undefined)" in the
   Summary sheet (the org is multi-currency).
 
-**Browser checks (controller, Chrome, PostProduc).** Not run by this task;
-the controller runs them. Placeholder list, copied from the plan's Step 3:
+**Browser checks (controller, Chrome, PostProduc, 2026-09-12).** Run as the
+admin user (no pricing-team user holds only `RFP_Tool_User` yet; the
+class-access gap is covered by the `SetupEntityAccess` test instead) on a
+dedicated project "Phase 3c browser check" (70 lanes, the 3b sample CSV
+repeated). Two defects were found and fixed on the branch (R43, R44); the
+list below is the state after deploy `0AfbZ00000CpZknSAF`.
 
-1. Sticky panel: open a project with 60 or more lanes, scroll to the
-   bottom, the panel is still visible and scrolls on its own. — pending
-   (controller)
-2. Inline edit: click a Cost cell, type, Enter opens the next row's Cost;
-   Tab, Shift+Tab and Escape behave; a bad value shows red text and stays
-   open. — pending (controller)
-3. Panel sell: type a sell, margin follows; save; the table shows the
-   "manual" tag. — pending (controller)
-4. Bulk: Use median on All shows a summary and "Overwrite them"; Apply
-   margin 18 on Selected (3 lanes); Add carrier rate on 3 selected lanes
-   (bids appear in each lane's panel); Delete 2 selected lanes (two
-   clicks). — pending (controller)
-5. Radius 150 km plus Refresh history: hovering the History cell shows
-   `RADIUS-150KM` for a fallback lane. — pending (controller)
-6. Filters: Unpriced, then text "calg…"; select-all selects only the rows
-   shown. — pending (controller)
+1. Sticky panel: with 68 lanes, the panel stays pinned while the table
+   scrolls and scrolls its own results. — verified after R44 (before it,
+   the panel's top sat under the Lightning header).
+2. Inline edit: clicking a Cost cell opens it and selects the row; typing
+   5000 and Enter commits (sell 5750, status Priced) and opens the next
+   row's Cost; Tab moves down with the current value prefilled, Shift+Tab
+   moves up, Escape closes and refocuses the cell; `-5` shows "Enter a cost
+   above zero" in red and stays open. — verified. Letters typed into the
+   number cell yield an empty value, which Enter treats as no change and
+   moves on.
+3. Panel sell: typing 6000 on a lane costed 4800 from a bid flips the
+   panel to "Margin follows the sell" (margin 25); Save price puts the
+   "manual" tag on the row. — verified.
+4. Bulk: Use median on All lanes (70) reported "Median applied to 50
+   lanes; 20 skipped" with the overwrite note counting the 16 no-match
+   lanes (R43); after the fix, "Median applied to 51 lanes; 1 skipped; 16
+   without a history median" with "1 lane already costed from a bid or
+   manually was left as it is" and "Overwrite them" (overwrite then
+   re-costs the bid and manual lanes from the median, keeping a manual
+   sell and recomputing its margin). Apply margin 18 on 3 selected: sells 5900. Add carrier rate (Johal'S Trucking Inc -TP, 4800) on the same 3:
+   cost 4800 from the bid, sell 5664, the bid listed in each lane's panel.
+   Delete 2 selected: first click reads "Confirm: delete 2 lanes and their
+   carrier rates", second click deletes ("Deleted 2 lanes", 68 left). —
+   verified.
+5. Radius 150 km plus Load history (precision City): 12 lanes fell back
+   to radius and their History tooltips read "… (RADIUS-150KM)"; city
+   matches read "(CITY)". — verified.
+6. Filters: text "Laredo" shows 7 of 70 and the header checkbox selects
+   only those 7; Unpriced shows the 16 no-match lanes; Manual cost or
+   sell shows the one manual lane. — verified.
 7. Export opens in Excel/Numbers: three sheets, an Annual sell column,
-   Summary totals. — pending (controller)
-8. The four 3b leftovers below. — pending (controller)
+   Summary totals. — not run: this Chrome profile asks where to save each
+   download, and the native dialog would block the extension. The sheet
+   contents are covered by the `rfpWorkbook` and `rfpExport` Jest suites.
+8. The four 3b leftovers below.
 
-The four 3b leftovers, still open from the 3b Outcome's "Not verified in
-the browser" list:
+Two notes from the pass. Lane 2 of the test project carried a manual
+cost 543 / sell 600 saved at 12:38:51 UTC, between the controller's last
+browser action and the fix deploy, by the same user; the controller typed
+neither value, so this is read as a manual edit from another tab, not a
+tool defect. And after a deploy, a hard reload alone did not refresh the
+LWC bundles: the old CSS and module stayed until the `ComponentDefStorage`
+IndexedDB database was deleted and the page reloaded.
 
-1. The Lane Benchmark "Bids only" source filter. — pending (controller)
-2. Pricing a lane from a bid, and pricing it from a manual cost. —
-   pending (controller)
-3. Recording a bid against an existing carrier Account. — pending
-   (controller)
-4. Opening the exported workbook in Excel. — pending (controller)
+The four 3b leftovers, from the 3b Outcome's "Not verified in the
+browser" list:
+
+1. The Lane Benchmark "Bids only" source filter: Laredo, TX → Brampton,
+   ON with Bids only returns the three Johal bids saved above plus the 3b
+   test bid, status "Bid", expiry in Flags, stats over the four. —
+   verified.
+2. Pricing a lane from a bid, and pricing it from a manual cost: the bid
+   path is check 4 above; the manual path is the inline cost 5000 in
+   check 2 (cost source Manual, sell from the margin). — verified.
+3. Recording a bid against an existing carrier Account: the bulk Add
+   carrier rate picked "Johal'S Trucking Inc -TP" from the account
+   typeahead. — verified.
+4. Opening the exported workbook in Excel. — still not run (see check 7).

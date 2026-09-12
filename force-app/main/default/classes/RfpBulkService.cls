@@ -12,10 +12,14 @@ public with sharing class RfpBulkService {
     public List<RFP_Lane__c> lanes = new List<RFP_Lane__c>();
     @AuraEnabled
     public Integer updated = 0;
+    /** Lanes left alone because they were already costed from a bid or by hand. */
     @AuraEnabled
     public Integer skipped = 0;
     @AuraEnabled
     public List<Id> skippedIds = new List<Id>();
+    /** Lanes a median run had nothing for: no history median on the lane. */
+    @AuraEnabled
+    public Integer unmatched = 0;
     @AuraEnabled
     public List<String> errors = new List<String>();
   }
@@ -36,6 +40,16 @@ public with sharing class RfpBulkService {
 
     Decimal defaultMarginFor(RFP_Lane__c lane) {
       return defaultMarginByProject.get(lane.RFP_Project__c);
+    }
+
+    /** A median run leaves a lane alone either because it has no median (unmatched) or because its cost is protected (skipped). */
+    void leave(RFP_Lane__c lane, Boolean noMedian) {
+      if (noMedian) {
+        result.unmatched++;
+        return;
+      }
+      result.skipped++;
+      result.skippedIds.add(lane.Id);
     }
 
     /** Counts the rows that saved and notes the failures; count=false for the cascade delete of bids. */
@@ -89,13 +103,13 @@ public with sharing class RfpBulkService {
   public static Result applyMedian(List<Id> laneIds, Boolean overwrite) {
     Context c = load(laneIds);
     for (RFP_Lane__c lane : c.lanes) {
-      Boolean costedElsewhere =
+      Boolean noMedian = lane.Hist_Median__c == null;
+      Boolean keepExistingCost =
+        overwrite != true &&
         lane.Cost__c != null &&
         lane.Cost_Source__c != 'History median';
-      Boolean leaveAlone =
-        lane.Hist_Median__c == null || (costedElsewhere && overwrite != true);
-      if (leaveAlone) {
-        skip(c, lane);
+      if (noMedian || keepExistingCost) {
+        c.leave(lane, noMedian);
         continue;
       }
       RFP_Lane__c u = pricingCopy(lane);
@@ -257,9 +271,8 @@ public with sharing class RfpBulkService {
       WHERE RFP_Lane__c IN :c.ids
       WITH USER_MODE
     ];
-    if (!bids.isEmpty()) {
-      c.collect(Database.delete(bids, false, AccessLevel.USER_MODE), false);
-    }
+    // An empty list is a no-op for Database.delete and costs no DML statement.
+    c.collect(Database.delete(bids, false, AccessLevel.USER_MODE), false);
     c.collect(Database.delete(c.lanes, false, AccessLevel.USER_MODE), true);
     c.finish();
     c.result.lanes = RfpLaneController.lanesByIds(c.ids);

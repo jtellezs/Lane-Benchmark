@@ -69,9 +69,17 @@ private class RfpBulkServiceTest {
     List<Id> ids = new List<Id>{ f.a.Id, f.b.Id, f.c.Id };
     RfpBulkService.Result r = RfpBulkService.applyMedian(ids, false);
     System.assertEquals(1, r.updated);
-    System.assertEquals(2, r.skipped);
-    System.assert(r.skippedIds.contains(f.b.Id), 'costed manually');
-    System.assert(r.skippedIds.contains(f.c.Id), 'no median');
+    System.assertEquals(1, r.skipped, 'only the costed lane is skipped');
+    System.assertEquals(
+      new List<Id>{ f.b.Id },
+      r.skippedIds,
+      'costed manually'
+    );
+    System.assertEquals(
+      1,
+      r.unmatched,
+      'the lane without a median is unmatched, not skipped'
+    );
     System.assertEquals(3, r.lanes.size(), 'refreshed lanes come back');
     RFP_Lane__c a = fetch(f.a.Id);
     System.assertEquals(2000, a.Cost__c);
