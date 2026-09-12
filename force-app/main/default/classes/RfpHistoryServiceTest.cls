@@ -356,6 +356,13 @@ private class RfpHistoryServiceTest {
     } catch (LaneSearchException e) {
       System.assert(e.getMessage().contains('500'), e.getMessage());
     }
+    List<RFP_Lane__c> zero = RfpHistoryService.run(
+      new List<Id>{ lane.Id },
+      'RADIUS',
+      90,
+      0.4,
+      'KM'
+    );
     Test.stopTest();
     System.assertEquals(
       'RADIUS-75MI',
@@ -363,6 +370,11 @@ private class RfpHistoryServiceTest {
       'whole number, unit kept'
     );
     System.assertEquals('Done', out[0].Hist_Status__c);
+    System.assertEquals(
+      'RADIUS-50KM',
+      zero[0].Hist_Precision__c,
+      'a radius that rounds to 0 falls back to the 50 km default'
+    );
   }
 
   /** Same shape as RfpSecurityTest.restrictedUser: a user holding only the named permission

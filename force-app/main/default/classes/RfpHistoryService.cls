@@ -29,7 +29,11 @@ public with sharing class RfpHistoryService {
     return RfpLaneController.lanesByIds(laneIds);
   }
 
-  /** Null or non-positive means the 50 km default; anything above 500 is refused, not clamped. */
+  /**
+   * Null or non-positive means the 50 km default; anything above 500 is refused, not
+   * clamped. A value that rounds to 0 (e.g. 0.4) is not a usable radius either, so it
+   * also falls back to the default instead of stamping a zero-radius search.
+   */
   private static Integer radiusOf(Decimal radius) {
     if (radius == null || radius <= 0) {
       return DEFAULT_RADIUS;
@@ -39,7 +43,8 @@ public with sharing class RfpHistoryService {
         'Radius must be between 1 and ' + MAX_RADIUS + '.'
       );
     }
-    return radius.round().intValue();
+    Integer whole = radius.round().intValue();
+    return whole < 1 ? DEFAULT_RADIUS : whole;
   }
 
   /**
