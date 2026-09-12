@@ -236,3 +236,170 @@ Deleting whole projects; cross-currency costing; bulk edit of notes, mode or equ
 - R28 Delete is two-click in the bar, Selected scope only, and takes the lanes' bids with them.
 - R29 The radius box is always visible because the CITY fallback uses it.
 - R30 The 200-id cap is per call; the client chunks, the server refuses more.
+
+## Outcome — 3c (2026-09-12)
+
+Branch `phase-3c/pricing-workbench` (off `main` at `adccb61`). Setup commits
+`e0bd9eb` (this design), `8c7bc44` (the plan), `1aba5a2` (plan fixture and
+helper names); task commits `062aa1f..c009537` (17 commits: `062aa1f`,
+`3029958`, `98e6e2d`, `06daebe`, `fe4d75f`, `b0fadba`, `2a5ef7a`, `5c2f8b1`,
+`1d0f02e`, `b0bcc41`, `aa217ca`, `ae7391b`, `11b2777`, `f82fcf8`, `6eb0575`,
+`1f65b40`, `c009537`). This docs task (Task 13) lands on the same branch
+after `c009537`. Every deploy below is to `sandbox`/PostProduc; ids and
+counts are from the controller's ledger
+(`.superpowers/sdd/2026-09-11-phase-3c-pricing-workbench/progress.md`)
+except Task 13's, which are from the commands run for this task.
+
+**Deploys and tests.**
+
+| Task                                                            | Deploy id(s)                                                                                                       | What it proved                                                                                                               |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1 — `Sell_Source__c` field, `RFP_Tool_User` delete permission   | `0AfbZ00000CpW3lSAF`                                                                                               | Field and delete permissions deployed clean, 10/10 Apex tests                                                                |
+| 2 — `RfpPricingMath` (Apex) and `c/marginMath` (JS)             | `0AfbZ00000CpWJtSAN`                                                                                               | Shared sell/margin math deployed, Apex 2/2, Jest 6/6                                                                         |
+| 3 — radius precision and unit                                   | `0AfbZ00000CpWdFSAV`, `0AfbZ00000CpWgTSAV`; fix round `0AfbZ00000CpWi5SAF`                                         | Radius choice and the city-to-radius fallback deployed, Apex 8/8, Jest 200/200; the zero-radius-rounds-to-50 fix re-verified |
+| 4 — `BenchmarkRateService.saveAll`                              | not logged in the ledger                                                                                           | `BenchmarkRateServiceTest` 9/9, PMD clean                                                                                    |
+| 5 — `RfpBulkService` (median, pricing, copy, delete)            | `0AfbZ00000CpWzpSAF` (5/5); PMD restructuring `0AfbZ00000CpX4fSAF` (5/5); fix round `0AfbZ00000CpX9VSAV` (7/7)     | Bulk service deployed and re-verified through the PMD restructuring and the error-cap-across-DML-passes fix                  |
+| 6 — `RfpBulkController` wrappers, delete permission             | `0AfbZ00000CpXW5SAN` (NoTestRun), `0AfbZ00000CpXXhSAN` (123/123); fix round `0AfbZ00000CpXZJSA3` (13/13)           | Bulk controller wrappers deployed; bid-deletion proof and the README "Apex tests" order fixed                                |
+| 7 — pricing details, inline edit math, lane filter module       | — (LWC only)                                                                                                       | Jest 216/216, ESLint clean                                                                                                   |
+| 8 — bulk runner module, bulk action bar                         | — (LWC only)                                                                                                       | Jest 230/230, ESLint clean                                                                                                   |
+| 9 — lane selection, spreadsheet cells                           | — (LWC only)                                                                                                       | Jest 236/236, then 241/241 after the Enter-selects fix round                                                                 |
+| 10 — pricing panel takes a sell price                           | — (LWC only)                                                                                                       | Jest 245/245, ESLint clean                                                                                                   |
+| 11 — wire filters, selection, bulk actions, twins, sticky panel | `0AfbZ00000CpXnpSAF` (NoTestRun); fix round `0AfbZ00000CpXsfSAF`                                                   | Jest 250/250, then 258/258 after the doneIds-diff and unpriced-source-twin fixes                                             |
+| 12 — export: annual sell, sell source, Summary sheet            | — (LWC only)                                                                                                       | Jest 13/13 in the two suites, ESLint clean                                                                                   |
+| 13 — docs, final deploy with tests (this task)                  | `0AfbZ00000CpXvtSAF` (full-manifest NoTestRun); `0AfbZ00000CpXnqSAF` (full-manifest RunSpecifiedTests, 22 classes) | 241 components deployed, 0 errors; Apex 124/124 across the 22 classes; `npm test` 32 suites / 258 tests; PMD clean           |
+
+Final state: **Apex 124/124** tests across the 22-class `RunSpecifiedTests`
+list (deploy `0AfbZ00000CpXnqSAF`), **Jest 32 suites / 258 tests**, **PMD
+clean** with 0 violations at minimum priority 3, 0 component errors on both
+final deploys.
+
+**Rulings recorded during implementation** (ledger R31–R39, continuing the
+numbering above; full text in the ledger):
+
+- R31 (Task 3) — a radius that rounds to 0 (for example 0.4) now falls back
+  to the 50 km/mi default instead of searching a zero-radius circle, the
+  same fallback used for null or values at or below 0.
+- R32 (Task 5) — the bulk error cap keeps a running failed total on
+  `Context`, so the "… and N more" tail is correct when `collect` runs
+  twice within one action instead of undercounting.
+- R33 (Task 6) — the restricted-user `runAs` test has the admin create the
+  project and lane and transfer `OwnerId` to the restricted user first,
+  because a restricted user cannot insert a project referencing the
+  admin's Account; the delete itself still runs inside `runAs`.
+- R34 (Task 6) — `RfpBulkController`'s missing coverage was in its generic
+  catch blocks, not in the wrapper methods; closed with a no-permission
+  user test (`wrapsUnexpectedFailuresAsUserErrors`) rather than by calling
+  every wrapper again.
+- R35 (Task 6) — the security test's bid assertion was vacuous, because
+  deleting a lane `SetNulls` the bid's `RFP_Lane__c` lookup rather than
+  failing the bid; fixed to assert the bid is gone by Id with no errors
+  returned.
+- R36 (Task 9) — Enter on a focused cell now selects its row before
+  opening it, so a click or a keyboard open emits exactly one select
+  event; the cell also refocuses its `td` on close.
+- R37 (Task 10) — the implementer's commit briefly carried a
+  Co-Authored-By trailer against the user's standing no-trailer rule; the
+  message was amended in place (content unchanged, a new SHA replacing
+  `835f989`).
+- R38 (Task 11) — `applyBulkResult`'s delete branch now diffs surviving
+  lanes against `doneIds` (the ids of chunks that actually returned)
+  instead of assuming every requested id is gone, so a failed or stopped
+  delete chunk no longer hides lanes that still exist.
+- R39 (Task 11) — `siblings()` no longer offers twins for an unpriced
+  source lane; an unpriced source now returns no siblings.
+
+**Known limits and deferred minors** (from the ledger's `minor (deferred)`
+and `parked` lines, grouped by area).
+
+Apex:
+
+- Task 1: `Sell_Source__c` sits after `Sell__c` in the manifest and
+  permission set, while the field files themselves sort `*_Source__c`
+  fields before the base field (cosmetic, plan-mandated).
+- Task 2: `marginFor`'s double rounding (divide at scale 8, then setScale 2) could theoretically differ from a direct rounding; unreachable with
+  `Currency(16,2)` inputs.
+- Task 3: `request()` re-narrows a unit string that is already
+  normalised.
+- Task 4: the `saveAll` order test would also pass a naive query-order
+  return; the rate check is duplicated between `save` and `saveAll`; the
+  class doc comment does not mention `saveAll`.
+- Task 5: no test discriminates that `Selected_Bid__c` is cleared by
+  `applyMedian`/`applyPricing`; `copyPricing` checks the source lane
+  before the 200-id cap; error lines run to about 180 characters;
+  `Context`'s doc comment is stale after the PMD move; `RfpBulkServiceTest`
+  has no `runAs` coverage; the "sell above zero" message is untested.
+- Task 5 (parked): `copyPricing` copies the source lane's
+  `Selected_Bid__c` onto its twins verbatim; deleting the source lane then
+  `SetNulls` the twin's bid while `Cost_Source__c` still reads `Bid`. Spec
+  R27 chose the verbatim copy on purpose, so this stays a known limit
+  rather than a fix.
+- Task 6: the `strangerUser()` coverage test depends on the org's Standard
+  User profile holding no RFP object permissions; a `saveAll` call is
+  nested inside the `costFromBids` argument list; "No lane was updated"
+  also covers a failed bid insert; `RfpPricingInput` is `with sharing`
+  without doing any SOQL/DML of its own; the rollback only catches
+  `DmlException`.
+
+Lane table:
+
+- Task 7: `pricingDetail` with a Manual sell source and a blank sell text
+  yields a null Sell and Margin (guarded downstream by Task 10's
+  `cannotSavePrice`); `equipmentOf` falls back to an empty string, so two
+  equipment-less lanes could pair as siblings.
+- Task 9: `viewRows` recomputes all 200 rows on every keystroke; `locked`
+  does not close an editor that is already open; the header checkbox can
+  drift for a tick if the parent defers echoing `selectedIds` (Task 11
+  echoes it synchronously); minor `.cell` cursor and colour nits.
+
+Container:
+
+- Task 8: `runBulk`'s catch collapses a plain `Error`'s message down to "A
+  chunk failed."; the singular `skippedNote` wording reads awkwardly.
+- Task 11: a fully failed bulk run is only reported in the weak summary
+  line; the panel has no locked/busy binding, so its edits can be
+  silently dropped while a bulk run is in flight; a failed panel save on a
+  lane the filter has hidden shows no error; scope "skipped" with no
+  prior result is a dead click; `applyFilter` runs twice per render;
+  `selectedId` is not cleared after deleting the open lane; several
+  branches are untested (a second save on a pending lane, dismissing the
+  twin offer, clearing `rowErrors`).
+
+Export:
+
+- Task 12: a legacy lane (a sell price with no `Sell_Source__c`) reading
+  as "Margin" is untested; a lane with a sell price but no
+  `CurrencyIsoCode` would key "Total annual sell (undefined)" in the
+  Summary sheet (the org is multi-currency).
+
+**Browser checks (controller, Chrome, PostProduc).** Not run by this task;
+the controller runs them. Placeholder list, copied from the plan's Step 3:
+
+1. Sticky panel: open a project with 60 or more lanes, scroll to the
+   bottom, the panel is still visible and scrolls on its own. — pending
+   (controller)
+2. Inline edit: click a Cost cell, type, Enter opens the next row's Cost;
+   Tab, Shift+Tab and Escape behave; a bad value shows red text and stays
+   open. — pending (controller)
+3. Panel sell: type a sell, margin follows; save; the table shows the
+   "manual" tag. — pending (controller)
+4. Bulk: Use median on All shows a summary and "Overwrite them"; Apply
+   margin 18 on Selected (3 lanes); Add carrier rate on 3 selected lanes
+   (bids appear in each lane's panel); Delete 2 selected lanes (two
+   clicks). — pending (controller)
+5. Radius 150 km plus Refresh history: hovering the History cell shows
+   `RADIUS-150KM` for a fallback lane. — pending (controller)
+6. Filters: Unpriced, then text "calg…"; select-all selects only the rows
+   shown. — pending (controller)
+7. Export opens in Excel/Numbers: three sheets, an Annual sell column,
+   Summary totals. — pending (controller)
+8. The four 3b leftovers below. — pending (controller)
+
+The four 3b leftovers, still open from the 3b Outcome's "Not verified in
+the browser" list:
+
+1. The Lane Benchmark "Bids only" source filter. — pending (controller)
+2. Pricing a lane from a bid, and pricing it from a manual cost. —
+   pending (controller)
+3. Recording a bid against an existing carrier Account. — pending
+   (controller)
+4. Opening the exported workbook in Excel. — pending (controller)

@@ -475,6 +475,18 @@ tab visibility) and class access to the four workbench controllers
 gates `rfpProjectsForAccount`; assigning `RFP_Tool_User` grants both the
 workbench tab and that permission.
 
+### Phase 3c — pricing
+
+- **Sell and margin are linked.** Typing a margin recomputes the sell; typing a sell recomputes the margin and marks the lane `Sell source = Manual`. A Manual sell survives later cost changes (the margin moves instead). Lanes saved before 3c read as Margin.
+- **Radius.** The "Radius" box (1–500, km or mi, default 50 km) is used for Radius precision and for the city → radius fallback; the snapshot stamps `RADIUS-<n>KM|MI` in `Hist_Precision__c`.
+- **Bulk bar.** Scope "Selected (N)" or "All lanes (M)"; Use median (skips lanes costed from a bid or by hand, then offers "Overwrite them"), Apply margin / cost / sell, Add carrier rate (one Benchmark Rate per lane, selected as the cost; lanes in another currency are skipped), Delete selected (two clicks; takes the lanes' carrier rates). Every action runs 200 lanes per Apex call (`RfpBulkController`), user mode, with a progress bar and Stop.
+- **Inline editing.** Click or press Enter on a Cost, Margin or Sell cell; Enter/Tab save and move down the column, Shift+Tab up, Escape cancels, leaving the cell saves. A row shows a sync icon while saving and a red icon (hover for the reason) when the save failed.
+- **Filters.** Show: all / unpriced / no history match / unresolved ends / manual cost or sell / selected, plus a text search on origin, destination and equipment. "Select all" selects the rows shown.
+- **Twins.** After a lane is priced, unpriced lanes with the same two places, mode and equipment are offered "Apply the same cost and sell to N identical lanes" (`copyPricing`: the twin points at the same bid).
+- **Export.** New columns Annual sell (sell × shipments per year) and Sell source; a third sheet, Summary (counts, total annual sell per currency, average margin, by mode).
+- **Permissions.** `RFP_Tool_User` can now delete `RFP_Lane__c` and `Benchmark_Rate__c`.
+- **Limits.** Bulk actions run 200 lanes per Apex call; a lane's twins are matched on origin place, destination place, mode and equipment; the delete confirm resets when the selection changes; the radius is 1–500.
+
 ## Known issues worth fixing
 
 - The excluded Contact Ids now live in `Pricing_Department_Setting__mdt` (record `Default`, field `Excluded_Contact_Ids__c`) instead of being hardcoded. `PricingDepartmentController` is still `without sharing`; that is intentional and documented in the class. The repo is the source of truth for `Pricing_Department_Setting.Default`; every deploy overwrites the org value, so admins request changes by pull request.

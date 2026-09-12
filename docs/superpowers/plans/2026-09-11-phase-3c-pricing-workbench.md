@@ -1,5 +1,21 @@
 # Phase 3c — Pricing Workbench Implementation Plan
 
+> Executed 2026-09-11/12. Task 1 (`Sell_Source__c` field, delete
+> permission): final commit `062aa1f`. Task 2 (shared sell/margin math):
+> final commit `3029958`. Task 3 (radius precision and unit): final commit
+> `06daebe`. Task 4 (`BenchmarkRateService.saveAll`): final commit
+> `fe4d75f`. Task 5 (`RfpBulkService`): final commit `2a5ef7a`. Task 6
+> (`RfpBulkController`, delete permission): final commit `1d0f02e`. Task 7
+> (pricing details, inline edit math, lane filter): final commit
+> `b0bcc41`. Task 8 (bulk runner, bulk action bar): final commit
+> `aa217ca`. Task 9 (lane selection, spreadsheet cells): final commit
+> `11b2777`. Task 10 (panel sell price): final commit `f82fcf8`. Task 11
+> (wire filters, selection, bulk, twins, sticky panel): final commit
+> `c009537`. Task 12 (export annual sell, sell source, Summary sheet):
+> final commit `1f65b40`. Task 13 (docs, final deploy with tests): this
+> commit. Rulings made during execution are recorded in the spec's
+> `## Outcome — 3c` section, not repeated here.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let a pricer price 200 RFP lanes fast: linked sell/margin, a chosen history radius, bulk apply (median, margin, cost, sell, carrier rate, delete, copy to twins), spreadsheet-style inline editing, a sticky pricing panel, filters, and a richer export.
