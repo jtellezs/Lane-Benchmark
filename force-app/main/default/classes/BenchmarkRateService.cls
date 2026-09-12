@@ -31,6 +31,33 @@ public with sharing class BenchmarkRateService {
     return reload(clean.Id);
   }
 
+  /** save() for a list: one user-mode insert, all or none, reloaded in input order. */
+  public static List<Benchmark_Rate__c> saveAll(List<Benchmark_Rate__c> bids) {
+    for (Benchmark_Rate__c bid : bids) {
+      if (bid.Rate__c == null) {
+        throw new LaneSearchException('A bid needs a rate.');
+      }
+    }
+    List<Benchmark_Rate__c> clean = Security.stripInaccessible(
+        AccessType.CREATABLE,
+        bids
+      )
+      .getRecords();
+    Database.insert(clean, AccessLevel.USER_MODE);
+    List<Id> ids = new List<Id>();
+    for (Benchmark_Rate__c bid : clean) {
+      ids.add(bid.Id);
+    }
+    Map<Id, Benchmark_Rate__c> byId = new Map<Id, Benchmark_Rate__c>(
+      reloadAll(ids)
+    );
+    List<Benchmark_Rate__c> ordered = new List<Benchmark_Rate__c>();
+    for (Id bidId : ids) {
+      ordered.add(byId.get(bidId));
+    }
+    return ordered;
+  }
+
   /** Called by BenchmarkRateTrigger (before insert/update) for every bid in the trigger batch. */
   public static void applyLanes(List<Benchmark_Rate__c> bids) {
     Map<Id, RFP_Lane__c> lanesById = loadLanes(bids);
@@ -170,6 +197,10 @@ public with sharing class BenchmarkRateService {
   }
 
   private static Benchmark_Rate__c reload(Id bidId) {
+    return reloadAll(new List<Id>{ bidId })[0];
+  }
+
+  private static List<Benchmark_Rate__c> reloadAll(List<Id> bidIds) {
     return [
       SELECT
         Id,
@@ -195,7 +226,7 @@ public with sharing class BenchmarkRateService {
         State_Lane__c,
         Zip3_Lane__c
       FROM Benchmark_Rate__c
-      WHERE Id = :bidId
+      WHERE Id IN :bidIds
       WITH USER_MODE
     ];
   }

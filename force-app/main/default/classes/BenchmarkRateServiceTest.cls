@@ -221,6 +221,37 @@ private class BenchmarkRateServiceTest {
   }
 
   @IsTest
+  static void saveAllInsertsEveryBidWithItsLaneKeys() {
+    Fx f = fx();
+    RFP_Lane__c a = f.lane;
+    RFP_Lane__c b = RfpTestDataFactory.createLane(f.project, f.mtl, f.tor);
+    List<Benchmark_Rate__c> saved = BenchmarkRateService.saveAll(
+      new List<Benchmark_Rate__c>{
+        RfpTestDataFactory.buildBid(a, 1000),
+        RfpTestDataFactory.buildBid(b, 1100),
+        RfpTestDataFactory.buildBid(a, 1200)
+      }
+    );
+    System.assertEquals(3, saved.size());
+    System.assertEquals(1000, saved[0].Rate__c, 'input order kept');
+    System.assertEquals(1200, saved[2].Rate__c);
+    System.assertEquals(a.Id, saved[2].RFP_Lane__c);
+    System.assertEquals(
+      'Montréal, QC:Toronto, ON',
+      saved[1].City_Lane__c,
+      'trigger stamped'
+    );
+    try {
+      BenchmarkRateService.saveAll(
+        new List<Benchmark_Rate__c>{ new Benchmark_Rate__c(RFP_Lane__c = a.Id) }
+      );
+      System.assert(false, 'expected an exception');
+    } catch (LaneSearchException e) {
+      System.assert(e.getMessage().contains('rate'), e.getMessage());
+    }
+  }
+
+  @IsTest
   static void laneKeyHelpersMatchTheLoadFormat() {
     Pricing_Place__c o = new Pricing_Place__c(
       City__c = 'Laval',
