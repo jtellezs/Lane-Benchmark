@@ -114,17 +114,23 @@ export function historyKey(lane) {
   ].join("~");
 }
 
+/** `RADIUS-<n><KM|MI>` as written by RfpHistoryService, else null. */
+export function parseRadius(text) {
+  const m = /^RADIUS-(\d+)(KM|MI)$/.exec(text || "");
+  return m ? { radius: Number(m[1]), unit: m[2] } : null;
+}
+
 export function historyRequest(lane) {
-  const radius = lane.Hist_Precision__c === "RADIUS-50KM";
-  const precision = radius ? "RADIUS" : lane.Hist_Precision__c || "CITY";
+  const r = parseRadius(lane.Hist_Precision__c);
+  const precision = r ? "RADIUS" : lane.Hist_Precision__c || "CITY";
   return JSON.stringify({
     originKey: lane.Origin_Place__r?.Key__c,
     destinationKey: lane.Destination_Place__r?.Key__c,
     originPrecision: precision,
     destinationPrecision: precision,
-    originRadius: radius ? 50 : null,
-    destinationRadius: radius ? 50 : null,
-    radiusUnit: "KM",
+    originRadius: r ? r.radius : null,
+    destinationRadius: r ? r.radius : null,
+    radiusUnit: r ? r.unit : "KM",
     lookbackDays: lane.Hist_Lookback_Days__c || 90,
     sourceFilter: "LOADS",
     rowLimit: 500,

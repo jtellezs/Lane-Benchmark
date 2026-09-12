@@ -8,7 +8,8 @@ import {
   otherCurrencyNote,
   pricingDetail,
   historyKey,
-  historyRequest
+  historyRequest,
+  parseRadius
 } from "c/rfpPricing";
 
 const LANE = {
@@ -192,5 +193,35 @@ describe("rfpPricing", () => {
     expect(wide.originRadius).toBe(50);
     expect(wide.destinationRadius).toBe(50);
     expect(wide.lookbackDays).toBe(180);
+  });
+});
+
+describe("parseRadius", () => {
+  it("reads the radius and unit out of the precision stamp", () => {
+    expect(parseRadius("RADIUS-50KM")).toEqual({ radius: 50, unit: "KM" });
+    expect(parseRadius("RADIUS-120MI")).toEqual({ radius: 120, unit: "MI" });
+  });
+  it("is null for city, province, blanks and junk", () => {
+    expect(parseRadius("CITY")).toBeNull();
+    expect(parseRadius("PROVINCE")).toBeNull();
+    expect(parseRadius(null)).toBeNull();
+    expect(parseRadius("RADIUS-KM")).toBeNull();
+  });
+});
+
+describe("historyRequest with a stamped radius", () => {
+  it("searches at the radius the snapshot used", () => {
+    const req = JSON.parse(
+      historyRequest({
+        Origin_Place__r: { Key__c: "a" },
+        Destination_Place__r: { Key__c: "b" },
+        Hist_Precision__c: "RADIUS-150MI",
+        Hist_Lookback_Days__c: 60
+      })
+    );
+    expect(req.originPrecision).toBe("RADIUS");
+    expect(req.originRadius).toBe(150);
+    expect(req.destinationRadius).toBe(150);
+    expect(req.radiusUnit).toBe("MI");
   });
 });

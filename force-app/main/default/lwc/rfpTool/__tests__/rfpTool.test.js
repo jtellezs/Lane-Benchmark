@@ -602,6 +602,39 @@ describe("c-rfp-tool", () => {
         "Pending"
       );
     });
+
+    it("passes the radius and unit to every history chunk", async () => {
+      loadHistory.mockImplementation(async ({ laneIds }) =>
+        laneIds.map((Id) => ({ ...pendingLane(1), Id, Hist_Status__c: "Done" }))
+      );
+      const el = await openFromUrl(lanes(2));
+      field(el, "radius").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "150" } })
+      );
+      field(el, "radius-unit").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "MI" } })
+      );
+      field(el, "load-history").click();
+      await settle();
+      expect(loadHistory).toHaveBeenCalledTimes(1);
+      expect(loadHistory.mock.calls[0][0]).toMatchObject({
+        precision: "CITY",
+        lookbackDays: 90,
+        radius: 150,
+        radiusUnit: "MI"
+      });
+    });
+    it("falls back to 50 km when the radius box is emptied", async () => {
+      loadHistory.mockResolvedValue([]);
+      const el = await openFromUrl(lanes(1));
+      field(el, "radius").dispatchEvent(
+        new CustomEvent("change", { detail: { value: "" } })
+      );
+      field(el, "load-history").click();
+      await settle();
+      expect(loadHistory.mock.calls[0][0].radius).toBe(50);
+      expect(loadHistory.mock.calls[0][0].radiusUnit).toBe("KM");
+    });
   });
 
   describe("workbench edits", () => {

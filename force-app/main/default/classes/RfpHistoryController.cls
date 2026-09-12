@@ -4,10 +4,18 @@ public with sharing class RfpHistoryController {
   public static List<RFP_Lane__c> loadHistory(
     List<Id> laneIds,
     String precision,
-    Integer lookbackDays
+    Integer lookbackDays,
+    Decimal radius,
+    String radiusUnit
   ) {
     try {
-      return RfpHistoryService.run(laneIds, precision, lookbackDays);
+      return RfpHistoryService.run(
+        laneIds,
+        precision,
+        lookbackDays,
+        radius,
+        radiusUnit
+      );
     } catch (LaneSearchException e) {
       throw RfpUserError.of(e.getMessage());
     } catch (Exception e) {

@@ -21,6 +21,12 @@ const PRECISIONS = [
   { label: "Province / state", value: "PROVINCE" },
   { label: "Radius", value: "RADIUS" }
 ];
+const UNITS = [
+  { label: "km", value: "KM" },
+  { label: "mi", value: "MI" }
+];
+const DEFAULT_RADIUS = 50;
+const MAX_RADIUS = 500;
 
 const apexMessage = (e, fallback) =>
   (e && e.body && e.body.message) || fallback;
@@ -50,6 +56,8 @@ export default class RfpTool extends LightningElement {
 
   precision = "CITY";
   lookbackDays = 90;
+  radius = DEFAULT_RADIUS;
+  radiusUnit = "KM";
 
   // `loading` is a single round trip (a spinner); `busy` is a chunked run that
   // owns the progress bar and the Stop button.
@@ -108,6 +116,9 @@ export default class RfpTool extends LightningElement {
   get precisionOptions() {
     return PRECISIONS;
   }
+  get unitOptions() {
+    return UNITS;
+  }
   get hasLanes() {
     return this.lanes.length > 0;
   }
@@ -158,6 +169,16 @@ export default class RfpTool extends LightningElement {
   handleLookback(event) {
     const days = Number(event.detail.value);
     this.lookbackDays = Number.isFinite(days) && days > 0 ? days : 90;
+  }
+  handleRadius(event) {
+    const n = Number(event.detail.value);
+    this.radius =
+      Number.isFinite(n) && n >= 1 && n <= MAX_RADIUS
+        ? Math.round(n)
+        : DEFAULT_RADIUS;
+  }
+  handleRadiusUnit(event) {
+    this.radiusUnit = event.detail.value === "MI" ? "MI" : "KM";
   }
   handleOpenProject(event) {
     this.openProject(event.detail.projectId);
@@ -350,7 +371,9 @@ export default class RfpTool extends LightningElement {
       const updated = await loadHistory({
         laneIds: ids,
         precision: this.precision,
-        lookbackDays: this.lookbackDays
+        lookbackDays: this.lookbackDays,
+        radius: this.radius,
+        radiusUnit: this.radiusUnit
       });
       this.lanes = mergeLanes(this.lanes, updated);
     } catch (e) {

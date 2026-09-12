@@ -136,6 +136,27 @@
             ></lightning-input>
           </div>
           <div class="slds-col">
+            <lightning-input
+              data-id="radius"
+              type="number"
+              min="1"
+              max="500"
+              label="Radius"
+              field-level-help="Used for Radius precision, and when a city has no history of its own."
+              value={radius}
+              onchange={handleRadius}
+            ></lightning-input>
+          </div>
+          <div class="slds-col">
+            <lightning-combobox
+              data-id="radius-unit"
+              label="Unit"
+              value={radiusUnit}
+              options={unitOptions}
+              onchange={handleRadiusUnit}
+            ></lightning-combobox>
+          </div>
+          <div class="slds-col">
             <lightning-button
               data-id="load-history"
               variant="brand"
