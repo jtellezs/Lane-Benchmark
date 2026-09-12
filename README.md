@@ -344,7 +344,14 @@ The orphaned `quoteStats` bundle was removed in the
 review fix wave (deploy `0AfbZ00000CpbwHSAR`).
 
 **Production is the admin's step, in this order** (users on the `Pricing` profile lose the
-tab, so they need the replacement permission sets first):
+tab, so they need the replacement permission sets first). Two cautions before starting:
+the command in step 3 deploys the whole manifest, so if production has not received
+phases 1–3 yet this is their go-live too and their one-time steps come first (the Mapbox
+key in `TPRO_KPI__c.Mapbox_Api_Key__c`, the CSP trusted site and remote site, the place
+dictionary batch from "Place dictionary" above, and `Pricing_Department_Setting.Default`
+being overwritten from the repo); and the manifest carries a snapshot of the `TransPro`
+app, which replaces any navigation edits made in production Setup - retrieve production's
+`TransPro` app and diff it against `applications/TransPro.app-meta.xml` first.
 
 1. Assign the replacements to the pricing team, and unassign the old set from everyone
    who still holds it (a permission set with assignments cannot be deleted). List the
