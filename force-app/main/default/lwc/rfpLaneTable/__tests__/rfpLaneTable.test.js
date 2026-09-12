@@ -133,6 +133,46 @@ describe("c-rfp-lane-table", () => {
     );
   });
 
+  it("splits the history count into loads and bids once bids were counted", async () => {
+    const el = await mount({
+      lanes: [
+        { ...RESOLVED_LANE, Hist_Count__c: 15, Hist_Bid_Count__c: 3 },
+        {
+          ...RESOLVED_LANE,
+          Id: "a0L00000009",
+          Hist_Count__c: 2,
+          Hist_Bid_Count__c: 1,
+          Hist_Median__c: null
+        }
+      ]
+    });
+    const rows = rowsOf(el);
+    expect(rows[0].querySelector('[data-id="hist"]').textContent.trim()).toBe(
+      "12 loads + 3 bids · median 2000.00"
+    );
+    // One of each reads in the singular, and a Done lane with no median in its
+    // own currency still says where the rows came from.
+    expect(rows[1].querySelector('[data-id="hist"]').textContent.trim()).toBe(
+      "1 load + 1 bid · no median"
+    );
+  });
+
+  it("keeps the bare count when the run found no bids", async () => {
+    const el = await mount({
+      lanes: [
+        { ...RESOLVED_LANE, Hist_Count__c: 2, Hist_Bid_Count__c: 0 },
+        { ...RESOLVED_LANE, Id: "a0L00000008", Hist_Count__c: 2 }
+      ]
+    });
+    const rows = rowsOf(el);
+    expect(rows[0].querySelector('[data-id="hist"]').textContent.trim()).toBe(
+      "2 · median 2000.00"
+    );
+    expect(rows[1].querySelector('[data-id="hist"]').textContent.trim()).toBe(
+      "2 · median 2000.00"
+    );
+  });
+
   it("shows a place picker only for unresolved ends", async () => {
     const el = await mount();
     const rows = rowsOf(el);

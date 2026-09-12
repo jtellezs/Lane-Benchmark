@@ -226,6 +226,8 @@ export default class RfpTool extends LightningElement {
           : DEFAULT_RADIUS;
     } else if (name === "radiusUnit") {
       this.radiusUnit = value === "MI" ? "MI" : "KM";
+    } else if (name === "includeBids") {
+      this.includeBids = value === true;
     }
   }
   handleOpenProject(event) {

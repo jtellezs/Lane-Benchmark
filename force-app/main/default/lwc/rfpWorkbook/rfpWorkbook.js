@@ -11,6 +11,7 @@ export const OUR_COLUMNS = [
   "FSC included",
   "Transit days",
   "Bid carrier",
+  "History bids",
   "Notes"
 ];
 const BID_HEADER = [
@@ -147,6 +148,7 @@ export function buildSheets(lanes, rawRows, bidsByLaneId) {
       best ? yesNo(best.FSC_Included__c) : "",
       cell(best?.Transit_Days__c),
       cell(l.Selected_Bid__r?.Carrier_Display__c),
+      cell(l.Hist_Bid_Count__c),
       cell(l.Notes__c)
     ]);
     (bidsByLaneId?.[l.Id] || []).forEach((b) => {

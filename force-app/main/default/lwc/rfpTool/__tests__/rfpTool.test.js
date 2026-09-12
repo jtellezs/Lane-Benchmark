@@ -649,6 +649,30 @@ describe("c-rfp-tool", () => {
         includeBids: true
       });
     });
+    it("sends the bids toggle, on by default, with every history run", async () => {
+      loadHistory.mockResolvedValue([]);
+      const el = await openFromUrl(lanes(1));
+      expect(toolbar(el).includeBids).toBe(true);
+      fire(el, "loadhistory");
+      await settle();
+      expect(loadHistory.mock.calls[0][0].includeBids).toBe(true);
+
+      setting(el, "includeBids", false);
+      await flush();
+      expect(toolbar(el).includeBids).toBe(false);
+      fire(el, "refreshhistory");
+      await settle();
+      expect(loadHistory.mock.calls[1][0].includeBids).toBe(false);
+
+      // Every history flow goes through the one loadHistory call site, so the
+      // toggle applies to Load history, Refresh history and Retry failed alike.
+      setting(el, "includeBids", true);
+      await flush();
+      fire(el, "loadhistory");
+      await settle();
+      expect(loadHistory.mock.calls[2][0].includeBids).toBe(true);
+    });
+
     it("falls back to 50 km when the radius box is emptied", async () => {
       loadHistory.mockResolvedValue([]);
       const el = await openFromUrl(lanes(1));

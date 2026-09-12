@@ -223,7 +223,12 @@ export function historyRequest(lane) {
     destinationRadius: r ? r.radius : null,
     radiusUnit: r ? r.unit : "KM",
     lookbackDays: lane.Hist_Lookback_Days__c || 90,
-    sourceFilter: "LOADS",
+    // The panel's results list what the lane's own run counted, so it repeats that run's source:
+    // a bid count of 0 means the run was loads-only, anything else (including a lane never run,
+    // whose count is null) means bids from other projects, expired ones included.
+    sourceFilter: lane.Hist_Bid_Count__c === 0 ? "LOADS" : "ALL",
+    includeExpiredBids: lane.Hist_Bid_Count__c !== 0,
+    excludeProjectId: lane.RFP_Project__c || null,
     rowLimit: 500,
     includeStopGeolocation: true
   });
