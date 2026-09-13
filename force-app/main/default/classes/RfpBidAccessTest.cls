@@ -640,7 +640,11 @@ private class RfpBidAccessTest {
     );
   }
 
-  /** RFP_Project__c is not caller-settable: the trigger stamps the lane's project. */
+  /**
+   * Proves the trigger stamp: BenchmarkRateTrigger overwrites RFP_Project__c with the lane's project
+   * on every save, so this passes whether or not RFP_Project__c is on the allow-list.
+   * settableFieldsLeaveOutEveryServiceMaintainedField proves the allow-list itself.
+   */
   @IsTest
   static void insertBidsTakesTheProjectFromTheLaneNotTheCaller() {
     Fx f = fx();
@@ -661,6 +665,54 @@ private class RfpBidAccessTest {
       f.project.Id,
       [SELECT RFP_Project__c FROM Benchmark_Rate__c WHERE Id = :saved.Id]
       .RFP_Project__c
+    );
+  }
+
+  /**
+   * The allow-list itself. The trigger re-stamps the project and the lane keys on every save, so a
+   * service-maintained field wrongly added to SETTABLE_FIELDS would hide behind it in every
+   * behaviour test. Compared lower-cased, the casing Rows.posted gives the populated keys.
+   * RFP_Lane__c is deliberately not on the list: Rows.settable appends it on insert only, so an
+   * update never writes the lane; the insert below carries it.
+   */
+  @IsTest
+  static void settableFieldsLeaveOutEveryServiceMaintainedField() {
+    Set<String> settable = new Set<String>(
+      String.join(RfpBidAccess.SETTABLE_FIELDS, ',').toLowerCase().split(',')
+    );
+    Set<String> leaked = new Set<String>{
+      'ownerid',
+      'rfp_project__c',
+      'city_lane__c',
+      'state_lane__c',
+      'zip3_lane__c',
+      'origin_geolocation__c',
+      'origin_geolocation__latitude__s',
+      'origin_geolocation__longitude__s',
+      'destination_geolocation__c',
+      'destination_geolocation__latitude__s',
+      'destination_geolocation__longitude__s'
+    };
+    leaked.retainAll(settable);
+    System.assertEquals(
+      new Set<String>(),
+      leaked,
+      'service-maintained fields must not be caller-settable'
+    );
+    System.assert(settable.contains('carrier__c'), 'the carrier is settable');
+    System.assert(settable.contains('rate__c'), 'the rate is settable');
+    System.assert(
+      !settable.contains('rfp_lane__c'),
+      'the lane is appended on insert only, never listed for an update'
+    );
+    Fx f = fx();
+    Benchmark_Rate__c saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 900) }
+    )[0];
+    System.assertEquals(
+      f.lane.Id,
+      saved.RFP_Lane__c,
+      'an insert carries RFP_Lane__c'
     );
   }
 }

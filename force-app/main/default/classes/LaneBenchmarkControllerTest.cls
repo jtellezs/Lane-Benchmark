@@ -52,6 +52,11 @@ private class LaneBenchmarkControllerTest {
 
   /** A user holding only the named permission set (as RfpSecurityTest.restrictedUser), or null when the org has no usable profile. */
   private static User restrictedUser(String permSetName) {
+    return restrictedUser(new List<String>{ permSetName });
+  }
+
+  /** A user holding only the named permission sets, or null when the org has no usable profile. */
+  private static User restrictedUser(List<String> permSetNames) {
     List<Profile> profiles = [
       SELECT Id
       FROM Profile
@@ -64,7 +69,11 @@ private class LaneBenchmarkControllerTest {
     }
     User u = new User(
       ProfileId = profiles[0].Id,
-      Username = 'lanebench.' + System.currentTimeMillis() + '@example.invalid',
+      Username = 'lanebench.' +
+        System.currentTimeMillis() +
+        '.' +
+        permSetNames.size() +
+        '@example.invalid',
       Email = 'lanebench@example.invalid',
       LastName = 'LaneBench',
       Alias = 'lbench',
@@ -76,7 +85,7 @@ private class LaneBenchmarkControllerTest {
     List<PermissionSet> sets = [
       SELECT Id
       FROM PermissionSet
-      WHERE Name = :permSetName
+      WHERE Name IN :permSetNames
     ];
     System.runAs(new User(Id = UserInfo.getUserId())) {
       insert u;
@@ -268,13 +277,18 @@ private class LaneBenchmarkControllerTest {
   /**
    * excludeProjectId binds into a system-mode bid query, so honouring it for a project the caller
    * cannot read would let two searches reveal which bids belong to an RFP they cannot see (spec
-   * §5: that RFP does not exist for them). The exclusion counts only for a readable project.
+   * §5: that RFP does not exist for them). The exclusion counts only for a readable project. The
+   * Lane_Benchmark_User has no RFP_Project__c read at all; the stranger holds RFP_Tool_User too, so
+   * only the user-mode sharing check (no share on the customer) keeps the exclusion off for them.
    */
   @IsTest
   static void searchExcludesAProjectOnlyWhenTheCallerCanReadIt() {
     LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     User viewer = restrictedUser('Lane_Benchmark_User');
-    if (viewer == null) {
+    User stranger = restrictedUser(
+      new List<String>{ 'RFP_Tool_User', 'Lane_Benchmark_User' }
+    );
+    if (viewer == null || stranger == null) {
       System.assert(
         true,
         'no usable profile in this org; runAs coverage skipped (ledgered)'
@@ -305,12 +319,34 @@ private class LaneBenchmarkControllerTest {
     System.runAs(viewer) {
       viewerRows = LaneBenchmarkController.search(requestJson).rows.size();
     }
+    Id projectId = project.Id;
+    Integer strangerProjects;
+    Integer strangerRows;
+    System.runAs(stranger) {
+      strangerProjects = [
+        SELECT COUNT()
+        FROM RFP_Project__c
+        WHERE Id = :projectId
+        WITH USER_MODE
+      ];
+      strangerRows = LaneBenchmarkController.search(requestJson).rows.size();
+    }
     Integer adminRows = LaneBenchmarkController.search(requestJson).rows.size();
     Test.stopTest();
     System.assertEquals(
       1,
       viewerRows,
       'a project the caller cannot read excludes nothing'
+    );
+    System.assertEquals(
+      0,
+      strangerProjects,
+      'precondition: RFP read, but no share on the project\'s customer'
+    );
+    System.assertEquals(
+      1,
+      strangerRows,
+      'a project hidden by sharing excludes nothing'
     );
     System.assertEquals(
       0,

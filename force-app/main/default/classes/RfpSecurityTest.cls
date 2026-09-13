@@ -68,6 +68,43 @@ private class RfpSecurityTest {
     );
   }
 
+  /**
+   * A carrier account the admin creates and a restricted user cannot read. In this org an ordinary
+   * carrier is readable by every internal user: the flow Ownership_update_Carrier_and hands an
+   * account whose TMS type contains "Carrier" and that is not blacklisted to the Public Accounts
+   * user, whose owner-based rules share Edit with All Internal Users, and the criteria rule
+   * Carrier_Sharing_Setting shares a carrier whose Company_Org__c is 'Trans-Pro Logistics Inc' (the
+   * picklist default). So the graph's vendor will not do: this carrier is blacklisted (the flow
+   * leaves its owner alone) and belongs to 'Trans-Pro Logistica' (no rule shares it). If a
+   * precondition assertion on this account fails, that org configuration changed, not the code.
+   */
+  private static Account hiddenCarrier() {
+    Account carrier = new Account(
+      Name = 'Hidden Carrier',
+      RecordTypeId = Schema.SObjectType.Account
+        .getRecordTypeInfosByDeveloperName()
+        .get('Carrier')
+        .getRecordTypeId(),
+      rtms__TMS_Type__c = 'Carrier (Ground)',
+      Company_Org__c = 'Trans-Pro Logistica',
+      Black_List__c = true,
+      CurrencyIsoCode = 'CAD'
+    );
+    insert carrier;
+    return carrier;
+  }
+
+  /** The carrier's sharing inputs, for a precondition message: who owns it and what the rules read. */
+  private static String sharingInputs(Id accountId) {
+    return String.valueOf(
+      [
+        SELECT OwnerId, Company_Org__c, rtms__TMS_Type__c, Black_List__c
+        FROM Account
+        WHERE Id = :accountId
+      ]
+    );
+  }
+
   private class Fx {
     PricingTestDataFactory.Graph g;
     Pricing_Place__c mtl;
@@ -551,6 +588,138 @@ private class RfpSecurityTest {
       [SELECT COUNT() FROM Benchmark_Rate__c WHERE Id = :adminBid.Id],
       'the reader\'s lane delete removed the admin\'s bid'
     );
+  }
+
+  /**
+   * Carrier__c is a lookup to Account, and Account is Private. The bid DML runs in system mode,
+   * which skips the sharing check the platform makes on a lookup target, and the reload's
+   * Carrier_Display__c would hand back the account's name. So a bid save may name a carrier
+   * account only if the caller can read it in user mode (R66).
+   */
+  @IsTest
+  static void aBidSaveNamesOnlyACarrierAccountTheCallerCanRead() {
+    Fx f = fx();
+    User pricing = restrictedUser('RFP_Tool_User');
+    if (pricing == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    shareAccount(f.g.customer, pricing, 'Read');
+    Account carrier = hiddenCarrier();
+    Id carrierId = carrier.Id;
+    Id laneId = f.lane.Id;
+    // What rfpBidForm posts for a new bid on a carrier picked from the account lookup.
+    String bidJson =
+      '{"RFP_Lane__c":"' +
+      laneId +
+      '","Carrier__c":"' +
+      carrierId +
+      '","Carrier_Name__c":null,"Rate__c":880,"CurrencyIsoCode":"CAD"}';
+    String carrierInputs = sharingInputs(carrierId);
+    Test.startTest();
+    System.runAs(pricing) {
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM Account WHERE Id = :carrierId WITH USER_MODE],
+        'precondition: the pricer cannot read the admin\'s carrier account ' +
+        carrierInputs
+      );
+      try {
+        RfpBidController.saveBid(bidJson);
+        System.assert(false, 'expected AuraHandledException');
+      } catch (AuraHandledException e) {
+        System.assertEquals('That carrier is not available.', e.getMessage());
+      }
+    }
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :laneId],
+      'the refused save wrote no bid'
+    );
+    shareAccount(carrier, pricing, 'Read');
+    Benchmark_Rate__c saved;
+    System.runAs(pricing) {
+      saved = RfpBidController.saveBid(bidJson);
+    }
+    Test.stopTest();
+    System.assertEquals(carrierId, saved.Carrier__c);
+    System.assertEquals(
+      'Hidden Carrier',
+      saved.Carrier_Display__c,
+      'with Read on the carrier account the same save succeeds and shows its name'
+    );
+    System.assertEquals(
+      1,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :laneId]
+    );
+  }
+
+  /**
+   * Only a changed carrier is checked: a colleague who cannot read the account on the admin's bid
+   * still edits its rate, whether the carrier is left out of the post or resent unchanged (the
+   * bid form resends it with every edit).
+   */
+  @IsTest
+  static void aColleagueEditsTheRateOfABidWhoseCarrierTheyCannotRead() {
+    Fx f = fx();
+    User pricing = restrictedUser('RFP_Tool_User');
+    if (pricing == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    shareAccount(f.g.customer, pricing, 'Read');
+    Id carrierId = hiddenCarrier().Id;
+    Benchmark_Rate__c posted = RfpTestDataFactory.buildBid(f.lane, 900);
+    posted.Carrier__c = carrierId;
+    posted.Carrier_Name__c = null;
+    Id bidId = BenchmarkRateService.save(posted).Id;
+    Id laneId = f.lane.Id;
+    String carrierInputs = sharingInputs(carrierId);
+    Test.startTest();
+    Benchmark_Rate__c edited;
+    Benchmark_Rate__c resent;
+    System.runAs(pricing) {
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM Account WHERE Id = :carrierId WITH USER_MODE],
+        'precondition: the pricer cannot read the carrier account on the bid ' +
+        carrierInputs
+      );
+      edited = RfpBidController.saveBid('{"Id":"' + bidId + '","Rate__c":925}');
+      resent = RfpBidController.saveBid(
+        '{"RFP_Lane__c":"' +
+          laneId +
+          '","Carrier__c":"' +
+          carrierId +
+          '","Carrier_Name__c":null,"Rate__c":930,"CurrencyIsoCode":"CAD","Id":"' +
+          bidId +
+          '"}'
+      );
+    }
+    Test.stopTest();
+    System.assertEquals(925, edited.Rate__c, 'the rate-only edit saves');
+    System.assertEquals(
+      930,
+      resent.Rate__c,
+      'an edit resending the unchanged carrier saves'
+    );
+    Benchmark_Rate__c stored = [
+      SELECT Carrier__c, Rate__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :bidId
+    ];
+    System.assertEquals(
+      carrierId,
+      stored.Carrier__c,
+      'the carrier is unchanged'
+    );
+    System.assertEquals(930, stored.Rate__c);
   }
 
   /**

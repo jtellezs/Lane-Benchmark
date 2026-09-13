@@ -91,6 +91,77 @@ private class RfpBidControllerTest {
     }
   }
 
+  /**
+   * rfpBidForm posts "Carrier__c": null when an existing bid switches from a carrier account to a
+   * typed name. The update must clear the lookup, or Carrier_Display__c keeps showing the account.
+   * Both payloads carry every key rfpBidForm.handleSave sends, in its order (Id last, on an edit).
+   */
+  @IsTest
+  static void switchingABidToATypedCarrierClearsTheAccount() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c mtl = RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    Pricing_Place__c tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      RfpTestDataFactory.createProject(g.customer),
+      mtl,
+      tor
+    );
+    String rest =
+      '"Contact_Name__c":null,"Contact_Email__c":null,"Contact_Phone__c":null,' +
+      '"Rate__c":990,"CurrencyIsoCode":"CAD","Fuel_Surcharge__c":null,' +
+      '"FSC_Included__c":false,"Transit_Days__c":null,"Valid_From__c":"' +
+      String.valueOf(Date.today()) +
+      '","Expires_On__c":"' +
+      String.valueOf(Date.today().addDays(30)) +
+      '","Notes__c":null';
+    Benchmark_Rate__c saved = RfpBidController.saveBid(
+      '{"RFP_Lane__c":"' +
+        lane.Id +
+        '","Carrier__c":"' +
+        g.vendor.Id +
+        '","Carrier_Name__c":null,' +
+        rest +
+        '}'
+    );
+    System.assertEquals(g.vendor.Id, saved.Carrier__c);
+    System.assertEquals('Test Carrier', saved.Carrier_Display__c);
+    Test.startTest();
+    Benchmark_Rate__c switched = RfpBidController.saveBid(
+      '{"RFP_Lane__c":"' +
+        lane.Id +
+        '","Carrier__c":null,"Carrier_Name__c":"Typed Carrier",' +
+        rest +
+        ',"Id":"' +
+        saved.Id +
+        '"}'
+    );
+    Test.stopTest();
+    System.assertEquals(null, switched.Carrier__c, 'the account is cleared');
+    System.assertEquals(
+      'Typed Carrier',
+      switched.Carrier_Display__c,
+      'the typed name shows'
+    );
+    System.assertEquals(
+      null,
+      [SELECT Carrier__c FROM Benchmark_Rate__c WHERE Id = :saved.Id].Carrier__c
+    );
+  }
+
   @IsTest
   static void saveBidWrapsBadJsonAsUserError() {
     try {

@@ -7,8 +7,10 @@
  * queries, and user mode enforces the running user's sharing whatever the class keyword says,
  * so sharing still decides which lanes count; the bid reads and writes then run in system mode
  * past sharing, restricted to those lanes, because a Private bid recorded by a colleague must be
- * visible and editable to anyone who can read its lane. Lane Benchmark (BidSearchService) does
- * not use this class: it reads every bid in system mode on purpose and shows no customer.
+ * visible and editable to anyone who can read its lane. A bid save that names a Carrier__c
+ * account is checked in user mode too (Gate.carriers), because the system-mode DML skips the
+ * sharing check a lookup target gets. Lane Benchmark (BidSearchService) does not use this class:
+ * it reads every bid in system mode on purpose and shows no customer.
  */
 public without sharing class RfpBidAccess {
   public static final String BID_FIELDS =
@@ -17,12 +19,14 @@ public without sharing class RfpBidAccess {
     'Fuel_Surcharge__c, FSC_Included__c, Transit_Days__c, Valid_From__c, Expires_On__c, ' +
     'Status__c, Notes__c, City_Lane__c, State_Lane__c, Zip3_Lane__c';
   public static final String LANE_UNAVAILABLE = 'This lane is not available.';
+  public static final String CARRIER_UNAVAILABLE = 'That carrier is not available.';
   /**
    * The bid fields a caller may set. Everything else - OwnerId, RFP_Project__c, the lane keys, the
    * geolocations - is set only by BenchmarkRateTrigger or the platform and never reaches the
    * system-mode DML below, whatever FLS the caller happens to hold. RFP_Lane__c travels on insert
    * only (an update keeps the stored lane); Status__c is a formula, so it is not listed.
    */
+  @TestVisible
   private static final List<String> SETTABLE_FIELDS = new List<String>{
     'Carrier__c',
     'Carrier_Name__c',
@@ -162,7 +166,8 @@ public without sharing class RfpBidAccess {
   /**
    * Inserts bids on visible lanes only (a bid without a lane is refused) and returns them reloaded
    * in input order. Only SETTABLE_FIELDS and RFP_Lane__c travel, and the lane checks run on the
-   * records actually inserted - after the CREATABLE strip, so a stripped lane is refused too.
+   * records actually inserted - after the CREATABLE strip, so a stripped lane is refused too. Every
+   * Carrier__c account named must be readable in user mode (Gate.carriers).
    */
   public static List<Benchmark_Rate__c> insertBids(
     List<Benchmark_Rate__c> bids
@@ -174,6 +179,7 @@ public without sharing class RfpBidAccess {
       )
       .getRecords();
     GATE.lanesOf(clean);
+    GATE.carriers(clean, null);
     systemInsert(clean);
     List<Id> ids = new List<Id>();
     for (Benchmark_Rate__c bid : clean) {
@@ -185,7 +191,8 @@ public without sharing class RfpBidAccess {
   /**
    * Updates one bid whose stored lane the user can read. The lane is never written: a caller who
    * sets RFP_Lane__c to anything but the stored lane (null included) is refused. Only
-   * SETTABLE_FIELDS travel.
+   * SETTABLE_FIELDS travel. A Carrier__c other than the stored one must be readable in user mode;
+   * the stored carrier is not re-checked, so a colleague can edit a bid whose carrier they cannot read.
    */
   public static Benchmark_Rate__c updateBid(Benchmark_Rate__c bid) {
     GATE.edit();
@@ -210,6 +217,7 @@ public without sharing class RfpBidAccess {
         ROWS.settable(new List<Benchmark_Rate__c>{ bid }, false)
       )
       .getRecords()[0];
+    GATE.carriers(new List<Benchmark_Rate__c>{ clean }, stored[0].Carrier__c);
     systemUpdate(clean);
     return bidsByIds(new List<Id>{ bid.Id })[0];
   }
@@ -231,8 +239,9 @@ public without sharing class RfpBidAccess {
   private static final Selected SELECTED = new Selected();
 
   /** Object-permission gates for Benchmark_Rate__c, kept in their own class so their branching
-   * does not count toward RfpBidAccess's cyclomatic complexity budget. */
-  private class Gate {
+   * does not count toward RfpBidAccess's cyclomatic complexity budget. Declared like Rows: its one
+   * query (the carrier accounts) is `WITH USER_MODE`, so the running user's sharing decides. */
+  private without sharing class Gate {
     private void read() {
       if (!Schema.SObjectType.Benchmark_Rate__c.isAccessible()) {
         throw new LaneSearchException('You cannot read bids.');
@@ -275,6 +284,48 @@ public without sharing class RfpBidAccess {
         laneIds.add(laneId);
       }
       lanes(laneIds);
+    }
+    /** The carrier gate, on the records about to be written: every Carrier__c account they name
+     * must come back from a user-mode query. The system-mode DML skips the sharing check the
+     * platform makes on a lookup target, and the reload's Carrier_Display__c would show the
+     * account's name. storedCarrier is the carrier an update already holds (null on insert); it is
+     * not re-checked. One query, none when no record names a new carrier. */
+    private void carriers(List<Benchmark_Rate__c> bids, Id storedCarrier) {
+      Set<Id> carrierIds = newCarriers(bids, storedCarrier);
+      Boolean refused =
+        !carrierIds.isEmpty() &&
+        !readableAccounts(carrierIds).containsAll(carrierIds);
+      if (refused) {
+        throw new LaneSearchException(RfpBidAccess.CARRIER_UNAVAILABLE);
+      }
+    }
+    /** The non-null Carrier__c values populated on bids, other than storedCarrier. */
+    private Set<Id> newCarriers(
+      List<Benchmark_Rate__c> bids,
+      Id storedCarrier
+    ) {
+      Set<Id> carrierIds = new Set<Id>();
+      for (Benchmark_Rate__c bid : bids) {
+        Id carrierId = RfpBidAccess.ROWS.posted(bid).contains('carrier__c')
+          ? bid.Carrier__c
+          : null;
+        if (carrierId != null && carrierId != storedCarrier) {
+          carrierIds.add(carrierId);
+        }
+      }
+      return carrierIds;
+    }
+    /** The accounts among accountIds the caller can read in user mode, sharing deciding; none for
+     * a caller with no read on Account at all (the query throws), so the carrier is refused. */
+    private Set<Id> readableAccounts(Set<Id> accountIds) {
+      try {
+        return new Map<Id, Account>(
+            [SELECT Id FROM Account WHERE Id IN :accountIds WITH USER_MODE]
+          )
+          .keySet();
+      } catch (QueryException e) {
+        return new Set<Id>();
+      }
     }
   }
 
