@@ -330,6 +330,24 @@ restriction itself cannot be shown in PostProduc with one RFP user; a
 colleague's login would show a project on an unshared account absent from
 their list.
 
+**Open follow-ups.** No test drives `RfpBidAccess.updateBid`'s carrier check
+with a changed, unreadable carrier: the insert path is proven (deploy
+`0AfbZ00000CppG5SAJ` failed before the fix), the update path only by code
+review. `RfpSecurityTest`'s two carrier tests,
+`aBidSaveNamesOnlyACarrierAccountTheCallerCanRead` and
+`aColleagueEditsTheRateOfABidWhoseCarrierTheyCannotRead`, build their hidden
+carrier from the unmanaged Account fields `Company_Org__c` (created 2018) and
+`Black_List__c` (created 2021) and the Carrier record type, and rely on the
+flow `Ownership_update_Carrier_and` and the Account sharing rules leaving a
+blacklisted Trans-Pro Logistica carrier unshared; their precondition
+assertions fail rather than skip in an org configured differently, so check
+carrier sharing before the production go-live deploy (the fields predate the
+sandbox, so production has them), or change the preconditions to skip like the
+no-usable-profile branch. Reads (`getBids`, `attachSelectedBids`) still return
+`Carrier_Display__c` for a stored carrier account the reader cannot read; R66
+covers writes only. The bulk "Add carrier rate" refusal path ("No lane was
+updated: That carrier is not available") has no test.
+
 **Review record.** Task 1 review clean; Task 2 one fix round (`updateBid`
 `isSet`); Task 3 three fix rounds (`without sharing`; attach/detach/apply;
 apply-only-successful), reviewed by opus, re-review clean.

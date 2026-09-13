@@ -112,14 +112,15 @@ sf project deploy start -x manifest/package.xml --post-destructive-changes manif
 
 Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
 
-User-mode Apex (`RfpController`, `RfpLaneController`, `RfpBulkService`, and
-`RfpBidAccess`'s lane and project checks) needs its permission set
-(`RFP_Tool_User`) already assigned to the test-running user before a
-`RunSpecifiedTests` deploy — `WITH USER_MODE` reports a field the running user
-cannot read as "No such column". When a deploy introduces or changes that
-permission set in the same deploy as new user-mode code, deploy the permission
-set on its own first with `-l NoTestRun`, assign it, then run the real
-test-running deploy.
+User-mode Apex (`LaneBenchmarkController`, `RfpBidAccess`'s lane, project and
+carrier checks, `RfpBulkService`, `RfpController`, `RfpHistoryService`,
+`RfpImportService`, `RfpLaneController`, and `RfpProjectController`) needs its
+permission set (`RFP_Tool_User`) already assigned to the test-running user
+before a `RunSpecifiedTests` deploy — `WITH USER_MODE` reports a field the
+running user cannot read as "No such column". When a deploy introduces or
+changes that permission set in the same deploy as new user-mode code, deploy
+the permission set on its own first with `-l NoTestRun`, assign it, then run
+the real test-running deploy.
 
 Every new LWC bundle must be registered in `manifest/package.xml`
 (`LightningComponentBundle` members) — phase 3b found 16 bundles that had
@@ -432,15 +433,18 @@ the standard "New" page, not an Apex-created record — hence the trigger).
 - `RFP_Tool_User` — the pricing team's access: create/read/edit on the three
   RFP objects (`RFP_Project__c`, `RFP_Lane__c`, `Benchmark_Rate__c`), delete on
   `RFP_Lane__c` and `Benchmark_Rate__c` only (no delete on `RFP_Project__c`),
-  read on `Account` and read with View All on `Pricing_Place__c`, Apex class access
-  to `RfpController`, `RfpImportService`, `RfpLaneController`,
-  `BenchmarkRateService`, `LaneBenchmarkController`,
-  `LaneBenchmarkPlaceService`, `LaneSearchService`, `MapboxGeocoder`, and the
-  `RFP_Tool` custom permission (gates `rfpProjectsForAccount`, below).
-  `City_Lane__c` / `State_Lane__c` / `Zip3_Lane__c` /
-  `Origin_Geolocation__c` / `Destination_Geolocation__c` on `Benchmark_Rate__c`
-  are readable but not editable: they are service-maintained by
-  `BenchmarkRateTrigger`, never user-entered.
+  read on `Account` and read with View All on `Pricing_Place__c`, Apex class
+  access to its 17 classes: `BenchmarkRateService`, `LaneBenchmarkController`,
+  `LaneBenchmarkPlaceService`, `LaneSearchExclusions`, `LaneSearchService`,
+  `MapboxGeocoder`, `RfpBidController`, `RfpBulkController`, `RfpBulkService`,
+  `RfpController`, `RfpHistoryController`, `RfpHistoryService`,
+  `RfpImportService`, `RfpLaneController`, `RfpPricingInput`,
+  `RfpPricingMath`, and `RfpProjectController`, and the `RFP_Tool` custom
+  permission (gates `rfpProjectsForAccount`, below). `City_Lane__c` /
+  `State_Lane__c` / `Zip3_Lane__c` / `Origin_Geolocation__c` /
+  `Destination_Geolocation__c` on `Benchmark_Rate__c` are readable but not
+  editable: they are service-maintained by `BenchmarkRateTrigger`, never
+  user-entered.
 - `Lane_Benchmark_User` gains object read on `Benchmark_Rate__c` and field read
   on all of its fields, including the formula fields `Carrier_Display__c` /
   `Status__c` (no create/edit — bids are entered through the RFP tool, not
@@ -630,7 +634,10 @@ proven by `RfpSecurityTest` (restricted users created per scenario, holding
 
 **Production.** None of these objects exist there yet; the go-live deploy creates them in
 their final shape. A sandbox that already holds RFP data converts in place as long as
-every project has a customer (the New project form requires one).
+every project has a customer (the New project form requires one). `RfpSecurityTest`'s
+carrier tests expect the Account fields `Company_Org__c` and `Black_List__c` and a
+carrier-sharing setup like PostProduc's; see the phase 6 spec's Open follow-ups before
+deploying to production.
 
 ## Help center (phase 5)
 
