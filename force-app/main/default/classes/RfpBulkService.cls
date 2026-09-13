@@ -324,12 +324,14 @@ public with sharing class RfpBulkService {
   /** Writes c.updates; allOrNone=true is for callers holding a Savepoint (applyBid). */
   private static Result save(Context c, Boolean allOrNone) {
     if (!c.updates.isEmpty()) {
+      List<RFP_Lane__c> deferred = RfpBidAccess.detachSelectedBids(c.updates);
       List<RFP_Lane__c> clean = Security.stripInaccessible(
           AccessType.UPDATABLE,
           c.updates
         )
         .getRecords();
       c.collect(Database.update(clean, allOrNone, AccessLevel.USER_MODE), true);
+      RfpBidAccess.applySelectedBids(deferred);
     }
     c.finish();
     c.result.lanes = RfpLaneController.lanesByIds(c.ids);

@@ -349,4 +349,112 @@ private class RfpBidAccessTest {
       'the lane is unchanged'
     );
   }
+
+  @IsTest
+  static void attachSelectedBidsFillsTheRelationshipOnALaneQueriedWithoutIt() {
+    Fx f = fx();
+    Benchmark_Rate__c saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 900) }
+    )[0];
+    f.lane.Selected_Bid__c = saved.Id;
+    update f.lane;
+    // The lane as a user-mode read hands it back when the bid is another user's Private one:
+    // the Id is there, the traversal is not.
+    List<RFP_Lane__c> lanes = [
+      SELECT Id, Selected_Bid__c
+      FROM RFP_Lane__c
+      WHERE Id = :f.lane.Id
+    ];
+    List<RFP_Lane__c> filled = RfpBidAccess.attachSelectedBids(lanes);
+    System.assertEquals(1, filled.size());
+    System.assertNotEquals(
+      null,
+      filled[0].Selected_Bid__r,
+      'the relationship is filled'
+    );
+    System.assertEquals(saved.Id, filled[0].Selected_Bid__r.Id);
+    System.assertEquals(
+      'Bid Carrier',
+      filled[0].Selected_Bid__r.Carrier_Display__c,
+      'the carrier the lane panel and the export need'
+    );
+  }
+
+  @IsTest
+  static void attachSelectedBidsLeavesALaneWithoutASelectedBidAlone() {
+    Fx f = fx();
+    List<RFP_Lane__c> lanes = [
+      SELECT Id, Selected_Bid__c
+      FROM RFP_Lane__c
+      WHERE Id = :f.lane.Id
+    ];
+    List<RFP_Lane__c> back = RfpBidAccess.attachSelectedBids(lanes);
+    System.assertEquals(1, back.size());
+    System.assertEquals(null, back[0].Selected_Bid__c);
+    System.assertEquals(
+      0,
+      RfpBidAccess.attachSelectedBids(new List<RFP_Lane__c>()).size(),
+      'an empty list comes back empty'
+    );
+  }
+
+  @IsTest
+  static void detachAndApplyCarryTheSelectedBidPastTheCrossReferenceCheck() {
+    Fx f = fx();
+    Benchmark_Rate__c saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 900) }
+    )[0];
+    List<RFP_Lane__c> updates = new List<RFP_Lane__c>{
+      new RFP_Lane__c(
+        Id = f.lane.Id,
+        Cost__c = 900,
+        Selected_Bid__c = saved.Id
+      ),
+      new RFP_Lane__c(Id = f.other.Id, Cost__c = 700)
+    };
+    List<RFP_Lane__c> deferred = RfpBidAccess.detachSelectedBids(updates);
+    System.assertEquals(1, deferred.size(), 'only the update naming a bid');
+    System.assertEquals(f.lane.Id, deferred[0].Id);
+    System.assertEquals(saved.Id, deferred[0].Selected_Bid__c);
+    System.assertEquals(
+      null,
+      updates[0].Selected_Bid__c,
+      'the field is nulled on the update that runs in user mode'
+    );
+    update updates;
+    RfpBidAccess.applySelectedBids(deferred);
+    RFP_Lane__c stored = [
+      SELECT Selected_Bid__c
+      FROM RFP_Lane__c
+      WHERE Id = :f.lane.Id
+    ];
+    System.assertEquals(
+      saved.Id,
+      stored.Selected_Bid__c,
+      'the bid is written back'
+    );
+  }
+
+  @IsTest
+  static void detachSelectedBidsRefusesABidTheRuleHides() {
+    Fx f = fx();
+    Id fake =
+      Benchmark_Rate__c.SObjectType.getDescribe().getKeyPrefix() +
+      '000000000001';
+    try {
+      RfpBidAccess.detachSelectedBids(
+        new List<RFP_Lane__c>{
+          new RFP_Lane__c(Id = f.lane.Id, Selected_Bid__c = fake)
+        }
+      );
+      System.assert(false, 'expected LaneSearchException');
+    } catch (LaneSearchException e) {
+      System.assertEquals('That bid is not available.', e.getMessage());
+    }
+    System.assertEquals(
+      0,
+      RfpBidAccess.detachSelectedBids(new List<RFP_Lane__c>()).size(),
+      'nothing to defer for an empty list'
+    );
+  }
 }

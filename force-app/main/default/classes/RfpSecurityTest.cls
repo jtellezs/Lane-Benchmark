@@ -384,6 +384,41 @@ private class RfpSecurityTest {
         RfpController.projectsForAccount(accountId).size() >= 2,
         'both projects on the shared account are listed'
       );
+      // A colleague's bid as this lane's cost source: the lane save must accept it (the bid is
+      // readable through the lane rule even though the user cannot read it under sharing).
+      RFP_Lane__c priced = RfpLaneController.saveLanePricing(
+        JSON.serialize(
+          new RFP_Lane__c(
+            Id = f.lane.Id,
+            Cost__c = 900,
+            Cost_Source__c = 'Bid',
+            Selected_Bid__c = adminBid.Id,
+            Margin__c = 15,
+            Sell__c = 1058.82,
+            Sell_Source__c = 'Margin'
+          )
+        )
+      );
+      System.assertEquals(
+        adminBid.Id,
+        priced.Selected_Bid__c,
+        'a colleague\'s bid can be the cost source'
+      );
+      System.assert(
+        String.isNotBlank(priced.Selected_Bid__r?.Carrier_Display__c),
+        'and its carrier shows on the saved lane'
+      );
+      // Copying that pricing onto the reader's own lane carries the colleague's bid along.
+      RfpBulkService.Result copied = RfpBulkController.copyPricing(
+        f.lane.Id,
+        new List<Id>{ newLaneId }
+      );
+      System.assertEquals(1, copied.updated, String.join(copied.errors, '; '));
+      System.assertEquals(
+        adminBid.Id,
+        copied.lanes[0].Selected_Bid__c,
+        'copyPricing keeps the colleague\'s bid'
+      );
       // Selected_Bid__r is read through the lane in user mode (RfpLaneController.LANE_FIELDS).
       // A bid recorded by someone else must still show its carrier there; if this assertion
       // fails, the controller rules on the fix (fill Selected_Bid__r from RfpBidAccess.bidsByIds
