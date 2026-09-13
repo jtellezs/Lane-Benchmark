@@ -182,3 +182,86 @@ who viewed what.
   controller, so the system-mode boundary is visible in one place.
 - R59 — no new permission or custom permission gates bids; the lane's
   visibility is the only key.
+
+## Outcome — phase 6 (2026-09-13)
+
+Branch `phase-6/rfp-access` from `main` at `5bb8ba2`; spec `7cf4160`.
+
+Commits: `83e8435` Add RfpBidAccess: a lane you can see grants its bids (Task 1);
+`e543c1a` Read and write bids through the lane rule (Task 2; also fixed
+`RfpBidAccess.updateBid` to read the caller's `RFP_Lane__c` only when `isSet`,
+with a regression test); `6dcfa98` Let an RFP follow its customer account and
+make bids private (Task 3: metadata + `RfpSecurityTest` rewrite; also removed
+the stale fieldPermissions entry for `RFP_Project__c.Customer__c` from
+`RFP_Tool_User`, since a master-detail field is required); `d1d7842` Let a
+colleague's private bid show and serve as cost source through the lane rule
+(Task 3 fix round: `RfpBidAccess` is `without sharing` because
+`AccessLevel.SYSTEM_MODE` lifts only object/field checks while record sharing
+follows the class keyword — the `WITH USER_MODE` lane/project checks stay the
+gate; `attachSelectedBids` fills `Selected_Bid__r` after every
+`RfpLaneController` lane read because a user-mode traversal to a colleague's
+Private bid returns null; `detachSelectedBids`/`applySelectedBids` move the
+`Selected_Bid__c` write into a gated system-mode update in `saveLanePricing`
+and `RfpBulkService.save` because a changed lookup to a colleague's Private
+bid fails the cross-reference check, proved by `copyPricing` in the test;
+`assertLaneVisible` delegates to a batched `Gate.lanes`); `9936d44` Apply a
+deferred bid only to lanes whose pricing update succeeded (Task 3 fix round:
+`applySelectedBids(deferred, results)` keeps only lanes with a successful
+`SaveResult` and `RfpBulkService.save` uses it; the contract of
+`applySelectedBids` documented; `visibleLanes`'s body moved into the inner
+class `Rows`, now `private without sharing`, for PMD headroom — outer class
+38/40); `53f1adc` Keep the bid source test's setup outside its governor window
+(`LaneSearchServiceTest.bidsMergeIntoRowsAndObeyTheSourceFilter` did its place
+lookups, project, lane and two bid saves inside `Test.startTest()`; a save now
+costs four SOQL through the lane rule and the three searches already spend
+about ninety, so the full run hit 101; the setup moved above `startTest`,
+assertions unchanged); this commit Document the RFP access model (phase 6) and
+record the outcome (Task 4: this commit — docs).
+
+**PostProduc deploys**, all Succeeded except the two failed full-run attempts
+noted below: `0AfbZ00000CpjiXSAR` (Task 1: helper + test, 10/10),
+`0AfbZ00000CpkmfSAB` (Task 2: seven classes, 55/55), `0AfbZ00000CpkwLSAR`
+(Task 3: full manifest NoTestRun, 246 components — the lookup→master-detail
+conversion went through the metadata deploy, no Setup fallback needed),
+`0AfbZ00000CplafSAB` (Task 3 fix round after `d1d7842`: five classes, 55/55),
+`0AfbZ00000CplpBSAR` (Task 3 fix round after `9936d44`: five classes, 44/44),
+`0AfbZ00000CplyrSAB` (governor-window fix `53f1adc`: 19/19). Two full-manifest
+RunSpecifiedTests deploys FAILED, both only on
+`LaneSearchServiceTest.bidsMergeIntoRowsAndObeyTheSourceFilter`
+("Too many SOQL queries: 101"), the condition `53f1adc` fixed:
+`0AfbZ00000CplnZSAR` (141/142) and `0AfbZ00000CpllySAB` (143/144). Final pair:
+`0AfbZ00000CpmA9SAJ` (NoTestRun, 246 components, 0 errors), `0AfbZ00000CpmEzSAJ`
+(RunSpecifiedTests, 144/144, 0 failures).
+
+**Model verified in the org** (Task 3 Step 6): `RFP_Project__c` ControlledByParent,
+`RFP_Lane__c` ControlledByParent, `Benchmark_Rate__c` Private, `Customer__c`
+Master-Detail(Account) not nillable; 4 projects kept.
+
+**Tests:** Apex 144 / 144, 17 methods in `RfpBidAccessTest`, 7 methods (4
+restricted-user scenarios) in `RfpSecurityTest` (Read-shared pricer records and
+edits a bid and Lane Benchmark sees it; Read-shared pricer deletes lanes and
+bids; stranger sees no project, no lane, refused bid calls, Lane Benchmark
+still counts the bid; Read-shared user creates a project, a lane and a bid,
+reads the admin's bid, sees its carrier through the lane, picks it as cost
+source and copies that pricing). Jest unchanged (36 suites / 309 tests). PMD
+clean.
+
+**Known limits.** `Selected_Bid__r.Carrier_Display__c` is read through the lane
+in user mode (`RfpLaneController.LANE_FIELDS`, `rfpWorkbook`); it did not pass
+as written and needed the fill — `lanesByIds`/every lane read routes through
+`RfpBidAccess.attachSelectedBids`, which refills `Selected_Bid__r` because a
+user-mode traversal to a colleague's Private bid returns null. Deferred
+minors, unresolved by design: `Selected_Bid__r` now carries the full stripped
+bid (`BID_FIELDS`) instead of one formula field — a larger payload for a
+2000-lane project, no new exposure; `detachSelectedBids` nulls the update
+records before validating (callers abandon them on the exception); the
+one-argument `applySelectedBids` stays public for `saveLanePricing`. The
+restriction itself cannot be shown in PostProduc with one RFP user; a
+colleague's login would show a project on an unshared account absent from
+their list.
+
+**Review record.** Task 1 review clean; Task 2 one fix round (`updateBid`
+`isSet`); Task 3 three fix rounds (`without sharing`; attach/detach/apply;
+apply-only-successful), reviewed by opus, re-review clean.
+
+Browser check: pending (controller)

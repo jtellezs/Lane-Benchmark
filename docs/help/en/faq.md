@@ -20,6 +20,10 @@ History is a snapshot taken when you clicked Load or Refresh. **Refresh history*
 
 Statistics use only quotes in the lane's own currency (the project's currency). A lane with USD quotes only shows no CAD median; record a bid or type the cost.
 
+## Who can see an RFP?
+
+An RFP is visible to the people who can see its customer account, from the account page and in the RFP Tool list; Read access on the account is enough to work on it. If a project you expect is missing, ask the account owner or your admin for access to that account. Lane Benchmark shows every bid's carrier, rate and expiry to everyone, without the customer or the RFP.
+
 ## I cannot see the tab or a button says I lack permission
 
 Ask your admin for the `Lane_Benchmark_User` and `RFP_Tool_User` permission sets.

@@ -20,6 +20,10 @@ L'historique est un instantané pris quand vous avez cliqué sur Load ou Refresh
 
 Les statistiques n'utilisent que les cotations dans la devise de la voie (celle du projet). Une voie avec des cotations en USD seulement n'a pas de médiane en CAD; enregistrez une soumission ou saisissez le coût.
 
+## Qui peut voir un RFP?
+
+Un RFP est visible par les personnes qui peuvent voir son compte client, depuis la page du compte et dans la liste de l'onglet RFP Tool; un accès en lecture au compte suffit pour y travailler. Si un projet que vous attendez manque, demandez l'accès au compte à son propriétaire ou à votre administrateur. Lane Benchmark montre à tout le monde le transporteur, le tarif et l'échéance de chaque soumission, sans le client ni le RFP.
+
 ## Je ne vois pas l'onglet, ou un bouton dit que je manque d'autorisation
 
 Demandez à votre administrateur les ensembles d'autorisations `Lane_Benchmark_User` et `RFP_Tool_User`.
