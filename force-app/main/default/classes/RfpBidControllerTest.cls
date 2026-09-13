@@ -100,4 +100,16 @@ private class RfpBidControllerTest {
       System.assert(e.getMessage().contains('saved'), e.getMessage());
     }
   }
+
+  @IsTest
+  static void getBidsOnAnUnknownLaneIsAUserError() {
+    Id fake =
+      RFP_Lane__c.SObjectType.getDescribe().getKeyPrefix() + '000000000001';
+    try {
+      RfpBidController.getBids(fake);
+      System.assert(false, 'expected AuraHandledException');
+    } catch (AuraHandledException e) {
+      System.assertEquals(RfpBidAccess.LANE_UNAVAILABLE, e.getMessage());
+    }
+  }
 }

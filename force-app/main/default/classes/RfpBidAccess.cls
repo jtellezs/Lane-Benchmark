@@ -128,7 +128,7 @@ public with sharing class RfpBidAccess {
     return bidsByIds(ids);
   }
 
-  /** Updates one bid whose stored lane the user can read; a bid never moves to another lane here. */
+  /** Updates one bid whose stored lane the user can read; a lane change is refused only when the caller sets a different lane. */
   public static Benchmark_Rate__c updateBid(Benchmark_Rate__c bid) {
     GATE.edit();
     List<Benchmark_Rate__c> stored = bid.Id == null
@@ -142,6 +142,7 @@ public with sharing class RfpBidAccess {
     }
     assertLaneVisible(stored[0].RFP_Lane__c);
     Boolean moves =
+      bid.isSet('RFP_Lane__c') &&
       bid.RFP_Lane__c != null &&
       bid.RFP_Lane__c != stored[0].RFP_Lane__c;
     if (moves) {

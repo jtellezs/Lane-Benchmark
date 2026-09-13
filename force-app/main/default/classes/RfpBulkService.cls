@@ -265,14 +265,8 @@ public with sharing class RfpBulkService {
 
   public static Result deleteLanes(List<Id> laneIds) {
     Context c = load(laneIds);
-    List<Benchmark_Rate__c> bids = [
-      SELECT Id
-      FROM Benchmark_Rate__c
-      WHERE RFP_Lane__c IN :c.ids
-      WITH USER_MODE
-    ];
-    // An empty list is a no-op for Database.delete and costs no DML statement.
-    c.collect(Database.delete(bids, false, AccessLevel.USER_MODE), false);
+    // load() read the lanes in user mode, so their bids are the caller's to delete (RfpBidAccess).
+    c.collect(RfpBidAccess.deleteBidsOfLanes(new Set<Id>(c.ids)), false);
     c.collect(Database.delete(c.lanes, false, AccessLevel.USER_MODE), true);
     c.finish();
     c.result.lanes = RfpLaneController.lanesByIds(c.ids);

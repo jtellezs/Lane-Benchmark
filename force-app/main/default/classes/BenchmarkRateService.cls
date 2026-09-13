@@ -1,61 +1,35 @@
 /**
- * Saves carrier bids (Benchmark_Rate__c) in user mode. Validates the rate, strips whatever fields
- * the running user may not write, inserts/updates and reloads - nothing else. The lane keys Lane
- * Benchmark searches on (city lane, state lane, zip3 lane, geolocations, project,
- * mode/equipment/hazmat) are stamped by BenchmarkRateTrigger's before-insert/before-update call
- * into applyLanes below, not by save(): RFP_Tool_User marks those fields editable=false (they are
- * service-maintained, never user-entered), so the user-mode insert/update here must not set them -
- * only a system-context trigger can. save() enforces that with Security.stripInaccessible before
- * the DML (a queried record - the record page, a re-save - carries those fields populated; passing
- * it back must not fail or silently attempt to rewrite them). This also means a bid created
- * directly on the record page (bypassing save() entirely) still gets stamped, which a save()-only
- * implementation could never do.
+ * Saves carrier bids (Benchmark_Rate__c). Validates the rate here; the record access rule,
+ * field-level stripping and the DML live in RfpBidAccess (a lane you can read grants its bids -
+ * Benchmark_Rate__c is Private since phase 6). The lane keys Lane Benchmark searches on (city
+ * lane, state lane, zip3 lane, geolocations, project, mode/equipment/hazmat) are stamped by
+ * BenchmarkRateTrigger's before-insert/before-update call into applyLanes below, not by save():
+ * RFP_Tool_User marks those fields editable=false (they are service-maintained, never
+ * user-entered), so the insert/update must not set them - only a system-context trigger can.
+ * RfpBidAccess enforces that with Security.stripInaccessible before the DML (a queried record -
+ * the record page, a re-save - carries those fields populated; passing it back must not fail or
+ * silently attempt to rewrite them). This also means a bid created directly on the record page
+ * (bypassing save() entirely) still gets stamped, which a save()-only implementation could never do.
  */
 public with sharing class BenchmarkRateService {
   public static Benchmark_Rate__c save(Benchmark_Rate__c bid) {
     if (bid.Rate__c == null) {
       throw new LaneSearchException('A bid needs a rate.');
     }
-    Boolean isInsert = bid.Id == null;
-    // Drop every field the running user may not write (the trigger re-stamps the service-maintained ones).
-    SObjectAccessDecision decision = Security.stripInaccessible(
-      isInsert ? AccessType.CREATABLE : AccessType.UPDATABLE,
-      new List<Benchmark_Rate__c>{ bid }
-    );
-    Benchmark_Rate__c clean = (Benchmark_Rate__c) decision.getRecords()[0];
-    if (isInsert) {
-      Database.insert(clean, AccessLevel.USER_MODE);
-    } else {
-      Database.update(clean, AccessLevel.USER_MODE);
+    if (bid.Id == null) {
+      return RfpBidAccess.insertBids(new List<Benchmark_Rate__c>{ bid })[0];
     }
-    return reload(clean.Id);
+    return RfpBidAccess.updateBid(bid);
   }
 
-  /** save() for a list: one user-mode insert, all or none, reloaded in input order. */
+  /** save() for a list: one insert, all or none, reloaded in input order. */
   public static List<Benchmark_Rate__c> saveAll(List<Benchmark_Rate__c> bids) {
     for (Benchmark_Rate__c bid : bids) {
       if (bid.Rate__c == null) {
         throw new LaneSearchException('A bid needs a rate.');
       }
     }
-    List<Benchmark_Rate__c> clean = Security.stripInaccessible(
-        AccessType.CREATABLE,
-        bids
-      )
-      .getRecords();
-    Database.insert(clean, AccessLevel.USER_MODE);
-    List<Id> ids = new List<Id>();
-    for (Benchmark_Rate__c bid : clean) {
-      ids.add(bid.Id);
-    }
-    Map<Id, Benchmark_Rate__c> byId = new Map<Id, Benchmark_Rate__c>(
-      reloadAll(ids)
-    );
-    List<Benchmark_Rate__c> ordered = new List<Benchmark_Rate__c>();
-    for (Id bidId : ids) {
-      ordered.add(byId.get(bidId));
-    }
-    return ordered;
+    return RfpBidAccess.insertBids(bids);
   }
 
   /** Called by BenchmarkRateTrigger (before insert/update) for every bid in the trigger batch. */
@@ -194,40 +168,5 @@ public with sharing class BenchmarkRateService {
 
   private static String prefix(String p) {
     return p == null ? '' : p.replace(' ', '').left(3).toUpperCase();
-  }
-
-  private static Benchmark_Rate__c reload(Id bidId) {
-    return reloadAll(new List<Id>{ bidId })[0];
-  }
-
-  private static List<Benchmark_Rate__c> reloadAll(List<Id> bidIds) {
-    return [
-      SELECT
-        Id,
-        Name,
-        RFP_Lane__c,
-        RFP_Project__c,
-        Carrier__c,
-        Carrier_Name__c,
-        Carrier_Display__c,
-        Contact_Name__c,
-        Contact_Email__c,
-        Contact_Phone__c,
-        Rate__c,
-        CurrencyIsoCode,
-        Fuel_Surcharge__c,
-        FSC_Included__c,
-        Transit_Days__c,
-        Valid_From__c,
-        Expires_On__c,
-        Status__c,
-        Notes__c,
-        City_Lane__c,
-        State_Lane__c,
-        Zip3_Lane__c
-      FROM Benchmark_Rate__c
-      WHERE Id IN :bidIds
-      WITH USER_MODE
-    ];
   }
 }

@@ -326,4 +326,27 @@ private class RfpBidAccessTest {
       }
     }
   }
+
+  @IsTest
+  static void updateBidAcceptsARecordQueriedWithoutTheLaneField() {
+    Fx f = fx();
+    Benchmark_Rate__c saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 900) }
+    )[0];
+    // A record page or a re-save hands back a record queried without RFP_Lane__c;
+    // reading that field on it would throw SObjectException.
+    Benchmark_Rate__c queried = [
+      SELECT Id, Rate__c, City_Lane__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :saved.Id
+    ];
+    queried.Rate__c = 925;
+    Benchmark_Rate__c updated = RfpBidAccess.updateBid(queried);
+    System.assertEquals(925, updated.Rate__c);
+    System.assertEquals(
+      f.lane.Id,
+      updated.RFP_Lane__c,
+      'the lane is unchanged'
+    );
+  }
 }

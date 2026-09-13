@@ -73,14 +73,9 @@ public with sharing class RfpController {
   }
 
   private static void addBidCounts(Map<Id, ProjectSummary> byId) {
-    for (AggregateResult ar : [
-      SELECT RFP_Project__c pid, COUNT(Id) n
-      FROM Benchmark_Rate__c
-      WHERE RFP_Project__c IN :byId.keySet()
-      WITH USER_MODE
-      GROUP BY RFP_Project__c
-    ]) {
-      byId.get((Id) ar.get('pid')).bidCount = (Integer) ar.get('n');
+    Map<Id, Integer> counts = RfpBidAccess.bidCountsByProject(byId.keySet());
+    for (Id projectId : counts.keySet()) {
+      byId.get(projectId).bidCount = counts.get(projectId);
     }
   }
 
