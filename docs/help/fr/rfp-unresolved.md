@@ -1,7 +1,7 @@
 ---
 title: Extrémités non résolues
 order: 80
-hint: Une voie « Unresolved » a une extrémité que l'outil n'a pas pu associer à un lieu connu. Corrigez le lieu dans la ligne, puis rechargez son historique.
+hint: Une voie « Unresolved » a une extrémité que l'outil n'a pas pu associer à un lieu connu. Corrigez le lieu dans la ligne; son historique se charge dès que les deux extrémités sont connues.
 ---
 
 ## Ce que ça veut dire

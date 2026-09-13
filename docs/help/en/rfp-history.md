@@ -10,7 +10,7 @@ Set **History precision** (City, Province or Radius), **Lookback (days)**, **Rad
 
 ## Radius fallback
 
-With City precision, a lane whose city has no history is searched again within the radius. The History cell's tooltip shows which precision was used, for example `RADIUS-50KM`.
+With City precision, a lane whose city has no history is searched again within the radius. On a lane with a median, the History cell's tooltip shows which precision was used, for example `RADIUS-50KM`.
 
 ## Include RFP bids
 

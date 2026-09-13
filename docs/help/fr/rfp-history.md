@@ -10,7 +10,7 @@ Réglez **History precision** (City, Province ou Radius), **Lookback (days)**, *
 
 ## Repli sur le rayon
 
-Avec la précision City, une voie dont la ville n'a pas d'historique est recherchée à nouveau dans le rayon. L'infobulle de la cellule History indique la précision utilisée, par exemple `RADIUS-50KM`.
+Avec la précision City, une voie dont la ville n'a pas d'historique est recherchée à nouveau dans le rayon. Sur une voie qui a une médiane, l'infobulle de la cellule History indique la précision utilisée, par exemple `RADIUS-50KM`.
 
 ## Include RFP bids
 

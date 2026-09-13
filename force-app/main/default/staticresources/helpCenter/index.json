@@ -92,8 +92,8 @@
         "fr": "Extrémités non résolues"
       },
       "hint": {
-        "en": "An \"Unresolved\" lane has an end the tool could not match to a known place. Fix the place inline, then reload its history.",
-        "fr": "Une voie « Unresolved » a une extrémité que l'outil n'a pas pu associer à un lieu connu. Corrigez le lieu dans la ligne, puis rechargez son historique."
+        "en": "An \"Unresolved\" lane has an end the tool could not match to a known place. Fix the place inline; its history loads once both ends are known.",
+        "fr": "Une voie « Unresolved » a une extrémité que l'outil n'a pas pu associer à un lieu connu. Corrigez le lieu dans la ligne; son historique se charge dès que les deux extrémités sont connues."
       }
     },
     {

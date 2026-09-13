@@ -1,7 +1,7 @@
 ---
 title: Unresolved lane ends
 order: 80
-hint: An "Unresolved" lane has an end the tool could not match to a known place. Fix the place inline, then reload its history.
+hint: An "Unresolved" lane has an end the tool could not match to a known place. Fix the place inline; its history loads once both ends are known.
 ---
 
 ## What it means
