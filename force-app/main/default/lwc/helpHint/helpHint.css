@@ -1,13 +1,14 @@
 .hint {
-  position: relative;
   display: inline-block;
   margin-left: 0.25rem;
   vertical-align: middle;
 }
+/* Anchored to the viewport (top and one side are set inline from the
+   trigger's rectangle at open time) so neither the page edge nor a
+   scrolling ancestor can clip it. */
 .popover {
-  position: absolute;
-  top: 1.75rem;
-  left: -0.5rem;
+  position: fixed;
   width: 20rem;
+  max-width: calc(100vw - 2rem);
   z-index: 9000;
 }

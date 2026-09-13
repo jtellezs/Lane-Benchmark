@@ -1,5 +1,5 @@
 <template>
-  <span class="hint" onkeydown={handleKeydown}>
+  <span class="hint">
     <lightning-button-icon
       data-id="open"
       icon-name="utility:info"
@@ -7,12 +7,15 @@
       variant="bare"
       alternative-text={label}
       title={label}
+      aria-expanded={expanded}
+      aria-haspopup="dialog"
       onclick={handleToggle}
     ></lightning-button-icon>
     <template lwc:if={open}>
       <section
         data-id="popover"
-        class="slds-popover slds-nubbin_top-left popover"
+        class={popoverClass}
+        style={popoverStyle}
         role="dialog"
         aria-label={label}
       >
