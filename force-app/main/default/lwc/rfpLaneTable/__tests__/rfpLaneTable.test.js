@@ -133,6 +133,26 @@ describe("c-rfp-lane-table", () => {
     );
   });
 
+  it("keeps the help hint out of the row-number column header", async () => {
+    const el = await mount();
+    const rowNumber = el.shadowRoot.querySelectorAll("thead th")[1];
+    expect(rowNumber.textContent.trim()).toBe("#");
+    // A column header's content names every cell in that column, so the
+    // hint's assistive text must not live inside the th.
+    expect(rowNumber.querySelector("c-help-hint")).toBeNull();
+    expect(el.shadowRoot.querySelector("thead c-help-hint")).toBeNull();
+    const hints = [...el.shadowRoot.querySelectorAll("c-help-hint")].filter(
+      (h) => h.topic === "rfp-inline"
+    );
+    expect(hints.length).toBe(1);
+    // It sits above the table rather than anywhere inside it.
+    const table = el.shadowRoot.querySelector("table");
+    expect(table.contains(hints[0])).toBe(false);
+    expect(
+      hints[0].compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
   it("splits the history count into loads and bids once bids were counted", async () => {
     const el = await mount({
       lanes: [

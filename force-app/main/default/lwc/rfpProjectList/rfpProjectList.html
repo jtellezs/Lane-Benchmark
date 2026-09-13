@@ -1,13 +1,15 @@
 <template>
   <div class="slds-grid slds-wrap slds-gutters">
     <div class="slds-col slds-size_1-of-1 slds-large-size_8-of-12">
-      <h2 class="slds-text-heading_small slds-m-bottom_x-small">
-        RFP projects
+      <div
+        class="slds-grid slds-grid_vertical-align-center slds-m-bottom_x-small"
+      >
+        <h2 class="slds-text-heading_small">RFP projects</h2>
         <c-help-hint
           topic="rfp-projects"
           label="Help: RFP projects"
         ></c-help-hint>
-      </h2>
+      </div>
       <template lwc:if={error}>
         <p data-id="error" class="slds-text-color_error slds-m-bottom_x-small">
           {error}

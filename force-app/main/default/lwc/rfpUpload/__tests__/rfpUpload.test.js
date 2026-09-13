@@ -194,6 +194,21 @@ describe("c-rfp-upload", () => {
     expect(input.value).toBe("");
   });
 
+  it("keeps the help hint out of the file input's label", () => {
+    // Regression for 9a5a59e: inside <label for="file"> the hint's assistive
+    // text became part of the file input's accessible name. LWC rewrites the
+    // id/for pair to a scoped value, so the label is matched through the
+    // input's rendered id rather than the literal "file".
+    const el = mount("a0P1");
+    const input = el.shadowRoot.querySelector('input[type="file"]');
+    const label = el.shadowRoot.querySelector("label");
+    expect(label.getAttribute("for")).toBe(input.id);
+    expect(label.querySelector("c-help-hint")).toBeNull();
+    const hint = el.shadowRoot.querySelector("c-help-hint");
+    expect(hint).not.toBeNull();
+    expect(hint.topic).toBe("rfp-upload");
+  });
+
   it("retries loading sheetjs after a failed load attempt", async () => {
     delete window.XLSX;
     loadScript.mockRejectedValueOnce(new Error("network down"));

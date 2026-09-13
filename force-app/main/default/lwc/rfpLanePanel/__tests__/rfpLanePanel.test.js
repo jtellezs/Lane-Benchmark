@@ -149,6 +149,19 @@ describe("c-rfp-lane-panel", () => {
     expect(scroller.querySelector("c-lane-benchmark-results")).not.toBeNull();
   });
 
+  it("keeps the help hint out of the lane heading's name", async () => {
+    const el = await mount();
+    const heading = el.shadowRoot.querySelector("h2");
+    expect(heading.textContent.trim()).toBe("Montreal, QC → Toronto, ON");
+    // The hint's button carries assistive text, so a hint inside the h2 is
+    // read out as part of the heading's name.
+    expect(heading.querySelector("c-help-hint")).toBeNull();
+    const hints = [...el.shadowRoot.querySelectorAll("c-help-hint")].filter(
+      (h) => h.topic === "rfp-pricing"
+    );
+    expect(hints.length).toBe(1);
+  });
+
   it("asks for a 50 km radius on both ends when the lane fell back to RADIUS-50KM", async () => {
     await mount({
       lane: {
