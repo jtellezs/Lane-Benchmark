@@ -264,4 +264,13 @@ their list.
 `isSet`); Task 3 three fix rounds (`without sharing`; attach/detach/apply;
 apply-only-successful), reviewed by opus, re-review clean.
 
-Browser check: pending (controller)
+**Browser check** (PostProduc, 2026-09-13, the admin user, fresh tab after the
+final deploy): the RFP Tool list shows all four projects (View All Data); the
+"Phase 3c browser check" workbench opens with its 68 lanes and lane 1 still reads
+"5 loads + 1 bid · median 5500.00"; the lane panel lists the existing bid and a
+new free-text bid ("Phase 6 check carrier", 5100 CAD) saved through the lane
+rule and appears at once; the Help tab's FAQ shows "Who can see an RFP?" in
+English and "Qui peut voir un RFP?" in French; the ALIMENTS MULTIBAR INC.
+account page lists both RFP projects with lane and bid counts through
+`bidCountsByProject`. Not shown here: the restriction itself (one RFP user in
+the sandbox); `RfpSecurityTest` is the proof.
