@@ -2,12 +2,13 @@
 <CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
     <fullName>Customer__c</fullName>
     <label>Customer</label>
-    <type>Lookup</type>
+    <type>MasterDetail</type>
     <referenceTo>Account</referenceTo>
     <relationshipName>RFP_Projects</relationshipName>
     <relationshipLabel>RFP Projects</relationshipLabel>
-    <deleteConstraint>SetNull</deleteConstraint>
-    <required>false</required>
+    <relationshipOrder>0</relationshipOrder>
+    <reparentableMasterDetail>false</reparentableMasterDetail>
+    <writeRequiresMasterRead>true</writeRequiresMasterRead>
     <lookupFilter>
         <active>true</active>
         <errorMessage>Choose a customer account.</errorMessage>

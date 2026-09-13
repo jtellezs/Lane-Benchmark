@@ -2,6 +2,11 @@
 private class RfpSecurityTest {
   /** Creates a user holding only the named permission set. Returns null when the org has no usable profile. */
   private static User restrictedUser(String permSetName) {
+    return restrictedUser(new List<String>{ permSetName });
+  }
+
+  /** Creates a user holding only the named permission sets. Returns null when the org has no usable profile. */
+  private static User restrictedUser(List<String> permSetNames) {
     List<Profile> profiles = [
       SELECT Id
       FROM Profile
@@ -14,7 +19,11 @@ private class RfpSecurityTest {
     }
     User u = new User(
       ProfileId = profiles[0].Id,
-      Username = 'rfp.' + System.currentTimeMillis() + '@example.invalid',
+      Username = 'rfp.' +
+        System.currentTimeMillis() +
+        '.' +
+        permSetNames.size() +
+        '@example.invalid',
       Email = 'rfp@example.invalid',
       LastName = 'Rfp',
       Alias = 'rfp',
@@ -23,15 +32,40 @@ private class RfpSecurityTest {
       EmailEncodingKey = 'UTF-8',
       LanguageLocaleKey = 'en_US'
     );
-    PermissionSet ps = [SELECT Id FROM PermissionSet WHERE Name = :permSetName];
+    List<PermissionSet> sets = [
+      SELECT Id
+      FROM PermissionSet
+      WHERE Name IN :permSetNames
+    ];
     System.runAs(new User(Id = UserInfo.getUserId())) {
       insert u;
-      insert new PermissionSetAssignment(
-        AssigneeId = u.Id,
-        PermissionSetId = ps.Id
-      );
+      List<PermissionSetAssignment> psa = new List<PermissionSetAssignment>();
+      for (PermissionSet ps : sets) {
+        psa.add(
+          new PermissionSetAssignment(
+            AssigneeId = u.Id,
+            PermissionSetId = ps.Id
+          )
+        );
+      }
+      insert psa;
     }
     return u;
+  }
+
+  /**
+   * Account is Private in this org and an RFP follows its account (phase 6): a manual share
+   * on the customer is what lets a restricted user see, and with Read alone also work, the RFP.
+   */
+  private static void shareAccount(Account customer, User u, String level) {
+    insert new AccountShare(
+      AccountId = customer.Id,
+      UserOrGroupId = u.Id,
+      AccountAccessLevel = level,
+      OpportunityAccessLevel = 'None',
+      CaseAccessLevel = 'None',
+      RowCause = 'Manual'
+    );
   }
 
   private class Fx {
@@ -129,7 +163,7 @@ private class RfpSecurityTest {
   }
 
   @IsTest
-  static void rfpToolUserOnlyCanSaveABidAndLaneBenchmarkUserSeesIt() {
+  static void readOnTheAccountIsEnoughToRecordABidAndLaneBenchmarkSeesIt() {
     Fx f = fx();
     User pricing = restrictedUser('RFP_Tool_User');
     User viewer = restrictedUser('Lane_Benchmark_User');
@@ -140,6 +174,7 @@ private class RfpSecurityTest {
       );
       return;
     }
+    shareAccount(f.g.customer, pricing, 'Read');
     Test.startTest();
     Benchmark_Rate__c saved;
     Benchmark_Rate__c resaved;
@@ -192,13 +227,11 @@ private class RfpSecurityTest {
       );
       return;
     }
-    // Account is Private in this org, so the restricted user cannot reference the admin-owned
-    // customer from RFP_Project__c.Customer__c: the admin creates the project and hands it over
-    // instead. Lanes are Controlled by Parent, so the restricted user now owns the lane too.
+    // An RFP follows its account (phase 6): Read on the customer is what lets the restricted
+    // user work the admin's project - delete its lanes and, through RfpBidAccess, its bids.
     RFP_Project__c own = RfpTestDataFactory.createProject(f.g.customer);
     RFP_Lane__c lane = RfpTestDataFactory.createLane(own, f.mtl, f.tor);
-    own.OwnerId = pricing.Id;
-    update own;
+    shareAccount(f.g.customer, pricing, 'Read');
     Id laneId = lane.Id;
     Test.startTest();
     RfpBulkService.Result r;
@@ -226,6 +259,147 @@ private class RfpSecurityTest {
     System.assertEquals(
       0,
       [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :laneId]
+    );
+  }
+
+  /** Spec §5: without access to the account the RFP is absent everywhere, yet its bid still counts in Lane Benchmark. */
+  @IsTest
+  static void withoutAccountAccessTheRfpIsAbsentButLaneBenchmarkStillCountsItsBid() {
+    Fx f = fx();
+    User stranger = restrictedUser(
+      new List<String>{ 'RFP_Tool_User', 'Lane_Benchmark_User' }
+    );
+    if (stranger == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    Benchmark_Rate__c adminBid = BenchmarkRateService.save(
+      RfpTestDataFactory.buildBid(f.lane, 900)
+    );
+    Id laneId = f.lane.Id;
+    Id accountId = f.g.customer.Id;
+    Test.startTest();
+    System.runAs(stranger) {
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM RFP_Project__c WITH USER_MODE],
+        'no project on an account the user cannot read'
+      );
+      System.assertEquals(
+        0,
+        [SELECT COUNT() FROM RFP_Lane__c WHERE Id = :laneId WITH USER_MODE]
+      );
+      System.assertEquals(
+        0,
+        RfpController.projectsForAccount(accountId).size()
+      );
+      try {
+        RfpBidController.getBids(laneId);
+        System.assert(false, 'expected AuraHandledException');
+      } catch (AuraHandledException e) {
+        System.assertEquals(RfpBidAccess.LANE_UNAVAILABLE, e.getMessage());
+      }
+      try {
+        RfpBidController.saveBid(
+          JSON.serialize(RfpTestDataFactory.buildBid(f.lane, 800))
+        );
+        System.assert(false, 'expected AuraHandledException');
+      } catch (AuraHandledException e) {
+        System.assertEquals(RfpBidAccess.LANE_UNAVAILABLE, e.getMessage());
+      }
+      LaneSearchResult found = LaneSearchService.search(
+        req('montreal|qc|ca', 'toronto|on|ca', LaneSearchRequest.Precision.CITY)
+      );
+      System.assertEquals(
+        1,
+        found.rows.size(),
+        'Lane Benchmark still sees the bid'
+      );
+    }
+    Test.stopTest();
+    System.assertEquals(
+      1,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE Id = :adminBid.Id],
+      'nothing was written by the refused calls'
+    );
+  }
+
+  /** Spec §5: Read on the account lets a user create a project and lanes, record a bid, and read a colleague's bid. */
+  @IsTest
+  static void readOnTheAccountLetsAUserCreateAProjectItsLanesAndBids() {
+    Fx f = fx();
+    User reader = restrictedUser('RFP_Tool_User');
+    if (reader == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    shareAccount(f.g.customer, reader, 'Read');
+    Benchmark_Rate__c adminBid = BenchmarkRateService.save(
+      RfpTestDataFactory.buildBid(f.lane, 900)
+    );
+    f.lane.Selected_Bid__c = adminBid.Id;
+    f.lane.Cost_Source__c = 'Bid';
+    f.lane.Cost__c = 900;
+    update f.lane;
+    Id accountId = f.g.customer.Id;
+    Test.startTest();
+    Id newLaneId;
+    System.runAs(reader) {
+      RFP_Project__c created = RfpProjectController.saveProject(
+        JSON.serialize(
+          new RFP_Project__c(
+            Name = 'Reader RFP',
+            Customer__c = accountId,
+            Status__c = 'Draft',
+            Default_Margin__c = 15,
+            CurrencyIsoCode = 'CAD'
+          )
+        )
+      );
+      System.assertNotEquals(
+        null,
+        created.Id,
+        'Read on the account creates a detail'
+      );
+      RFP_Lane__c lane = RfpTestDataFactory.createLane(created, f.laval, f.tor);
+      newLaneId = lane.Id;
+      Benchmark_Rate__c mine = BenchmarkRateService.save(
+        RfpTestDataFactory.buildBid(lane, 700)
+      );
+      System.assertEquals(700, mine.Rate__c);
+      List<Benchmark_Rate__c> colleagues = RfpBidController.getBids(f.lane.Id);
+      System.assertEquals(
+        1,
+        colleagues.size(),
+        'the admin\'s bid on a readable lane'
+      );
+      System.assertEquals(adminBid.Id, colleagues[0].Id);
+      System.assert(
+        RfpController.projectsForAccount(accountId).size() >= 2,
+        'both projects on the shared account are listed'
+      );
+      // Selected_Bid__r is read through the lane in user mode (RfpLaneController.LANE_FIELDS).
+      // A bid recorded by someone else must still show its carrier there; if this assertion
+      // fails, the controller rules on the fix (fill Selected_Bid__r from RfpBidAccess.bidsByIds
+      // in lanesByIds) - do not delete the assertion.
+      RFP_Lane__c seen = RfpLaneController.lanesByIds(
+        new List<Id>{ f.lane.Id }
+      )[0];
+      System.assert(
+        String.isNotBlank(seen.Selected_Bid__r?.Carrier_Display__c),
+        'the selected bid of a readable lane shows its carrier'
+      );
+    }
+    Test.stopTest();
+    System.assertEquals(
+      1,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :newLaneId]
     );
   }
 
