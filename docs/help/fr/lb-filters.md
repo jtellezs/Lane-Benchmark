@@ -11,11 +11,11 @@ Le nombre de jours à remonter, compté depuis la création de la cotation ou de
 ## Filtres
 
 - **Devise** : toutes, ou une seule. Les statistiques sont toujours par devise.
-- **Modes** et **catégories / types d'équipement** : déplacez ceux voulus dans la liste Selected; rien de sélectionné veut dire aucun filtre.
+- **Modes** et **types d'équipement** : déplacez ceux voulus dans la liste Selected. **Catégories d'équipement** : cochez-en une ou plusieurs; la liste des types ne montre alors que ces catégories. Rien de sélectionné veut dire aucun filtre.
 - **Hazmat only**, **Market test only** : ne garder que les cotations portant ce drapeau.
 - **Source** : **All** (chargements et soumissions), **Loads only**, ou **Bids only**. Sous All, les soumissions expirées sont exclues; sous Bids only elles sont listées avec leur expiration.
 - **Quote status** : toutes, acceptées ou refusées.
 
 ## Apply, Reset et filtres enregistrés
 
-**Apply** lance la recherche. **Reset** efface la voie et les filtres. Votre dernière voie et vos filtres sont mémorisés sur cet ordinateur; **Clear saved filters** les oublie.
+**Apply** lance la recherche. **Reset** remet les filtres à leurs valeurs par défaut et garde la voie. Votre dernière voie et vos filtres sont mémorisés sur cet ordinateur; **Clear saved filters** oublie la voie et les filtres mémorisés et vide la page.

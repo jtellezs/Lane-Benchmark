@@ -6,7 +6,7 @@ hint: Chaque ligne est une cotation. Dépliez-la pour le détail du chargement e
 
 ## Les lignes
 
-Chaque ligne est une cotation de transporteur : origine, destination, transporteur, équipement, mode, devise, total, date, statut et drapeaux. Cliquez sur la flèche à gauche pour déplier le détail du chargement et du contact, et sur le nom du transporteur pour ouvrir sa fiche.
+Chaque ligne est une cotation de transporteur : origine, destination, transporteur, équipement, mode, devise, total, date, statut et drapeaux. Cliquez sur la flèche à gauche pour déplier le détail du chargement et du contact, et sur le nom du transporteur pour ouvrir une fenêtre avec son contact, son risque et son nombre de chargements.
 
 ## Soumissions
 

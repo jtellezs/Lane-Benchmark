@@ -6,7 +6,7 @@ hint: Add carrier rate enregistre la cotation d'un transporteur pour une voie sa
 
 ## Quand enregistrer une soumission
 
-Un transporteur a répondu à votre appel d'offres avec un tarif. Enregistrez-le pour qu'il compte comme historique pour cette voie, pour les autres RFP et dans Lane Benchmark.
+Un transporteur a répondu à votre appel d'offres avec un tarif. Enregistrez-le pour pouvoir le choisir comme coût de cette voie, et pour qu'il compte comme historique pour les autres RFP et dans Lane Benchmark.
 
 ## Le formulaire
 
@@ -15,7 +15,7 @@ Un transporteur a répondu à votre appel d'offres avec un tarif. Enregistrez-le
 - **Valid from** et **Expires on** : par défaut aujourd'hui et aujourd'hui + 30 jours.
 - **Notes** : ce que le transporteur a dit d'important.
 
-**Save bid** l'enregistre et, depuis le panneau de la voie, la sélectionne comme source du coût.
+**Save bid** l'enregistre; la soumission apparaît dans la liste du panneau de la voie et dans le choix **Bid**, et c'est vous qui la choisissez comme source du coût. Depuis la barre d'actions en lot, **Add carrier rate** sélectionne aussi la nouvelle soumission comme coût de chaque voie visée.
 
 ## Où les soumissions apparaissent
 

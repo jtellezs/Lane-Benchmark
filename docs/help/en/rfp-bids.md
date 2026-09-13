@@ -6,7 +6,7 @@ hint: Add carrier rate stores a carrier's quote for a lane without creating a lo
 
 ## When to record a bid
 
-A carrier answered your RFP with a rate. Record it so it counts as history for this lane, for other RFPs, and in Lane Benchmark.
+A carrier answered your RFP with a rate. Record it so you can pick it as this lane's cost, and so it counts as history for other RFPs and in Lane Benchmark.
 
 ## The form
 
@@ -15,7 +15,7 @@ A carrier answered your RFP with a rate. Record it so it counts as history for t
 - **Valid from** and **Expires on**: default today and today + 30 days.
 - **Notes**: anything the carrier said that matters.
 
-**Save bid** stores it and, from the lane panel, selects it as the lane's cost source.
+**Save bid** stores it; the bid appears in the lane panel's list and in the **Bid** choice, and you pick it as the cost source yourself. From the bulk bar, **Add carrier rate** also selects the new bid as the cost of every lane it applies to.
 
 ## Where bids show up
 

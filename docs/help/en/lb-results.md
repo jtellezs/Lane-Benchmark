@@ -6,7 +6,7 @@ hint: Each row is one quote. Expand it for the load and contact detail; bids car
 
 ## The rows
 
-Each row is one carrier quote: origin, destination, carrier, equipment, mode, currency, total, quote date, status and flags. Click the arrow at the left to expand the load and contact details, and the carrier name to open the carrier record.
+Each row is one carrier quote: origin, destination, carrier, equipment, mode, currency, total, quote date, status and flags. Click the arrow at the left to expand the load and contact details, and the carrier name to open a card with its contact, risk and load count.
 
 ## Bids
 

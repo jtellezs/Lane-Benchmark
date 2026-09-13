@@ -6,7 +6,7 @@ hint: No match, Failed, old history, wrong currency, missing tab: the usual caus
 
 ## "No match" on a lane
 
-The ends resolved but no quote or bid matched within the lookback and precision. Widen the radius, extend the lookback, or check the mode and equipment filters.
+The ends resolved but no quote or bid matched within the lookback and precision. Switch **History precision** to Radius or raise the radius, extend the lookback, or turn **Include RFP bids** on, then **Refresh history**. Mode and equipment filters exist only in Lane Benchmark.
 
 ## "Failed" on a lane
 
@@ -14,7 +14,7 @@ The search itself failed (usually a timeout on a very wide radius). Click **Retr
 
 ## The history looks old
 
-History is a snapshot taken when you clicked Load or Refresh. The tooltip shows when. Click **Refresh history** to take a new one.
+History is a snapshot taken when you clicked Load or Refresh. **Refresh history** takes a new snapshot.
 
 ## The median is in the wrong currency
 

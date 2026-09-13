@@ -16,11 +16,11 @@ Cliquez sur une voie pour ouvrir son panneau à droite. Il reste visible pendant
 
 ## Marge ou prix de vente
 
-Saisissez un **Margin %** et le prix de vente suit (« Sell follows the margin »), ou saisissez un **Sell** et la marge suit (« Margin follows the sell »). Un prix de vente saisi est conservé quand le coût change plus tard; le tableau lui met l'étiquette **manual**. Videz le prix de vente pour revenir au mode marge.
+Saisissez un **Margin %** et le prix de vente suit (« Sell follows the margin »), ou saisissez un **Sell** et la marge suit (« Margin follows the sell »). Un prix de vente saisi est conservé quand le coût change plus tard; le tableau lui met l'étiquette **manual**. Saisissez un **Margin %** pour revenir au mode marge; le prix de vente est alors recalculé à partir de la marge.
 
 ## Enregistrer
 
-**Save price** écrit le coût, la marge et le prix de vente sur la voie et la marque **Priced**. **Add carrier rate** enregistre une nouvelle soumission pour cette voie et la sélectionne comme coût.
+**Save price** écrit le coût, la marge et le prix de vente sur la voie et la marque **Priced**. **Add carrier rate** enregistre une nouvelle soumission pour cette voie; elle apparaît ensuite dans la liste des soumissions du panneau et dans le choix **Bid**. Pour l'utiliser, passez **Cost source** à **Bid** (ou cliquez sur le lien « Use as cost » quand il s'affiche sous les champs) et cliquez sur **Save price**.
 
 ## Résultats
 

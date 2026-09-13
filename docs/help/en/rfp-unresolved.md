@@ -10,7 +10,7 @@ A lane shows **Unresolved** when its origin or destination city (or postal prefi
 
 ## Fixing it
 
-In the lane row, the unresolved end shows an **Origin** or **Destination** field with a **Precision** picker. Type the place, pick it from the list (or search the map), and save. Then click **Retry failed** in the toolbar to load history for the lanes you fixed.
+In the lane row, the unresolved end shows an **Origin** or **Destination** field with a **Precision** picker. Type the place and pick it from the list (or search the map). The end is saved at once and, when both ends are resolved, the lane's history is loaded automatically. Use **Retry failed** only for lanes that show **Failed**.
 
 ## Prevention
 
