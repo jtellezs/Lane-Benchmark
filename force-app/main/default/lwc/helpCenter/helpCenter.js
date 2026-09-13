@@ -204,7 +204,11 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
   }
   /** A section click adds a history entry, so Back returns to the last one. */
   handlePick(event) {
-    this.go(event.currentTarget.dataset.slug, this.lang, false);
+    const slug = event.currentTarget.dataset.slug;
+    // A click on the section already shown adds no history entry.
+    if (slug !== this.slug) {
+      this.go(slug, this.lang, false);
+    }
   }
   handleFilter(event) {
     this.filter = event.detail.value || "";

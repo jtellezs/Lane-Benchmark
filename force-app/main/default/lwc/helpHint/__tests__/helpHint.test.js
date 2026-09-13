@@ -229,6 +229,42 @@ describe("c-help-hint", () => {
     escape(document.body);
     await flush();
     expect(field(el, "popover")).toBeNull();
+    // Focus was outside the hint, so Escape leaves it there.
+    expect(document.activeElement).toBe(input);
+    expect(el.shadowRoot.activeElement).toBeNull();
+  });
+
+  it("uses the layout viewport width, not window.innerWidth, to place the popover", async () => {
+    const clientWidth = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      "clientWidth"
+    );
+    Object.defineProperty(document.documentElement, "clientWidth", {
+      configurable: true,
+      value: 1183
+    });
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1200
+    });
+    const el = await mount();
+    const button = field(el, "open");
+    button.getBoundingClientRect = () => ({
+      left: 1150,
+      right: 1170,
+      bottom: 40
+    });
+    button.click();
+    await flush();
+    await flush();
+    const popover = field(el, "popover");
+    expect(popover.className).toContain("slds-nubbin_top-right");
+    // 1183 - 1170 - 8 = 5, measured from the layout viewport's right edge.
+    expect(popover.getAttribute("style")).toContain("right: 5px");
+    delete document.documentElement.clientWidth;
+    if (clientWidth) {
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", clientWidth);
+    }
   });
 
   it("focuses the close button on open and returns focus to the ? when dismissed from inside", async () => {

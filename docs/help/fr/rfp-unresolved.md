@@ -10,7 +10,7 @@ Une voie affiche **Unresolved** quand sa ville d'origine ou de destination (ou s
 
 ## Corriger
 
-Dans la ligne de la voie, l'extrémité non résolue montre un champ **Origin** ou **Destination** avec un sélecteur **Precision**. Tapez le lieu et choisissez-le dans la liste (ou cherchez sur la carte). L'extrémité est enregistrée aussitôt et, quand les deux extrémités sont résolues, l'historique de la voie se charge tout seul. N'utilisez **Retry failed** que pour les voies qui affichent **Failed**.
+Dans la ligne de la voie, l'extrémité non résolue montre un champ **Origin** ou **Destination** avec un sélecteur **Precision**. Tapez le lieu et choisissez-le dans la liste (ou cherchez sur la carte). L'extrémité est enregistrée aussitôt et, quand les deux extrémités sont résolues, l'historique de la voie se charge tout seul (sauf si un traitement est en cours; le prochain **Load history** s'en occupe). N'utilisez **Retry failed** que pour les voies qui affichent **Failed**.
 
 ## Prévention
 

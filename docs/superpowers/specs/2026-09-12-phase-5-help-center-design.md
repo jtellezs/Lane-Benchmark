@@ -239,7 +239,8 @@ Commits, oldest first:
 10. `9a5a59e` Keep the upload help hint out of the file input's label — review
     fix: inside `<label for="file">` the hint joined the input's accessible
     name and a click could reach the file picker.
-11. Task 8 (this commit): `help:check` in the CI `lwc` job, README section
+11. `a3f2dd4` Document the help center (phase 5), check the guide in CI and
+    record the outcome: `help:check` in the CI `lwc` job, README section
     "Help center (phase 5)", roadmap row 5, this section.
 
 **PostProduc deploys**, all Succeeded: `0AfbZ00000Cpd0PSAR` (the static resource
@@ -266,7 +267,8 @@ SLDS vertical-navigation markup with buttons rather than
 `lightning-vertical-navigation`, so the filter, the selected state and the
 `data-id`s stay testable. R57: no hint for the `rfp-filters-export` topic; the
 filter bar it describes is rendered by `rfpTool.html`, which this phase may not
-touch, and `rfpLaneTable`'s header already carries `rfp-inline`. The section is
+touch, and `rfpLaneTable` already carries `rfp-inline` (above the table since
+`b5a2480`). The section is
 one click away on the Help tab.
 
 **Known limits.** Hint `label`s ("Help: pricing a lane") are English in both

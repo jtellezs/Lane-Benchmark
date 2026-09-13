@@ -20,7 +20,7 @@ Saisissez un **Margin %** et le prix de vente suit (« Sell follows the margin �
 
 ## Enregistrer
 
-**Save price** écrit le coût, la marge et le prix de vente sur la voie et la marque **Priced**. **Add carrier rate** enregistre une nouvelle soumission pour cette voie; elle apparaît ensuite dans la liste des soumissions du panneau et dans le choix **Bid**. Pour l'utiliser, passez **Cost source** à **Bid** (ou cliquez sur le lien « Use as cost » quand il s'affiche sous les champs) et cliquez sur **Save price**.
+**Save price** écrit le coût, la marge et le prix de vente sur la voie et la marque **Priced**. **Add carrier rate** enregistre une nouvelle soumission pour cette voie; elle apparaît ensuite dans la liste des soumissions du panneau et dans le choix **Bid**. Pour l'utiliser, passez **Cost source** à **Bid**, choisissez-la dans la liste **Bid**, puis cliquez sur **Save price**.
 
 ## Résultats
 

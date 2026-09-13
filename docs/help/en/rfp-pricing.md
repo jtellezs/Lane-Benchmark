@@ -20,7 +20,7 @@ Type a **Margin %** and the sell follows ("Sell follows the margin"), or type a 
 
 ## Save
 
-**Save price** writes the cost, margin and sell to the lane and marks it **Priced**. **Add carrier rate** records a new bid for this lane; it then appears in the panel's bid list and in the **Bid** choice. To use it, switch **Cost source** to **Bid** (or click the "Use as cost" link when it appears under the fields) and click **Save price**.
+**Save price** writes the cost, margin and sell to the lane and marks it **Priced**. **Add carrier rate** records a new bid for this lane; it then appears in the panel's bid list and in the **Bid** choice. To use it, switch **Cost source** to **Bid**, pick it in the **Bid** list, then click **Save price**.
 
 ## Results
 

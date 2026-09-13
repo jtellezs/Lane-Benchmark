@@ -98,7 +98,10 @@ export default class HelpHint extends NavigationMixin(LightningElement) {
   async handleToggle(event) {
     event.stopPropagation();
     if (this.open) {
-      this.close();
+      // A second click on the "?" also puts focus back on it: browsers that
+      // do not focus a clicked button would otherwise drop focus to body
+      // when the focused close button leaves the DOM.
+      this.close({ restoreFocus: true });
       return;
     }
     this.lang = readLang() || defaultLang(LANG);
@@ -130,19 +133,25 @@ export default class HelpHint extends NavigationMixin(LightningElement) {
   }
 
   // Anchor the popover to the trigger's viewport rectangle: below it, and
-  // opening towards the side of the screen with more room.
+  // opening towards the side of the screen with more room. The layout
+  // viewport width (clientWidth) is the one a fixed element's "right" is
+  // measured from; window.innerWidth also counts a classic scrollbar, which
+  // would push a right-anchored popover one scrollbar width off the trigger.
+  // jsdom reports a clientWidth of 0, hence the fallback.
   place() {
     const button = this.trigger;
     const rect = button
       ? button.getBoundingClientRect()
       : { left: 0, right: 0, bottom: 0 };
+    const viewportWidth =
+      document.documentElement.clientWidth || window.innerWidth;
     this.top = Math.round(rect.bottom + GAP);
-    if (rect.left <= window.innerWidth / 2) {
+    if (rect.left <= viewportWidth / 2) {
       this.side = "left";
       this.offset = Math.round(rect.left - OVERHANG);
     } else {
       this.side = "right";
-      this.offset = Math.round(window.innerWidth - rect.right - OVERHANG);
+      this.offset = Math.round(viewportWidth - rect.right - OVERHANG);
     }
   }
 
@@ -158,9 +167,12 @@ export default class HelpHint extends NavigationMixin(LightningElement) {
           this.close();
         }
       };
+      // Escape gives focus back to the "?" only when focus was inside the
+      // popover; a user who Tabbed on and presses Escape for another control
+      // keeps their place, as with an outside click.
       this.onKey = (event) => {
         if (event.key === "Escape" && this.open) {
-          this.close({ restoreFocus: true });
+          this.close({ restoreFocus: this.template.activeElement !== null });
         }
       };
       this.onScroll = () => {

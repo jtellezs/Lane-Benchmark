@@ -6,7 +6,7 @@ hint: No match, Failed, old history, wrong currency, missing tab: the usual caus
 
 ## "No match" on a lane
 
-The ends resolved but no quote or bid matched within the lookback and precision. Switch **History precision** to Radius or raise the radius, extend the lookback, or turn **Include RFP bids** on, then **Refresh history**. Mode and equipment filters exist only in Lane Benchmark.
+The ends resolved but no quote or bid matched within the lookback and precision. Raise the radius (City precision already falls back to it), extend the lookback, or turn **Include RFP bids** on, then **Refresh history**. Mode and equipment filters exist only in Lane Benchmark.
 
 ## "Failed" on a lane
 

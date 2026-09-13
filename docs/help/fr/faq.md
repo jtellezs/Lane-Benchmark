@@ -6,7 +6,7 @@ hint: No match, Failed, historique ancien, mauvaise devise, onglet absent : les 
 
 ## « No match » sur une voie
 
-Les extrémités sont résolues mais aucune cotation ni soumission ne correspond dans la période et la précision. Passez **History precision** à Radius ou augmentez le rayon, allongez la période, ou activez **Include RFP bids**, puis cliquez sur **Refresh history**. Les filtres de mode et d'équipement n'existent que dans Lane Benchmark.
+Les extrémités sont résolues mais aucune cotation ni soumission ne correspond dans la période et la précision. Augmentez le rayon (la précision City s'y rabat déjà), allongez la période, ou activez **Include RFP bids**, puis cliquez sur **Refresh history**. Les filtres de mode et d'équipement n'existent que dans Lane Benchmark.
 
 ## « Failed » sur une voie
 
