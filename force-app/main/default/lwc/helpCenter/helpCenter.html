@@ -1,19 +1,32 @@
 <template>
   <lightning-card title={cardTitle} icon-name="utility:help">
-    <lightning-button-group slot="actions">
-      <lightning-button
+    <div
+      slot="actions"
+      class="slds-button-group"
+      role="group"
+      aria-label="Language"
+    >
+      <button
+        type="button"
         data-id="lang-en"
-        label="EN"
-        variant={enVariant}
+        class={enClass}
+        aria-pressed={enPressed}
+        title="English"
         onclick={handleEn}
-      ></lightning-button>
-      <lightning-button
+      >
+        EN
+      </button>
+      <button
+        type="button"
         data-id="lang-fr"
-        label="FR"
-        variant={frVariant}
+        class={frClass}
+        aria-pressed={frPressed}
+        title="Français"
         onclick={handleFr}
-      ></lightning-button>
-    </lightning-button-group>
+      >
+        FR
+      </button>
+    </div>
     <div class="slds-p-horizontal_medium">
       <template lwc:if={error}>
         <p data-id="error" class="slds-text-color_error">{error}</p>

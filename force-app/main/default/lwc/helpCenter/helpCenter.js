@@ -12,6 +12,8 @@ import {
 } from "c/helpContent";
 
 const DEFAULT_SLUG = "overview";
+const BUTTON_ON = "slds-button slds-button_brand";
+const BUTTON_OFF = "slds-button slds-button_neutral";
 const COPY = {
   en: {
     card: "Help",
@@ -28,11 +30,21 @@ const COPY = {
   }
 };
 
+/** Lower-cased with the accents stripped, so "periode" finds "période". */
+function fold(s) {
+  return String(s || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 /**
  * The Help tab: a section list, an EN | FR toggle, a title filter and the
  * chosen section rendered from the helpCenter static resource. The URL
  * (c__section, c__lang) is the source of truth for what is shown, so hints
- * can deep-link and the browser back button works.
+ * can deep-link and the browser back button walks back through the sections
+ * visited: a section click adds a history entry, a language switch rewrites
+ * the current one.
  */
 export default class HelpCenter extends NavigationMixin(LightningElement) {
   lang = "en";
@@ -72,11 +84,17 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
   get noMatches() {
     return this.indexReady && this.visibleSections.length === 0;
   }
-  get enVariant() {
-    return this.lang === "en" ? "brand" : "neutral";
+  get enClass() {
+    return this.lang === "en" ? BUTTON_ON : BUTTON_OFF;
   }
-  get frVariant() {
-    return this.lang === "fr" ? "brand" : "neutral";
+  get frClass() {
+    return this.lang === "fr" ? BUTTON_ON : BUTTON_OFF;
+  }
+  get enPressed() {
+    return this.lang === "en" ? "true" : "false";
+  }
+  get frPressed() {
+    return this.lang === "fr" ? "true" : "false";
   }
   get section() {
     return findSection({ sections: this.sections }, this.slug);
@@ -86,12 +104,11 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
     return s ? s.title[this.lang] || s.title.en : "";
   }
   get visibleSections() {
-    const needle = this.filter.trim().toLowerCase();
+    const needle = fold(this.filter.trim());
     return this.sections
       .filter(
         (s) =>
-          !needle ||
-          (s.title[this.lang] || s.title.en).toLowerCase().includes(needle)
+          !needle || fold(s.title[this.lang] || s.title.en).includes(needle)
       )
       .map((s) => ({
         slug: s.slug,
@@ -124,6 +141,15 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
 
   async show(slug, lang) {
     const token = ++this.requestSeq;
+    // A new section or language must never show its title over the previous
+    // section's body, so the body goes before anything is awaited.
+    if (slug !== this.slug || lang !== this.lang) {
+      this.html = "";
+    }
+    // The asked-for slug is on record at once, so a language switch during
+    // the index load carries it rather than the default; it is re-resolved
+    // against the index once that is in.
+    this.slug = slug;
     this.lang = lang;
     this.loading = true;
     this.error = null;
@@ -151,17 +177,24 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
     this.loading = false;
   }
 
-  go(slug, lang) {
+  /**
+   * Put a section in a language in the URL and render it. `replace` rewrites
+   * the current history entry instead of adding one.
+   */
+  go(slug, lang, replace) {
     writeLang(lang);
-    this[NavigationMixin.Navigate](sectionUrl(slug, lang), true);
+    this[NavigationMixin.Navigate](sectionUrl(slug, lang), replace);
     // The wire re-emits with the new state in the org; in tests it does not,
     // so render the choice directly as well.
     this.show(slug, lang);
   }
-  /** A filter typed against one language's titles cannot survive the switch. */
+  /**
+   * A filter typed against one language's titles cannot survive the switch,
+   * and a language switch rewrites the history entry rather than adding one.
+   */
   pickLang(lang) {
     this.filter = "";
-    this.go(this.slug, lang);
+    this.go(this.slug, lang, true);
   }
   handleEn() {
     this.pickLang("en");
@@ -169,8 +202,9 @@ export default class HelpCenter extends NavigationMixin(LightningElement) {
   handleFr() {
     this.pickLang("fr");
   }
+  /** A section click adds a history entry, so Back returns to the last one. */
   handlePick(event) {
-    this.go(event.currentTarget.dataset.slug, this.lang);
+    this.go(event.currentTarget.dataset.slug, this.lang, false);
   }
   handleFilter(event) {
     this.filter = event.detail.value || "";
