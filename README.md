@@ -41,6 +41,7 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 | Apex             | `classes/RfpUserError`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Phase 3b: shared `AuraHandledException` helper used by the four workbench controllers                                                                                                                                                                                                                                                 |
 | UI               | `lwc/rfpHeaderGuess`, `rfpSheet`, `rfpSheetLoader`, `rfpWorkbook`, `rfpMath`, `rfpPricing`, `rfpBatch`                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Phase 3b: pure modules — header guessing, workbook parsing and CSV codepage detection, the SheetJS script loader, export workbook building, bid/price math, chunked lane batching                                                                                                                                                     |
 | UI               | `lwc/rfpTool`, `rfpProjectList`, `rfpUpload`, `rfpColumnMapper`, `rfpLaneTable`, `rfpLanePanel`, `rfpBidForm`, `rfpAccountPicker`, `rfpExport`                                                                                                                                                                                                                                                                                                                                                                                                                                | Phase 3b: the workbench container plus its project list, file upload, column mapper, lane table, lane detail panel, bid form, customer/carrier typeahead and Excel export                                                                                                                                                             |
+| UI               | `lwc/helpCenter`, `helpHint`, `helpContent`; `staticresources/helpCenter`; `flexipages/Help_Center`, `tabs/Help_Center`                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Phase 5: the Help tab (bilingual user guide built from `docs/help`), the "?" hint popover, and the module that loads the content                                                                                                                                                                                                      |
 | Navigation       | `tabs/RFP_Tool`, `flexipages/RFP_Tool`, `applications/TransPro` (tab added), `applications/Lane_Benchmark` (tab added)                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Phase 3b: the RFP Tool tab/page, added to both apps                                                                                                                                                                                                                                                                                   |
 | Security         | `staticresources/sheetJs`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Phase 3b: SheetJS Community Edition 0.18.5 (Apache-2.0), vendored in-repo because the org's same-named static resource belongs to the EN6IA managed package                                                                                                                                                                           |
 
@@ -573,6 +574,35 @@ workbench tab and that permission.
 - **Expired bids.** A bid inside the lookback counts even when its validity window has passed — an old RFP's bids are nearly always expired (30-day default) and are exactly the quotes this is for; the lookback, not the expiry, bounds relevance (ruling R45). The panel's results table still greys them and shows "Expires <date>".
 - **The toggle.** "Include RFP bids" in the workbench toolbar (on by default) applies to the next Load history / Refresh history / Retry failed run. With it off a run is loads-only, exactly as before 3d.
 - **The new field.** `RFP_Lane__c.Hist_Bid_Count__c` records how many of the counted rows were bids. The History cell then reads `12 loads + 3 bids · median 5800.00` (and stays `12 · median …` when none were), the export carries a "History bids" column, and the lane panel's own results query repeats the lane's last run — bids and expired bids when the count is anything but 0, loads only when it is 0.
+
+## Help center (phase 5)
+
+Pricers get a **Help** tab (`Help_Center`, in the Lane Benchmark and Trans-Pro
+apps) with the user guide in English and French, and a small "?" next to the
+title of each area in Lane Benchmark and the RFP Tool that opens a one-line hint
+with a "Read more" link into the matching section.
+
+**Editing the guide.** The source is `docs/help/en/<slug>.md` and
+`docs/help/fr/<slug>.md` — one file per section, the same slugs in both
+languages, a front-matter block with `title`, `order` and `hint` (the popover
+text, at most 240 characters), then Markdown limited to `##`/`###` headings,
+paragraphs, bold, italics, inline code, links, lists and tables. No images.
+After editing run `npm run help:build`; it renders the files into the
+`helpCenter` static resource, which is committed. `npm run help:check` (run by
+CI) fails when the resource is stale or a rule is broken. Deploy the resource
+with the normal full-manifest command; users see the change after a reload.
+
+**Adding a hint.** Put `<c-help-hint topic="<slug>" label="Help: <area>">` in
+the host component's markup (no JavaScript needed). The placement test in
+`lwc/helpContent/__tests__/placement.test.js` lists where each hint sits and
+fails on a topic that is not in the guide.
+
+**Language.** The tab opens in French when the user's Salesforce language is
+French (`fr*`) and in English otherwise; the EN | FR toggle is remembered per browser
+(`helpCenter.lang.v1`). Deep links: `/lightning/n/Help_Center?c__section=rfp-pricing&c__lang=fr`.
+
+**Access.** Tab visibility comes with `Lane_Benchmark_User` and `RFP_Tool_User`.
+No Apex is involved.
 
 ## Known issues worth fixing
 

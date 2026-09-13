@@ -206,3 +206,81 @@ which hints are opened; production deploy (D6).
 - R53 — the Help tab is a separate FlexiPage rather than a component embedded
   in each tool's page, so the guide has a stable URL for deep links and the
   two tools' pages do not grow.
+
+## Outcome — phase 5 (2026-09-12)
+
+Branch `phase-5/help-center` from `main` at `7a16259`; plan `419631a`, plan fix
+`4302d19` (the default language comes from `@salesforce/i18n/lang`, the user's
+Salesforce language per D3, not the locale; the Escape test dispatches on the
+popover; `helpHint` prefetches the index).
+
+Commits, oldest first:
+
+1. `ddc1c6b` Write the English help guide.
+2. `f31d6dd` Write the French help guide.
+3. `a871814` Build the help guide into the `helpCenter` static resource
+   (`scripts/help/build.mjs`, `help:build` / `help:check`, `marked` 15.0.12).
+4. `ed55061` Add the `helpContent` module for the help center.
+5. `fb46f60` Add the `helpHint` popover.
+6. `3f94598` Tighten the help build's link and comment handling — review fix:
+   a protocol-relative `//host` link fails the build, HTML comments are
+   stripped, the reads use `Promise.all` instead of awaiting in a loop.
+7. `9f00302` Add the Help tab with the bilingual guide (`c/helpCenter`,
+   FlexiPage and tab `Help_Center`, both apps, both permission sets).
+8. `3c24840` Place a help hint in each Lane Benchmark and RFP area (twelve
+   placements, the placement test; `rfpUpload.test.js` moved to
+   `jest.isolateModules` because a fixed-tag child custom element cannot
+   survive `jest.resetModules` reloads of the LWC engine).
+9. `5d7d002` Keep the help section in step with the last click — review fix: a
+   per-request token so a slow earlier section cannot overwrite the last
+   clicked one; first-section fallback when `overview` is missing; the filter
+   is cleared on a language switch and an empty list says so.
+10. `9a5a59e` Keep the upload help hint out of the file input's label — review
+    fix: inside `<label for="file">` the hint joined the input's accessible
+    name and a click could reach the file picker.
+11. Task 8 (this commit): `help:check` in the CI `lwc` job, README section
+    "Help center (phase 5)", roadmap row 5, this section.
+
+**PostProduc deploys**, all Succeeded: `0AfbZ00000Cpd0PSAR` (the static resource
+alone), `0AfbZ00000CpdDJSAZ` (full manifest after the Help tab, 244
+components), final pair `0AfbZ00000CpdZtSAJ` (NoTestRun, 244 components) and
+`0AfbZ00000Cpdd7SAB` (RunSpecifiedTests, 124/124 — no Apex changed).
+
+**Local gate** at `9a5a59e` + the Task 8 files: ESLint clean, `prettier:verify`
+clean on tracked files, `help:check` "up to date", PMD clean, Jest 35 suites /
+284 tests (31 / 260 before the phase; the four new suites `helpContent`,
+`placement`, `helpHint`, `helpCenter` add 24).
+
+**Review waves.** Tasks 1–2 clean; Task 3 one fix (`3f94598`); Tasks 4–5
+clean, with three tooling adaptations to the plan's code (virtual Jest mocks as
+`{ __esModule: true, default }`, `catch {}` without a binding, unquoted
+template bindings); Task 6 one fix (`5d7d002`, re-review closed all findings);
+Task 7 one fix (`9a5a59e`).
+
+**Rulings.** R54: tab motif `Custom80: Motorcycle`, the closest placeholder
+available; an admin can change it in Setup without a code change. R55: the
+`lb-lane` hint sits in the `laneBenchmark` container's Lane card actions slot,
+not inside `laneBenchmarkPlacePicker`. R56: the Help tab's left column is plain
+SLDS vertical-navigation markup with buttons rather than
+`lightning-vertical-navigation`, so the filter, the selected state and the
+`data-id`s stay testable.
+
+**Known limits.** Hint `label`s ("Help: pricing a lane") are English in both
+languages. The filter matches section titles only. A guide link must start with
+`#`, `/` or `https://` or the build fails on purpose. The French text is a first
+draft; the user reads it on the live tab.
+
+**Browser check** (PostProduc, 2026-09-12, user language `en_US`, deploy
+`0AfbZ00000Cpdd7SAB`): the Help tab sits after RFP Tool in Lane Benchmark and
+opens on "What these tools do" in English; FR switches the text and the section
+titles, keeps the section, writes `c__section=overview&c__lang=fr` to the URL
+and is remembered (key `LSKey[c]helpCenter.lang.v1` under Lightning Web
+Security), so a later visit without parameters opens in French; the filter
+"lane" narrows the list to four titles and a language switch clears it; the "?"
+on the Lane card opens the French hint with "En savoir plus", Escape closes it,
+an outside click closes it, and opening the Filters hint then the Lane hint
+shows one popover at a time; the RFP lane panel's "?" → "En savoir plus" lands
+on "Tarifer une voie" with `c__section=rfp-pricing&c__lang=fr`; the upload
+hint sits beside the "Lane file" label. Not exercised: a click on the upload
+"?" (it would sit next to a native file input) and the French read-through,
+which is the user's.
