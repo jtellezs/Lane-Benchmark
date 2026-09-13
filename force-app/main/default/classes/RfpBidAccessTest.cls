@@ -436,6 +436,76 @@ private class RfpBidAccessTest {
   }
 
   @IsTest
+  static void applySelectedBidsSkipsALaneWhosePricingUpdateWasRefused() {
+    Fx f = fx();
+    List<Benchmark_Rate__c> saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{
+        RfpTestDataFactory.buildBid(f.lane, 900),
+        RfpTestDataFactory.buildBid(f.other, 700)
+      }
+    );
+    List<RFP_Lane__c> deferred = new List<RFP_Lane__c>{
+      new RFP_Lane__c(Id = f.lane.Id, Selected_Bid__c = saved[0].Id),
+      new RFP_Lane__c(Id = f.other.Id, Selected_Bid__c = saved[1].Id)
+    };
+    // Database.SaveResult has no constructor; JSON is the only way to stage a refused row.
+    List<Database.SaveResult> results = new List<Database.SaveResult>{
+      (Database.SaveResult) JSON.deserialize(
+        '{"success":false,"id":"' + f.lane.Id + '"}',
+        Database.SaveResult.class
+      ),
+      (Database.SaveResult) JSON.deserialize(
+        '{"success":true,"id":"' + f.other.Id + '"}',
+        Database.SaveResult.class
+      )
+    };
+    RfpBidAccess.applySelectedBids(deferred, results);
+    List<Id> bothLanes = new List<Id>{ f.lane.Id, f.other.Id };
+    Map<Id, RFP_Lane__c> stored = new Map<Id, RFP_Lane__c>(
+      [SELECT Id, Selected_Bid__c FROM RFP_Lane__c WHERE Id IN :bothLanes]
+    );
+    System.assertEquals(
+      null,
+      stored.get(f.lane.Id).Selected_Bid__c,
+      'the lane whose pricing update was refused keeps no bid'
+    );
+    System.assertEquals(
+      saved[1].Id,
+      stored.get(f.other.Id).Selected_Bid__c,
+      'the lane that saved gets its bid'
+    );
+  }
+
+  @IsTest
+  static void applySelectedBidsWritesNothingWhenEveryPricingUpdateFailed() {
+    Fx f = fx();
+    Benchmark_Rate__c saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 900) }
+    )[0];
+    RfpBidAccess.applySelectedBids(
+      new List<RFP_Lane__c>{
+        new RFP_Lane__c(Id = f.lane.Id, Selected_Bid__c = saved.Id)
+      },
+      new List<Database.SaveResult>{
+        (Database.SaveResult) JSON.deserialize(
+          '{"success":false,"id":"' + f.lane.Id + '"}',
+          Database.SaveResult.class
+        )
+      }
+    );
+    RFP_Lane__c stored = [
+      SELECT Selected_Bid__c
+      FROM RFP_Lane__c
+      WHERE Id = :f.lane.Id
+    ];
+    System.assertEquals(
+      null,
+      stored.Selected_Bid__c,
+      'nothing is written back'
+    );
+  }
+
+  @IsTest
   static void detachSelectedBidsRefusesABidTheRuleHides() {
     Fx f = fx();
     Id fake =

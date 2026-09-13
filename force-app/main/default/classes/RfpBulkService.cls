@@ -330,8 +330,14 @@ public with sharing class RfpBulkService {
           c.updates
         )
         .getRecords();
-      c.collect(Database.update(clean, allOrNone, AccessLevel.USER_MODE), true);
-      RfpBidAccess.applySelectedBids(deferred);
+      List<Database.SaveResult> results = Database.update(
+        clean,
+        allOrNone,
+        AccessLevel.USER_MODE
+      );
+      c.collect(results, true);
+      // The results, not just the deferred list: a lane this update refused keeps its old bid.
+      RfpBidAccess.applySelectedBids(deferred, results);
     }
     c.finish();
     c.result.lanes = RfpLaneController.lanesByIds(c.ids);

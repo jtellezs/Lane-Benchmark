@@ -20,23 +20,7 @@ public without sharing class RfpBidAccess {
 
   /** The subset of laneIds the running user can read; empty when they cannot read lanes at all. */
   public static Set<Id> visibleLanes(Set<Id> laneIds) {
-    Set<Id> visible = new Set<Id>();
-    Boolean nothingToAsk =
-      laneIds == null ||
-      laneIds.isEmpty() ||
-      !Schema.SObjectType.RFP_Lane__c.isAccessible();
-    if (nothingToAsk) {
-      return visible;
-    }
-    for (RFP_Lane__c lane : [
-      SELECT Id
-      FROM RFP_Lane__c
-      WHERE Id IN :laneIds
-      WITH USER_MODE
-    ]) {
-      visible.add(lane.Id);
-    }
-    return visible;
+    return ROWS.visibleLanes(laneIds);
   }
 
   public static void assertLaneVisible(Id laneId) {
@@ -95,11 +79,30 @@ public without sharing class RfpBidAccess {
     return SELECTED.detach(updates);
   }
 
-  /** Writes the detached Selected_Bid__c values back in system mode, each lane first proved
+  /**
+   * Writes the detached Selected_Bid__c values back in system mode, each lane first proved
    * readable in user mode (Gate.lanes, the gate assertLaneVisible uses, asked once for all of
-   * them); FLS on RFP_Lane__c.Selected_Bid__c checked once. */
+   * them); FLS on RFP_Lane__c.Selected_Bid__c checked once.
+   *
+   * Only for records returned by detachSelectedBids, which has already proved every bid readable
+   * through the rule: this method checks the lanes, not the bids, and re-checking them here would
+   * cost two more queries on top of the one the lane gate already spends.
+   */
   public static void applySelectedBids(List<RFP_Lane__c> deferred) {
     SELECTED.apply(deferred);
+  }
+
+  /**
+   * The same write, for a caller whose user-mode update collected per-row results: only the
+   * deferred lanes whose own update succeeded are applied. A lane the pricing write refused
+   * (a validation, a concurrent edit) keeps the bid it had, instead of showing the new bid's
+   * carrier against its old cost.
+   */
+  public static void applySelectedBids(
+    List<RFP_Lane__c> deferred,
+    List<Database.SaveResult> results
+  ) {
+    applySelectedBids(SELECTED.written(deferred, results));
   }
 
   /** Bid counts per project, for the projects among projectIds the user can read. */
@@ -234,8 +237,30 @@ public without sharing class RfpBidAccess {
   }
 
   /** Row-filtering helpers, kept out of the outer class for the same complexity-budget reason
-   * as Gate above. */
-  private class Rows {
+   * as Gate above. Declared like the outer class: the lane query below is `WITH USER_MODE`, so
+   * the running user's sharing decides which lanes come back whatever the keyword says. */
+  private without sharing class Rows {
+    /** The subset of laneIds the running user can read; sharing decides, in one query. */
+    private Set<Id> visibleLanes(Set<Id> laneIds) {
+      Set<Id> visible = new Set<Id>();
+      Boolean nothingToAsk =
+        laneIds == null ||
+        laneIds.isEmpty() ||
+        !Schema.SObjectType.RFP_Lane__c.isAccessible();
+      if (nothingToAsk) {
+        return visible;
+      }
+      for (RFP_Lane__c lane : [
+        SELECT Id
+        FROM RFP_Lane__c
+        WHERE Id IN :laneIds
+        WITH USER_MODE
+      ]) {
+        visible.add(lane.Id);
+      }
+      return visible;
+    }
+
     /** The bids among byId whose lane the user can read, in the order of ids. */
     private List<Benchmark_Rate__c> keepVisible(
       List<Id> ids,
@@ -270,8 +295,9 @@ public without sharing class RfpBidAccess {
     private List<RFP_Lane__c> attach(List<RFP_Lane__c> lanes) {
       // A Set: two lanes can share one selected bid, and bidsByIds answers per input Id.
       Set<Id> bidIds = selectedIds(lanes);
-      // Nothing selected: no bid is read at all, so a user who can read lanes but no bid keeps
-      // their lanes instead of meeting Gate.read()'s refusal. An empty list lands here too.
+      // Nothing selected (an empty list included): return before bidsByIds, so lanes that name no
+      // bid cost no query. Read on Benchmark_Rate__c is still required the moment one lane does
+      // name a bid - bidsByIds opens with Gate.read() and refuses a caller who has none.
       if (bidIds.isEmpty()) {
         return lanes;
       }
@@ -322,6 +348,26 @@ public without sharing class RfpBidAccess {
         throw new LaneSearchException('You cannot change the selected bid.');
       }
       RfpBidAccess.systemUpdateLanes(deferred);
+    }
+
+    /** The deferred lanes whose Id came back on a successful SaveResult. */
+    private List<RFP_Lane__c> written(
+      List<RFP_Lane__c> deferred,
+      List<Database.SaveResult> results
+    ) {
+      Set<Id> saved = new Set<Id>();
+      for (Database.SaveResult r : results) {
+        if (r.isSuccess()) {
+          saved.add(r.getId());
+        }
+      }
+      List<RFP_Lane__c> kept = new List<RFP_Lane__c>();
+      for (RFP_Lane__c lane : deferred) {
+        if (saved.contains(lane.Id)) {
+          kept.add(lane);
+        }
+      }
+      return kept;
     }
 
     /** The distinct non-null Selected_Bid__c values of lanes. */
