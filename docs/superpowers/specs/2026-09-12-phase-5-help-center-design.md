@@ -383,3 +383,15 @@ guide text and the rebuilt resource landed in separate commits; HEAD is green).
 Stray macOS duplicate files (`README 2.md`, a spec copy, `index 2.json` inside
 the resource folder) appeared in the working tree during the day; they were
 never committed and were moved out of the project.
+
+Residual fixes deployed as `0AfbZ00000CphSDSAZ` (full manifest, 244 components,
+Succeeded); gate at `62cba0d`: 36 suites / 309 tests, ESLint, Prettier,
+`help:check`, PMD clean; CI green on the personal repo. Smoke check in
+PostProduc after that deploy: the lane panel's "?" opens in the same place as
+before and Escape still closes it after Tab has moved focus into the Margin
+field. Two things this pass could not show on a Mac: the `clientWidth`
+placement (overlay scrollbars have no width here, so a Windows browser is where
+the change is visible) and whether focus stays in the Margin field after that
+Escape (the page's `document.activeElement` is retargeted under Lightning Web
+Security; the Jest test "closes on Escape while focus is on an unrelated
+input" asserts it).
