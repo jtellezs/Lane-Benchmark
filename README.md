@@ -579,8 +579,8 @@ workbench tab and that permission.
 
 Pricers get a **Help** tab (`Help_Center`, in the Lane Benchmark and Trans-Pro
 apps) with the user guide in English and French, and a small "?" next to the
-title of each area in Lane Benchmark and the RFP Tool that opens a one-line hint
-with a "Read more" link into the matching section.
+title of twelve areas in Lane Benchmark and the RFP Tool that opens a one-line
+hint with a "Read more" link into the matching section.
 
 **Editing the guide.** The source is `docs/help/en/<slug>.md` and
 `docs/help/fr/<slug>.md` — one file per section, the same slugs in both
@@ -593,9 +593,11 @@ CI) fails when the resource is stale or a rule is broken. Deploy the resource
 with the normal full-manifest command; users see the change after a reload.
 
 **Adding a hint.** Put `<c-help-hint topic="<slug>" label="Help: <area>">` in
-the host component's markup (no JavaScript needed). The placement test in
-`lwc/helpContent/__tests__/placement.test.js` lists where each hint sits and
-fails on a topic that is not in the guide.
+the host component's markup (no JavaScript needed), beside a heading or label
+rather than inside it, so the hint's assistive text does not join that
+element's name. Then add the host and its topic to the `EXPECTED` map in
+`lwc/helpContent/__tests__/placement.test.js`: that test pins one hint per
+listed host and fails on a topic that is not in the guide.
 
 **Language.** The tab opens in French when the user's Salesforce language is
 French (`fr*`) and in English otherwise; the EN | FR toggle is remembered per browser

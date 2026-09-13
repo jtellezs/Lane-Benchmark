@@ -23,8 +23,8 @@ nothing there changes except where this document adds a hint.
   filter box that narrows the section list as you type.
 - Opening the tab with `?c__section=rfp-pricing&c__lang=fr` lands on that
   section in French. Without parameters it opens the Overview in the
-  language of the user's Salesforce locale (`fr*` → French, anything else →
-  English), or the language they last picked on this browser.
+  user's Salesforce language (`fr*` → French, anything else → English), or
+  the language they last picked on this browser.
 - A **"?" button** next to the title of each area listed in §5. Clicking it
   opens a popover with the area's hint in the current language and a
   "Read more" link. The link opens the Help tab at that area's section, in
@@ -105,7 +105,8 @@ fetches one section at a time and hints need only `index.json`.
 - `loadIndex()` → cached promise of `index.json` parsed (fetched from the
   static resource URL imported with `@salesforce/resourceUrl/helpCenter`).
 - `loadSection(slug, lang)` → cached promise of the HTML string.
-- `defaultLang(locale)` → `"fr"` when the locale starts with `fr`, else `"en"`.
+- `defaultLang(lang)` → `"fr"` when the user's language (from
+  `@salesforce/i18n/lang`) starts with `fr`, else `"en"`.
 - `readLang()` / `writeLang(lang)` → localStorage key `helpCenter.lang.v1`,
   guarded with try/catch (private windows).
 - `sectionUrl(slug, lang)` → the page reference for the Help tab:
@@ -133,7 +134,7 @@ to "Help"). Renders a `lightning-button-icon` (`utility:info`, size
 and when open a `section.slds-popover slds-nubbin_top-left` with
 `role="dialog"`, the hint text (`data-id="text"`) and a "Read more" link
 (`data-id="more"`) that navigates through `sectionUrl(topic, lang)`. `lang`
-comes from `readLang()` or `defaultLang(LOCALE)` at open time, so a toggle on
+comes from `readLang()` or `defaultLang(LANG)` at open time, so a toggle on
 the Help tab is honoured by the next hint opened. Escape and an outside click
 close it (document `click` listener added on open, removed on close and in
 `disconnectedCallback`). If the topic is missing from the index the button
@@ -158,9 +159,9 @@ label, markup only, no JS in the host component):
 | `rfpBidForm`                           | `rfp-bids`     |
 
 `rfpTool.js` is at 554 of its 560-line ceiling; this phase adds no line to it
-(the hints sit in child components; the filter bar's hint goes on the
-`rfp-filters-export` topic through `rfpLaneTable`'s header instead of the
-container).
+(the hints sit in child components). The RFP filter bar lives in `rfpTool.html`,
+so it gets no "?" of its own; its topic `rfp-filters-export` is reached from the
+Help tab (ruling R57 in the Outcome).
 
 ## 6. Metadata
 
@@ -263,7 +264,10 @@ available; an admin can change it in Setup without a code change. R55: the
 not inside `laneBenchmarkPlacePicker`. R56: the Help tab's left column is plain
 SLDS vertical-navigation markup with buttons rather than
 `lightning-vertical-navigation`, so the filter, the selected state and the
-`data-id`s stay testable.
+`data-id`s stay testable. R57: no hint for the `rfp-filters-export` topic; the
+filter bar it describes is rendered by `rfpTool.html`, which this phase may not
+touch, and `rfpLaneTable`'s header already carries `rfp-inline`. The section is
+one click away on the Help tab.
 
 **Known limits.** Hint `label`s ("Help: pricing a lane") are English in both
 languages. The filter matches section titles only. A guide link must start with
@@ -284,3 +288,78 @@ on "Tarifer une voie" with `c__section=rfp-pricing&c__lang=fr`; the upload
 hint sits beside the "Lane file" label. Not exercised: a click on the upload
 "?" (it would sit next to a native file input) and the French read-through,
 which is the user's.
+
+### Final review and fix wave (2026-09-12, evening)
+
+The whole-branch review ran as a workflow: eight reviewers (sanitizer and
+security, LWC correctness, metadata and tooling, tests, guide accuracy, docs
+accuracy, accessibility, repo-rule hygiene), two verifiers per finding (one
+confirming, one refuting) and a completeness critic, 85 agents in all. It
+confirmed 26 findings and left 9 contested; 3 were rejected. The fixes went out
+as five parallel worktree tasks and were cherry-picked onto the branch:
+
+12. `f5670bd` Nest the guide's headings, close the link-rule gaps and lint the
+    build script — body headings render as `h3`/`h4` under the section's `h2`;
+    a link that carries a backslash, whitespace, a control character or an
+    entity other than `&amp;` fails the build (closes the `/&#47;host` and
+    `/\host` bypasses of the protocol-relative rule); CRLF sources and
+    checkouts are normalised before the check; `scripts/**/*.mjs` is now under
+    ESLint (`no-await-in-loop` on) and Prettier; `helpContent` tests prove the
+    failed-fetch eviction and a throwing `setItem`; the placement test scans
+    every template of every bundle and fails on a hint without a literal
+    `topic`.
+13. `1cb6c5f` Correct the guide where it disagreed with the tools — eleven
+    claims fixed in both languages: the panel's Save bid / Add carrier rate
+    does not select the bid (the bulk bar does); margin mode returns by typing
+    a Margin %; Reset keeps the lane while Clear saved filters clears the
+    page; a fixed lane end is saved at once and Retry failed reruns only
+    Failed lanes; History cell numbers carry no thousands separator; the four
+    status meanings replace "hover for the reason"; no tooltip shows the
+    snapshot time; the RFP history has no mode or equipment filter; a
+    project's own bids never count in its history; Equipment categories are
+    checkboxes and the carrier name opens a card, not the record; upload
+    limits, the both-cities-or-both-postals mapping rule and the skip rule.
+14. `6f84d50` Make the help popover reachable by keyboard and keep it on
+    screen — Escape closes the popover wherever focus is (document keydown
+    listener), focus moves to the close button on open and back to the "?" on
+    Escape, close or Read more; the trigger exposes `aria-expanded` and
+    `aria-haspopup="dialog"`; the popover is `position: fixed`, placed from
+    the trigger, right-aligned in the right half of the viewport, capped at
+    the viewport width and closed on scroll, so card-edge and sticky-panel
+    hints no longer clip; a French-default test file.
+15. `f1ec006` Keep the Help tab's section, history and toggle state honest —
+    a language switch during the first index load keeps the deep-linked
+    section; the previous body is cleared while the next section loads; the
+    filter ignores accents; EN | FR are plain buttons with `aria-pressed`;
+    section clicks push history while language clicks replace it; tests for
+    URL language over stored language, the spinner, `aria-current` after a
+    wire echo, and the French empty-filter line.
+16. `b5a2480` Keep help hints out of heading and column-header names — the
+    lane panel and project list hints sit beside their `h2` in a flex row, the
+    lane table hint sits above the table instead of inside the `#` header, and
+    the upload hint has a regression test that discriminates.
+17. `94b224a` Rebuild the help guide resource with the corrected text — plus
+    two hints reworded (the Unresolved hint no longer says to reload history;
+    the precision tooltip is described only for lanes with a median).
+
+Contested findings ruled: the Back-button behaviour was changed (section
+clicks push history); the link-rule bypass, the CRLF check, the placement-test
+blind spots, the listener-identity test and the upload regression test were
+fixed as above; the "locale" wording in the spec body was corrected; the
+README's "Adding a hint" now names the `EXPECTED` map. Rejected: an
+arrow-with-ternary style objection (the repo's rule allows the parenthesised
+form), a claim that three hosts gained headings (they did not), and a
+duplication claim between `helpHint` and `helpCenter` (two lines).
+
+Gate after the wave: ESLint, Prettier, PMD and `help:check` clean; Jest 36
+suites / 308 tests. Deploy `0AfbZ00000CpgMTSAZ` (full manifest, 244
+components, Succeeded). Browser re-check (PostProduc, 2026-09-13): the guide's
+sub-headings render under the section title; "Pricing a lane" shows the
+corrected Add carrier rate text; a section click then the browser Back button
+returns to the previous section; the language buttons read "English" /
+"Français" in a "Language" group; typing "periode" in French lists "Filtres et
+période"; switching language clears the filter; the lane table's "?" sits above
+the table and the "#" header holds only "#"; the lane panel's "?" opens a
+right-aligned popover that is no longer clipped by the sticky column; after
+Tab moves focus out of the popover, Escape closes it and the focus ring
+returns to the "?"; the same holds for the table hint.
