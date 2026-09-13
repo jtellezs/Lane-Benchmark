@@ -365,3 +365,21 @@ the table and the "#" header holds only "#"; the lane panel's "?" opens a
 right-aligned popover that is no longer clipped by the sticky column; after
 Tab moves focus out of the popover, Escape closes it and the focus ring
 returns to the "?"; the same holds for the table hint.
+
+**Scoped re-review** (30 agents, one per fix area plus an integration sweep,
+two verifiers per finding): all 50 items closed, no regression, ten minor
+findings. Fixed in `2db4ed3`: the right-anchored popover is placed from the
+layout viewport width (`clientWidth`), not `window.innerWidth`, so a classic
+scrollbar no longer shifts it; Escape returns focus to the "?" only when focus
+was inside the popover; a second click on the "?" also returns focus; a click
+on the section already shown adds no history entry; the pricing page says to
+pick the new bid in the Bid list; the FAQ no longer suggests switching to
+Radius precision (City already falls back to it); the Unresolved page notes
+that a run in progress defers the automatic history load. Parked: unit tests
+for `scripts/help/build.mjs` (its rules are proven by `help:check` and by the
+`node -e` runs recorded in the task reports; the guide holds no links yet) and
+the four intermediate fix-wave commits at which `help:check` was red (the
+guide text and the rebuilt resource landed in separate commits; HEAD is green).
+Stray macOS duplicate files (`README 2.md`, a spec copy, `index 2.json` inside
+the resource folder) appeared in the working tree during the day; they were
+never committed and were moved out of the project.
