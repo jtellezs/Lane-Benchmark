@@ -30,7 +30,7 @@ Retrieved on 2026-09-07 from the `postproduc` sandbox (sf alias `sandbox`).
 | Security (CSP)   | `cspTrustedSites/Mapbox_API`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | `img-src` trusted site for `https://api.mapbox.com`, needed for the Lane Benchmark static map preview                                                                                                                                                                                                                                 |
 | Data             | `objects/RFP_Project__c/*`, `objects/RFP_Lane__c/*`, `objects/Benchmark_Rate__c/*`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Phase 3a: the RFP data model — project, lane and carrier bid; see "RFP Tool (phase 3a)" below                                                                                                                                                                                                                                         |
 | Apex             | `classes/RfpTestDataFactory`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | Phase 3a: test builders for projects, lanes, bids and places, reusing `PricingTestDataFactory`                                                                                                                                                                                                                                        |
-| Apex             | `classes/BenchmarkRateService`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Phase 3a: saves a bid in user mode and copies its lane keys from the lane's resolved places                                                                                                                                                                                                                                           |
+| Apex             | `classes/BenchmarkRateService`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Phase 3a: saves a bid and copies its lane keys from the lane's resolved places; since phase 6 the insert, update and reload go through `RfpBidAccess` (system mode after the lane check)                                                                                                                                              |
 | Apex             | `classes/BidSearchQueryBuilder`, `BidSearchService`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Phase 3a: builds the bid SOQL at the same precision `LaneSearchQueryBuilder` uses for Loads, and merges bid rows into `LaneSearchService`'s results                                                                                                                                                                                   |
 | Apex             | `classes/RfpController`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | Phase 3a: `projectsForAccount` for the customer Account component; phase 3b adds the workbench methods                                                                                                                                                                                                                                |
 | UI               | `lwc/rfpProjectsForAccount`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Phase 3a: "RFP Projects (customer)", the Account record page component listing a customer's projects, files and bid counts                                                                                                                                                                                                            |
@@ -384,7 +384,7 @@ cp manifest/destructiveChanges-phase4.xml /tmp/destructive-phase4-prod.xml
    of the routine deploy command: a second run fails, because the components are gone.
 
 ```bash
-sf project deploy start -o vscodeOrg --manifest manifest/package.xml --post-destructive-changes manifest/destructiveChanges-phase4.xml -l RunSpecifiedTests -t LaneSearchExclusionsTest PlaceNormalizerTest PricingTestDataFactoryTest PlaceBuilderBatchTest LaneSearchServiceTest MapboxGeocoderTest LaneBenchmarkControllerTest LaneBenchmarkPlaceServiceTest RfpTestDataFactoryTest BenchmarkRateServiceTest BidSearchQueryBuilderTest BidSearchServiceTest RfpControllerTest RfpSecurityTest RfpImportServiceTest RfpLaneControllerTest RfpHistoryServiceTest RfpProjectControllerTest RfpBidControllerTest RfpPricingMathTest RfpBulkServiceTest RfpBulkControllerTest -w 30
+sf project deploy start -o vscodeOrg --manifest manifest/package.xml --post-destructive-changes manifest/destructiveChanges-phase4.xml -l RunSpecifiedTests -t LaneSearchExclusionsTest PlaceNormalizerTest PricingTestDataFactoryTest PlaceBuilderBatchTest LaneSearchServiceTest MapboxGeocoderTest LaneBenchmarkControllerTest LaneBenchmarkPlaceServiceTest RfpTestDataFactoryTest BenchmarkRateServiceTest BidSearchQueryBuilderTest BidSearchServiceTest RfpControllerTest RfpSecurityTest RfpBidAccessTest RfpImportServiceTest RfpLaneControllerTest RfpHistoryServiceTest RfpProjectControllerTest RfpBidControllerTest RfpPricingMathTest RfpBulkServiceTest RfpBulkControllerTest -w 30
 ```
 
 ## RFP Tool (phase 3a)
@@ -396,7 +396,7 @@ the spec's Outcome for what is still open.
 
 | Object              | Purpose                                                                                                                                 | Key fields                                                                                                                                                                                                               |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `RFP_Project__c`    | One customer RFP: the uploaded lane file, its lanes, bids and prices                                                                    | `Customer__c` (Account lookup), `Status__c`, `Due_Date__c`, `Default_Margin__c`, roll-ups `Lane_Count__c` / `Costed_Count__c` / `Sold_Count__c`                                                                          |
+| `RFP_Project__c`    | One customer RFP: the uploaded lane file, its lanes, bids and prices                                                                    | `Customer__c` (master-detail to Account, write requires master Read — phase 6), `Status__c`, `Due_Date__c`, `Default_Margin__c`, roll-ups `Lane_Count__c` / `Costed_Count__c` / `Sold_Count__c`                          |
 | `RFP_Lane__c`       | One spreadsheet row of a project: the lane as the customer wrote it, the resolved places, the history snapshot and the chosen cost/sell | `RFP_Project__c` (master-detail), `Origin_Place__c` / `Destination_Place__c` (`Pricing_Place__c` lookups), `Mode__c`, `Equipment_Category__c`, `Cost__c` / `Margin__c` / `Sell__c`, `Has_Cost__c` / `Has_Sell__c`        |
 | `Benchmark_Rate__c` | A carrier bid for a lane, captured without a Load                                                                                       | `RFP_Lane__c` / `RFP_Project__c` lookups, `Carrier__c` / `Carrier_Name__c`, `Rate__c`, `Valid_From__c` / `Expires_On__c`, `City_Lane__c` / `State_Lane__c` / `Zip3_Lane__c`, formulas `Status__c` / `Carrier_Display__c` |
 
@@ -414,10 +414,13 @@ search through `PlaceNormalizer.cityLaneVariants` exactly as a Load does.
 Running this in a trigger (system context, one bulk query per batch for every
 referenced lane) rather than only in `BenchmarkRateService.save` means a bid
 created directly on the record page — bypassing `save()` entirely — is
-stamped too; `save()` itself now only validates `Rate__c` and does the
-USER_MODE insert/update/reload, since `RFP_Tool_User` marks the lane-key and
-geolocation fields not editable (see Permission sets below) and a user-mode
-DML can no longer set them. The trigger also defaults `Valid_From__c` /
+stamped too; `save()` itself now only validates `Rate__c`. Since phase 6 the
+insert/update/reload go through `RfpBidAccess`, in system mode after the lane
+check (see "Access model (phase 6)" below). The caller still cannot set the
+lane keys or geolocations: `RFP_Tool_User` marks those fields not editable
+(see Permission sets below), and `RfpBidAccess` copies only the
+caller-settable fields and strips the rest through
+`Security.stripInaccessible` before the DML. The trigger also defaults `Valid_From__c` /
 `Expires_On__c` to today / today+30 for every bid that doesn't already have
 them, on top of the same defaults now carried on the field metadata itself
 (`<defaultValue>TODAY()</defaultValue>` / `TODAY() + 30`, which only prefill
@@ -585,18 +588,33 @@ delete their lanes and bids; a user who cannot read the account does not see the
 all. There is no owner on a project. Admins with View All Data see everything. Deleting
 an account deletes its RFPs and lanes; their bids survive with the lookups cleared.
 
-**Bids.** `Benchmark_Rate__c` is Private. The workbench never queries it in user mode:
-`RfpBidAccess` is the one class that reads and writes bids, after proving in user mode
-that the running user can read the lane, in system mode restricted to those lanes and
-through `Security.stripInaccessible`. Rule: a lane you can see grants its bids, whoever
-recorded them. Lane Benchmark (`LaneSearchService`, `BidSearchService`) keeps reading
+**Bids.** `Benchmark_Rate__c` is Private. The workbench runs no SOQL or DML on
+`Benchmark_Rate__c` in user mode: `RfpBidAccess` is the one class that reads and writes
+bids, after proving in user mode that the running user can read the lane, in system mode
+restricted to those lanes and through `Security.stripInaccessible`. The user-mode lane
+query does traverse `Selected_Bid__r`; for a colleague's Private bid that traversal comes
+back empty, and `RfpBidAccess.attachSelectedBids` fills it after every `RfpLaneController`
+lane read. Rule: a lane you can see grants its bids, whoever recorded them.
+
+Two hardening points from the phase 6 final review. A bid save copies only the
+caller-settable fields (carrier, contact, rate, currency, fuel surcharge, transit days,
+validity dates, notes, mode, equipment, hazmat, and the lane on insert only), so the owner,
+the project and the lane keys come only from the platform and `BenchmarkRateTrigger`; an
+update that names another lane, or none, is refused with "A bid cannot move to another
+lane." And Lane Benchmark honours an RFP exclusion (`excludeProjectId`) only for a project
+the caller can read in user mode, so two searches cannot reveal which bids belong to an RFP
+the caller cannot see; the RFP history run keeps its own exclusion.
+
+Lane Benchmark (`LaneSearchService`, `BidSearchService`) keeps reading
 every bid in system mode and shows carrier, rate and expiry only, never the customer.
 
 **Admin task (not code).** Pricers need at least Read on the customer accounts they
 price for: through the role hierarchy or an Account sharing rule to the pricing group.
 Account is Private in this org, so without one of those a pricer sees no RFP. In
 PostProduc the admin user holds `RFP_Tool_User` and sees everything; the restriction is
-proven by `RfpSecurityTest` (three users) and `RfpBidAccessTest`.
+proven by `RfpSecurityTest` (restricted users created per scenario, holding
+`RFP_Tool_User`, `Lane_Benchmark_User` or both, with the admin as the account owner) and
+`RfpBidAccessTest`.
 
 **Production.** None of these objects exist there yet; the go-live deploy creates them in
 their final shape. A sandbox that already holds RFP data converts in place as long as

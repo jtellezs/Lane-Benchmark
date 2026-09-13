@@ -182,6 +182,23 @@ who viewed what.
   controller, so the system-mode boundary is visible in one place.
 - R59 — no new permission or custom permission gates bids; the lane's
   visibility is the only key.
+- R60 — one `BID_FIELDS` list for every bid read; `bidsOfLanes` takes no field
+  list (the LWC ignores extra fields, and one list keeps `stripInaccessible`
+  uniform).
+- R61 — `RfpBidAccess` runs `without sharing`; its `WITH USER_MODE` lane and
+  project checks are the gate, because `AccessLevel.SYSTEM_MODE` alone lifts
+  object and field checks but not record sharing, which follows the class
+  keyword.
+- R62 — bids stay Private. Public Read Only was rejected: a bid's record page
+  would show its project's name, which may carry the customer, to anyone
+  holding a bid Id.
+- R63 — a `Selected_Bid__c` value the caller carries forward unchanged is not
+  re-validated; only a changed value must pass the lane rule.
+- R64 — bid saves copy an allow-list of caller-settable fields; the owner, the
+  project and the lane keys come only from the platform and
+  `BenchmarkRateTrigger`.
+- R65 — Lane Benchmark honours `excludeProjectId` only when the caller can read
+  that project in user mode.
 
 ## Outcome — phase 6 (2026-09-13)
 
@@ -215,11 +232,23 @@ class `Rows`, now `private without sharing`, for PMD headroom — outer class
 lookups, project, lane and two bid saves inside `Test.startTest()`; a save now
 costs four SOQL through the lane rule and the three searches already spend
 about ninety, so the full run hit 101; the setup moved above `startTest`,
-assertions unchanged); this commit Document the RFP access model (phase 6) and
-record the outcome (Task 4: this commit — docs).
+assertions unchanged); `7d94685` Document the RFP access model (phase 6) and
+record the outcome (Task 4: README access model, the guide's FAQ entry in
+English and French, the roadmap row, this Outcome); `ba2ffaf` Record the phase
+6 browser check; `e16a64a` Harden the bid rule and prove it under sharing (the
+final review's code and test fixes, see "Final review" below); and this
+documentation fix, Document the final review of phase 6 (the CI and README
+test rosters, the README object table and access model, R60–R65, this
+Outcome).
 
-**PostProduc deploys**, all Succeeded except the two failed full-run attempts
-noted below: `0AfbZ00000CpjiXSAR` (Task 1: helper + test, 10/10),
+**Differences from the §4 sketch.** `RfpBidAccess` runs `without sharing`, not
+`with sharing` (R61); `bidsOfLanes` takes no `fieldList` parameter (R60);
+`bidsByIds` takes a `List<Id>` rather than a `Set<Id>`, to keep the caller's
+order; and the helper throws `LaneSearchException`, which the controllers
+convert to `RfpUserError`.
+
+**PostProduc deploys**, all Succeeded except the failed attempts noted
+below: `0AfbZ00000CpjiXSAR` (Task 1: helper + test, 10/10),
 `0AfbZ00000CpkmfSAB` (Task 2: seven classes, 55/55), `0AfbZ00000CpkwLSAR`
 (Task 3: full manifest NoTestRun, 246 components — the lookup→master-detail
 conversion went through the metadata deploy, no Setup fallback needed),
@@ -229,22 +258,38 @@ conversion went through the metadata deploy, no Setup fallback needed),
 RunSpecifiedTests deploys FAILED, both only on
 `LaneSearchServiceTest.bidsMergeIntoRowsAndObeyTheSourceFilter`
 ("Too many SOQL queries: 101"), the condition `53f1adc` fixed:
-`0AfbZ00000CplnZSAR` (141/142) and `0AfbZ00000CpllySAB` (143/144). Final pair:
+`0AfbZ00000CplnZSAR` (141/142) and `0AfbZ00000CpllySAB` (143/144). Task 4 pair:
 `0AfbZ00000CpmA9SAJ` (NoTestRun, 246 components, 0 errors), `0AfbZ00000CpmEzSAJ`
-(RunSpecifiedTests, 144/144, 0 failures).
+(RunSpecifiedTests, 144/144, 0 failures). Final review fix wave (`e16a64a`):
+`0AfbZ00000CpoIPSAZ` (the new tests against the classes before the fix, Failed
+as expected, 27/32), `0AfbZ00000CpnpOSAR` (seven classes, Failed 63/68: `isSet`
+on a `JSON.deserialize`d bid reports fields the JSON never named, so the fix
+reads `getPopulatedFieldsAsMap()` instead), `0AfbZ00000CpoThSAJ` (seven classes,
+nine test classes, 68/68). Final pair: `0AfbZ00000CpoezSAB` (NoTestRun, 246
+components, 0 errors), `0AfbZ00000CpoTiSAJ` (RunSpecifiedTests, the 23 test
+classes, 148/148, 0 failures).
 
 **Model verified in the org** (Task 3 Step 6): `RFP_Project__c` ControlledByParent,
 `RFP_Lane__c` ControlledByParent, `Benchmark_Rate__c` Private, `Customer__c`
 Master-Detail(Account) not nillable; 4 projects kept.
 
-**Tests:** Apex 144 / 144, 17 methods in `RfpBidAccessTest`, 7 methods (4
-restricted-user scenarios) in `RfpSecurityTest` (Read-shared pricer records and
-edits a bid and Lane Benchmark sees it; Read-shared pricer deletes lanes and
-bids; stranger sees no project, no lane, refused bid calls, Lane Benchmark
-still counts the bid; Read-shared user creates a project, a lane and a bid,
-reads the admin's bid, sees its carrier through the lane, picks it as cost
-source and copies that pricing). Jest unchanged (36 suites / 309 tests). PMD
-clean.
+**Tests:** Apex 148 / 148 in the final RunSpecifiedTests deploy (144 at Task 4,
+plus four methods from the fix wave: three in `RfpBidAccessTest`, one in
+`LaneBenchmarkControllerTest`). 20 methods in `RfpBidAccessTest`; 6 methods in
+`RfpSecurityTest`, 4 of them restricted-user scenarios. Unlike §7's three fixed
+users, each scenario creates its own restricted users (holding `RFP_Tool_User`,
+`Lane_Benchmark_User` or both), and the admin running the test owns the
+customer account. The scenarios: a Read-shared pricer records and edits a bid
+and a Lane Benchmark user sees it; a Read-shared pricer deletes lanes and a bid
+the admin recorded; a stranger sees no project and no lane, gets no bid from
+`bidsByIds`, deletes nothing through `deleteLanes`, is refused a colleague's
+hidden bid named as cost source on a readable lane ("That bid is not
+available."), and Lane Benchmark still counts the bid; a Read-shared user
+creates a project, a lane and a bid, reads and edits the admin's bid, sees its
+carrier through `getLanes`, picks it as cost source, copies that pricing and
+deletes the lane with the admin's bid. `LaneBenchmarkControllerTest` gains
+`searchExcludesAProjectOnlyWhenTheCallerCanReadIt`. Jest unchanged (36 suites /
+309 tests). PMD clean.
 
 **Known limits.** `Selected_Bid__r.Carrier_Display__c` is read through the lane
 in user mode (`RfpLaneController.LANE_FIELDS`, `rfpWorkbook`); it did not pass
@@ -274,3 +319,52 @@ English and "Qui peut voir un RFP?" in French; the ALIMENTS MULTIBAR INC.
 account page lists both RFP projects with lane and bid counts through
 `bidCountsByProject`. Not shown here: the restriction itself (one RFP user in
 the sandbox); `RfpSecurityTest` is the proof.
+
+**Final review (2026-09-13).** The whole-branch review ran as a workflow
+(`wf_c5df5c30-498`): seven review dimensions, two verifiers per finding and a
+completeness critic, 60 agents in all. It confirmed 16 findings and left 4
+contested. Twelve verifier agents failed on a usage limit and the critic did
+not run, so the controller read the six findings whose verifiers failed
+itself. Fixed in `e16a64a`:
+
+1. `RfpBidAccess.detachSelectedBids` checks only a changed `Selected_Bid__c`.
+   A value equal to the stored one stays on the user-mode update untouched, so
+   a lane whose selected bid has lost its lane still saves its margin, sell and
+   notes (R63).
+2. `insertBids` strips first and runs its lane checks on the records it will
+   insert, so a stripped `RFP_Lane__c` is refused with "A bid needs a lane."
+3. Bid saves copy onto fresh records only the populated caller-settable fields
+   (`SETTABLE_FIELDS`, plus `RFP_Lane__c` on insert or the Id on update) before
+   `stripInaccessible`, so `OwnerId`, `RFP_Project__c`, the lane keys and the
+   geolocations never reach the system-mode DML (R64).
+4. `updateBid` refuses a posted `RFP_Lane__c` other than the stored lane, null
+   included, with "A bid cannot move to another lane."
+5. `RfpController.projectsForAccount` and `RfpLaneController.saveLanePricing`
+   also catch `LaneSearchException` and pass its sentence on as the user error,
+   so a lane price save refused by the rule now shows "That bid is not
+   available." without the generic prefix.
+6. `LaneBenchmarkController.search` keeps `excludeProjectId` only when a
+   `WITH USER_MODE` query returns that project; otherwise it excludes nothing
+   (R65). `RfpHistoryService` calls `LaneSearchService.search` directly and
+   keeps its exclusion.
+7. The sharing tests: the stranger's `deleteLanes` leaves the lane and bid in
+   place, and the stranger is refused a colleague's hidden bid on a readable
+   lane; the Read-shared user edits and deletes the admin's bid and sees its
+   carrier through `getLanes`; the restricted `deleteLanes` scenario removes a
+   bid the admin recorded; a stale field-level-security comment was reworded.
+8. This documentation fix: `RfpBidAccessTest` added to the CI roster and the
+   README production deploy command; the README object table, bid-save
+   sentences and access model corrected; R60–R65 added; this Outcome's SHAs,
+   counts and deploys corrected.
+
+Known limits, parked. `RfpProjectController.saveProject` still copies
+`Customer__c` on update; no caller sends it, and the platform treats a
+master-detail that is not reparentable as not updateable, so the value is
+stripped. No end-to-end test fails one row of `RfpBulkService.save` to prove
+the two-argument `applySelectedBids`: `RFP_Lane__c` has no validation rule that
+could fail a single row, and the filter itself is unit-tested. The fix wave's
+report adds two more. Copying pricing from a lane whose selected bid has lost
+its lane is still refused, because each target lane receives a changed value.
+And no test posts a JSON null in a bid update (for example `Carrier__c: null`
+when a bid switches from an account carrier to a typed name) to prove that
+`getPopulatedFieldsAsMap()` counts it.
