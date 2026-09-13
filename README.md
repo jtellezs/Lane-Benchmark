@@ -112,13 +112,14 @@ sf project deploy start -x manifest/package.xml --post-destructive-changes manif
 
 Org aliases: `sandbox` = PostProduc, `vscodeOrg` = production.
 
-User-mode Apex (`RfpController`, `BenchmarkRateService`) needs its permission
-set (`RFP_Tool_User`) already assigned to the test-running user before a
+User-mode Apex (`RfpController`, `RfpLaneController`, `RfpBulkService`, and
+`RfpBidAccess`'s lane and project checks) needs its permission set
+(`RFP_Tool_User`) already assigned to the test-running user before a
 `RunSpecifiedTests` deploy — `WITH USER_MODE` reports a field the running user
 cannot read as "No such column". When a deploy introduces or changes that
-permission set in the same deploy as new user-mode code, deploy the
-permission set on its own first with `-l NoTestRun`, assign it, then run the
-real test-running deploy.
+permission set in the same deploy as new user-mode code, deploy the permission
+set on its own first with `-l NoTestRun`, assign it, then run the real
+test-running deploy.
 
 Every new LWC bundle must be registered in `manifest/package.xml`
 (`LightningComponentBundle` members) — phase 3b found 16 bundles that had
@@ -429,7 +430,9 @@ the standard "New" page, not an Apex-created record — hence the trigger).
 **Permission sets.**
 
 - `RFP_Tool_User` — the pricing team's access: create/read/edit on the three
-  RFP objects, read on `Pricing_Place__c` and `Account`, Apex class access
+  RFP objects (`RFP_Project__c`, `RFP_Lane__c`, `Benchmark_Rate__c`), delete on
+  `RFP_Lane__c` and `Benchmark_Rate__c` only (no delete on `RFP_Project__c`),
+  read on `Account` and read with View All on `Pricing_Place__c`, Apex class access
   to `RfpController`, `RfpImportService`, `RfpLaneController`,
   `BenchmarkRateService`, `LaneBenchmarkController`,
   `LaneBenchmarkPlaceService`, `LaneSearchService`, `MapboxGeocoder`, and the
@@ -590,20 +593,29 @@ an account deletes its RFPs and lanes; their bids survive with the lookups clear
 
 **Bids.** `Benchmark_Rate__c` is Private. The workbench runs no SOQL or DML on
 `Benchmark_Rate__c` in user mode: `RfpBidAccess` is the one class that reads and writes
-bids, after proving in user mode that the running user can read the lane, in system mode
-restricted to those lanes and through `Security.stripInaccessible`. The user-mode lane
-query does traverse `Selected_Bid__r`; for a colleague's Private bid that traversal comes
-back empty, and `RfpBidAccess.attachSelectedBids` fills it after every `RfpLaneController`
-lane read. Rule: a lane you can see grants its bids, whoever recorded them.
+the bids of an RFP's own lanes (bid counts are gated on the project); the history run and
+the lane panel's market search read other RFPs' bids through the Lane Benchmark services,
+as the phase 6 design's D2 intends. `RfpBidAccess` first proves in user mode that the
+running user can read the lane, then works in system mode restricted to those lanes and
+through `Security.stripInaccessible`. The user-mode lane query does traverse
+`Selected_Bid__r`; for a colleague's Private bid that traversal comes back empty, and
+`RfpBidAccess.attachSelectedBids` fills it after every `RfpLaneController` lane read.
+Rule: a lane you can see grants its bids, whoever recorded them.
 
-Two hardening points from the phase 6 final review. A bid save copies only the
-caller-settable fields (carrier, contact, rate, currency, fuel surcharge, transit days,
-validity dates, notes, mode, equipment, hazmat, and the lane on insert only), so the owner,
-the project and the lane keys come only from the platform and `BenchmarkRateTrigger`; an
-update that names another lane, or none, is refused with "A bid cannot move to another
-lane." And Lane Benchmark honours an RFP exclusion (`excludeProjectId`) only for a project
-the caller can read in user mode, so two searches cannot reveal which bids belong to an RFP
-the caller cannot see; the RFP history run keeps its own exclusion.
+Three hardening points from the phase 6 final review and its residual round. A bid save
+copies only the caller-settable fields (carrier, contact, rate, currency, fuel surcharge,
+transit days, validity dates, notes, mode, equipment, hazmat, and the lane on insert
+only), so the owner, the project and the lane keys come only from the platform and
+`BenchmarkRateTrigger`; an update that names another lane, or none, is refused with "A bid
+cannot move to another lane." And Lane Benchmark honours an RFP exclusion
+(`excludeProjectId`) only for a project the caller can read in user mode, so two searches
+cannot reveal which bids belong to an RFP the caller cannot see; the RFP history run keeps
+its own exclusion. And a bid save may name a carrier account (`Carrier__c`) only if the
+caller can read that account in user mode (R66), otherwise it is refused with "That
+carrier is not available.": the system-mode DML skips the sharing check a lookup gets, and
+the reloaded bid would show the account's name. A carrier the bid already stores is not
+re-checked, so a colleague can still edit the rate of a bid whose carrier account they
+cannot read.
 
 Lane Benchmark (`LaneSearchService`, `BidSearchService`) keeps reading
 every bid in system mode and shows carrier, rate and expiry only, never the customer.
