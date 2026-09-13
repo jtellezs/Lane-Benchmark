@@ -48,9 +48,13 @@ export function findSection(index, slug) {
   return list.find((s) => s.slug === slug) || null;
 }
 
-/** French for any fr* locale, English otherwise. */
-export function defaultLang(locale) {
-  return String(locale || "")
+/**
+ * The guide language for a user's Salesforce language (the value of
+ * @salesforce/i18n/lang, e.g. "fr" or "fr-CA", not the locale): French for
+ * fr and any regional fr variant, English otherwise.
+ */
+export function defaultLang(lang) {
+  return String(lang || "")
     .toLowerCase()
     .startsWith("fr")
     ? "fr"

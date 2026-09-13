@@ -79,16 +79,27 @@ describe("helpContent", () => {
     expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("rejects when a file is missing", async () => {
+  it("rejects when a file is missing and fetches again on the next call", async () => {
     mockFetch({});
     await expect(loadSection("faq", "en")).rejects.toThrow("404");
     await expect(loadIndex()).rejects.toThrow("404");
+    expect(fetch).toHaveBeenCalledTimes(2);
+    // The failed promises must have been evicted: the same calls hit a
+    // fresh fetch mock again instead of replaying the cached rejection.
+    mockFetch({
+      "/resource/helpCenter/index.json": JSON.stringify(index),
+      "/resource/helpCenter/en/faq.html": "<h3>FAQ</h3>"
+    });
+    await expect(loadSection("faq", "en")).resolves.toBe("<h3>FAQ</h3>");
+    await expect(loadIndex()).resolves.toEqual(index);
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("picks French for fr locales only", () => {
+  it("picks French for fr languages only", () => {
     expect(defaultLang("fr")).toBe("fr");
+    expect(defaultLang("fr_CA")).toBe("fr");
     expect(defaultLang("fr-CA")).toBe("fr");
-    expect(defaultLang("en-US")).toBe("en");
+    expect(defaultLang("en_US")).toBe("en");
     expect(defaultLang(undefined)).toBe("en");
   });
 
@@ -105,6 +116,18 @@ describe("helpContent", () => {
       });
     expect(readLang()).toBeNull();
     spy.mockRestore();
+  });
+
+  it("swallows a blocked write and remembers nothing", () => {
+    const spy = jest
+      .spyOn(Storage.prototype, "setItem")
+      .mockImplementation(() => {
+        throw new Error("blocked");
+      });
+    expect(() => writeLang("fr")).not.toThrow();
+    expect(spy).toHaveBeenCalledWith("helpCenter.lang.v1", "fr");
+    spy.mockRestore();
+    expect(readLang()).toBeNull();
   });
 
   it("builds the Help tab page reference", () => {

@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Pricing Department Lightning app (Trans-Pro)",
   "scripts": {
-    "lint": "eslint --no-error-on-unmatched-pattern **/{aura,lwc}/**/*.js",
+    "lint": "eslint --no-error-on-unmatched-pattern \"**/{aura,lwc}/**/*.js\" \"scripts/**/*.mjs\"",
     "test": "npm run test:unit",
     "test:unit": "sfdx-lwc-jest",
     "test:unit:watch": "sfdx-lwc-jest --watch",
@@ -12,8 +12,8 @@
     "test:unit:coverage": "sfdx-lwc-jest --coverage",
     "help:build": "node scripts/help/build.mjs",
     "help:check": "node scripts/help/build.mjs --check",
-    "prettier": "prettier --write \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
-    "prettier:verify": "prettier --check \"**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}\"",
+    "prettier": "prettier --write \"**/*.{cls,cmp,component,css,html,js,json,md,mjs,page,trigger,xml,yaml,yml}\"",
+    "prettier:verify": "prettier --check \"**/*.{cls,cmp,component,css,html,js,json,md,mjs,page,trigger,xml,yaml,yml}\"",
     "prepare": "husky || true",
     "precommit": "lint-staged"
   },
@@ -34,7 +34,7 @@
     "prettier-plugin-apex": "^2.2.6"
   },
   "lint-staged": {
-    "**/*.{cls,cmp,component,css,html,js,json,md,page,trigger,xml,yaml,yml}": [
+    "**/*.{cls,cmp,component,css,html,js,json,md,mjs,page,trigger,xml,yaml,yml}": [
       "prettier --write"
     ],
     "**/{aura,lwc}/**/*.js": [

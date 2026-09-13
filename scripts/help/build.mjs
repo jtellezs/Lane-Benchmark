@@ -2,7 +2,7 @@
 // `node scripts/help/build.mjs` writes the resource; `--check` rebuilds into
 // a temp folder and exits 1 if the committed resource differs or the
 // content breaks a rule (slug missing in one language, hint over 240 chars,
-// duplicate order, disallowed tag).
+// duplicate order, disallowed tag, unsafe link).
 import { marked } from "marked";
 import { promises as fs } from "node:fs";
 import os from "node:os";
@@ -25,9 +25,12 @@ const OUT = path.join(
 );
 const LANGS = ["en", "fr"];
 const HINT_MAX = 240;
+// The Help tab renders the section title as an h2 under the card's own h2,
+// so bodies start at h3 (## in Markdown) and may go one level deeper. A
+// stray h2 (a "#" heading) or h5 fails the build.
 const ALLOWED = new Set([
-  "h2",
   "h3",
+  "h4",
   "p",
   "strong",
   "em",
@@ -45,7 +48,23 @@ const ALLOWED = new Set([
   "br"
 ]);
 
-marked.use({ gfm: true });
+marked.use({
+  gfm: true,
+  renderer: {
+    // Shift every heading one level down: ## -> h3, ### -> h4. Mirrors
+    // marked's default renderer apart from the depth.
+    heading({ tokens, depth }) {
+      const level = depth + 1;
+      return `<h${level}>${this.parser.parseInline(tokens)}</h${level}>\n`;
+    }
+  }
+});
+
+// Windows checkouts with core.autocrlf hand us CRLF; everything downstream
+// (the front matter regex, the --check comparison) works on LF.
+async function readText(file) {
+  return (await fs.readFile(file, "utf8")).replace(/\r\n?/g, "\n");
+}
 
 function frontMatter(text, file) {
   const m = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
@@ -70,6 +89,34 @@ function frontMatter(text, file) {
   return { title: meta.title, order, hint: meta.hint, body: m[2] };
 }
 
+// An "&" that does not already start a complete character reference
+// (marked's own test), so it can be escaped without double-escaping.
+const BARE_AMP = /&(?!(#\d{1,7}|#[Xx][a-fA-F0-9]{1,6}|\w+);)/g;
+
+// Checks a link target as the browser will resolve it, not as it is spelt.
+// The prefix test runs on the raw attribute text, but the browser decodes
+// entities and treats "\" and stripped whitespace/control characters as "/"
+// before resolving, so "/&#47;evil.com", "/\evil.com" and "/<tab>/evil.com"
+// would all pass the prefix test yet leave the org. Bare ampersands in a
+// query string are escaped to &amp; first, so only real entities remain.
+function safeHref(value, file) {
+  if (!/^(#|\/(?!\/)|https:\/\/)/.test(value))
+    throw new Error(
+      `${file}: link "${value}" must start with #, / or https://`
+    );
+  const escaped = value.replace(BARE_AMP, "&amp;");
+  if (
+    /[\\\s\p{Cc}]/u.test(escaped) ||
+    /&(?!amp;)/.test(escaped) ||
+    /^\/\\/.test(escaped)
+  ) {
+    throw new Error(
+      `${file}: link "${value}" must not contain a backslash, whitespace, a control character or an entity other than &amp;`
+    );
+  }
+  return escaped;
+}
+
 // Keeps only the allowed tags; on <a>, keeps only a safe href. Content is
 // repo-authored, so this is a guard against mistakes, not an attacker.
 function sanitize(html, file) {
@@ -82,12 +129,7 @@ function sanitize(html, file) {
       if (tag.startsWith("</")) return `</${lower}>`;
       if (lower !== "a") return `<${lower}>`;
       const href = /href="([^"]*)"/.exec(attrs);
-      const value = href ? href[1] : "";
-      if (!/^(#|\/(?!\/)|https:\/\/)/.test(value))
-        throw new Error(
-          `${file}: link "${value}" must start with #, / or https://`
-        );
-      return `<a href="${value}">`;
+      return `<a href="${safeHref(href ? href[1] : "", file)}">`;
     });
 }
 
@@ -96,7 +138,7 @@ async function readLang(lang) {
   const files = (await fs.readdir(dir)).filter((f) => f.endsWith(".md")).sort();
   const entries = await Promise.all(
     files.map(async (f) => {
-      const text = await fs.readFile(path.join(dir, f), "utf8");
+      const text = await readText(path.join(dir, f));
       const parsed = frontMatter(text, `${lang}/${f}`);
       return [
         f.replace(/\.md$/, ""),
@@ -169,14 +211,17 @@ async function build(outDir) {
 async function tree(dir) {
   async function walk(d, rel) {
     const entries = (await fs.readdir(d, { withFileTypes: true })).sort(
-      (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+      (a, b) => {
+        if (a.name < b.name) return -1;
+        return a.name > b.name ? 1 : 0;
+      }
     );
     const lists = await Promise.all(
       entries.map(async (e) => {
         const p = path.join(d, e.name);
         const r = rel ? `${rel}/${e.name}` : e.name;
         if (e.isDirectory()) return walk(p, r);
-        return [[r, await fs.readFile(p, "utf8")]];
+        return [[r, await readText(p)]];
       })
     );
     return lists.flat();
