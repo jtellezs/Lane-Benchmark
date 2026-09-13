@@ -98,6 +98,9 @@ public with sharing class RfpLaneController {
       );
       RfpBidAccess.applySelectedBids(deferred);
       return one(posted.Id);
+    } catch (LaneSearchException e) {
+      // The bid rule's own sentences ("That bid is not available.") read whole, as importLanes does.
+      throw RfpUserError.of(e.getMessage());
     } catch (Exception e) {
       throw RfpUserError.of(
         'The lane price could not be saved. ' + RfpUserError.safe(e)

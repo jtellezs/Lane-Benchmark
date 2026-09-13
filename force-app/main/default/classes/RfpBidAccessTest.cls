@@ -218,6 +218,25 @@ private class RfpBidAccessTest {
     } catch (LaneSearchException e) {
       System.assertEquals('A bid cannot move to another lane.', e.getMessage());
     }
+    // An explicit null lane is a move too: the system-mode update would orphan the bid.
+    Benchmark_Rate__c orphaning = new Benchmark_Rate__c(
+      Id = saved.Id,
+      RFP_Lane__c = null,
+      Rate__c = 975
+    );
+    try {
+      RfpBidAccess.updateBid(orphaning);
+      System.assert(false, 'expected LaneSearchException');
+    } catch (LaneSearchException e) {
+      System.assertEquals('A bid cannot move to another lane.', e.getMessage());
+    }
+    Benchmark_Rate__c kept = [
+      SELECT RFP_Lane__c, Rate__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :saved.Id
+    ];
+    System.assertEquals(f.lane.Id, kept.RFP_Lane__c, 'the bid keeps its lane');
+    System.assertEquals(950, kept.Rate__c, 'and nothing of the refused edit');
     Id fake =
       Benchmark_Rate__c.SObjectType.getDescribe().getKeyPrefix() +
       '000000000001';
@@ -525,6 +544,123 @@ private class RfpBidAccessTest {
       0,
       RfpBidAccess.detachSelectedBids(new List<RFP_Lane__c>()).size(),
       'nothing to defer for an empty list'
+    );
+  }
+
+  /**
+   * A lane deleted outside RfpBulkService.deleteLanes (the record page) leaves its bids with a
+   * null RFP_Lane__c (set-null lookup), so no lane grants them through the rule any more. A lane
+   * that still points at such a bid must keep saving its margin, sell and notes: the stored
+   * Selected_Bid__c carried forward unchanged is neither validated nor deferred.
+   */
+  @IsTest
+  static void anUnchangedSelectedBidWhoseLaneIsGoneStillSaves() {
+    Fx f = fx();
+    Benchmark_Rate__c saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 900) }
+    )[0];
+    update new RFP_Lane__c(
+      Id = f.other.Id,
+      Cost__c = 900,
+      Cost_Source__c = 'Bid',
+      Selected_Bid__c = saved.Id
+    );
+    update new Benchmark_Rate__c(Id = saved.Id, RFP_Lane__c = null);
+    List<RFP_Lane__c> updates = new List<RFP_Lane__c>{
+      new RFP_Lane__c(
+        Id = f.other.Id,
+        Selected_Bid__c = saved.Id,
+        Margin__c = 20
+      )
+    };
+    Test.startTest();
+    List<RFP_Lane__c> deferred = RfpBidAccess.detachSelectedBids(updates);
+    RFP_Lane__c priced = RfpLaneController.saveLanePricing(
+      JSON.serialize(
+        new RFP_Lane__c(
+          Id = f.other.Id,
+          Cost__c = 900,
+          Cost_Source__c = 'Bid',
+          Selected_Bid__c = saved.Id,
+          Margin__c = 20,
+          Sell__c = 1125,
+          Sell_Source__c = 'Margin'
+        )
+      )
+    );
+    Test.stopTest();
+    System.assertEquals(
+      0,
+      deferred.size(),
+      'an unchanged selected bid is not deferred'
+    );
+    System.assertEquals(
+      saved.Id,
+      updates[0].Selected_Bid__c,
+      'it stays on the update untouched'
+    );
+    System.assertEquals(20, priced.Margin__c, 'the new margin is saved');
+    System.assertEquals(
+      saved.Id,
+      priced.Selected_Bid__c,
+      'the lane keeps its selected bid'
+    );
+    System.assertEquals(
+      saved.Id,
+      [SELECT Selected_Bid__c FROM RFP_Lane__c WHERE Id = :f.other.Id]
+      .Selected_Bid__c
+    );
+  }
+
+  /** OwnerId is not caller-settable: a posted owner never reaches the system-mode update. */
+  @IsTest
+  static void updateBidIgnoresAPostedOwner() {
+    Fx f = fx();
+    User viewer = restrictedUser(new List<String>{ 'Lane_Benchmark_User' });
+    if (viewer == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    Benchmark_Rate__c saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 900) }
+    )[0];
+    Test.startTest();
+    Benchmark_Rate__c updated = RfpBidAccess.updateBid(
+      new Benchmark_Rate__c(Id = saved.Id, OwnerId = viewer.Id, Rate__c = 950)
+    );
+    Test.stopTest();
+    System.assertEquals(950, updated.Rate__c, 'the rate is saved');
+    System.assertEquals(
+      UserInfo.getUserId(),
+      [SELECT OwnerId FROM Benchmark_Rate__c WHERE Id = :saved.Id].OwnerId,
+      'the owner is unchanged'
+    );
+  }
+
+  /** RFP_Project__c is not caller-settable: the trigger stamps the lane's project. */
+  @IsTest
+  static void insertBidsTakesTheProjectFromTheLaneNotTheCaller() {
+    Fx f = fx();
+    RFP_Project__c elsewhere = RfpTestDataFactory.createProject(f.g.customer);
+    Benchmark_Rate__c posted = RfpTestDataFactory.buildBid(f.lane, 900);
+    posted.RFP_Project__c = elsewhere.Id;
+    Test.startTest();
+    Benchmark_Rate__c saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{ posted }
+    )[0];
+    Test.stopTest();
+    System.assertEquals(
+      f.project.Id,
+      saved.RFP_Project__c,
+      'the lane\'s project, not the posted one'
+    );
+    System.assertEquals(
+      f.project.Id,
+      [SELECT RFP_Project__c FROM Benchmark_Rate__c WHERE Id = :saved.Id]
+      .RFP_Project__c
     );
   }
 }

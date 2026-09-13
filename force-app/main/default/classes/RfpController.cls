@@ -57,6 +57,9 @@ public with sharing class RfpController {
       return byId.values();
     } catch (QueryException e) {
       throw userError('RFP projects could not be loaded for this account.');
+    } catch (LaneSearchException e) {
+      // bidCountsByProject refuses a caller with project read but no bid read ("You cannot read bids.").
+      throw userError(e.getMessage());
     }
   }
 

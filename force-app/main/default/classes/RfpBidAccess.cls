@@ -17,6 +17,31 @@ public without sharing class RfpBidAccess {
     'Fuel_Surcharge__c, FSC_Included__c, Transit_Days__c, Valid_From__c, Expires_On__c, ' +
     'Status__c, Notes__c, City_Lane__c, State_Lane__c, Zip3_Lane__c';
   public static final String LANE_UNAVAILABLE = 'This lane is not available.';
+  /**
+   * The bid fields a caller may set. Everything else - OwnerId, RFP_Project__c, the lane keys, the
+   * geolocations - is set only by BenchmarkRateTrigger or the platform and never reaches the
+   * system-mode DML below, whatever FLS the caller happens to hold. RFP_Lane__c travels on insert
+   * only (an update keeps the stored lane); Status__c is a formula, so it is not listed.
+   */
+  private static final List<String> SETTABLE_FIELDS = new List<String>{
+    'Carrier__c',
+    'Carrier_Name__c',
+    'Contact_Name__c',
+    'Contact_Email__c',
+    'Contact_Phone__c',
+    'Rate__c',
+    'CurrencyIsoCode',
+    'Fuel_Surcharge__c',
+    'FSC_Included__c',
+    'Transit_Days__c',
+    'Valid_From__c',
+    'Expires_On__c',
+    'Notes__c',
+    'Mode__c',
+    'Equipment_Category__c',
+    'Equipment_Type__c',
+    'Hazmat__c'
+  };
 
   /** The subset of laneIds the running user can read; empty when they cannot read lanes at all. */
   public static Set<Id> visibleLanes(Set<Id> laneIds) {
@@ -67,11 +92,15 @@ public without sharing class RfpBidAccess {
   }
 
   /**
-   * Takes the Selected_Bid__c values off lane updates about to run in user mode and returns them
-   * as bare (Id, Selected_Bid__c) records to apply afterwards: a user-mode update that names a
+   * Takes the CHANGED Selected_Bid__c values off lane updates about to run in user mode and returns
+   * them as bare (Id, Selected_Bid__c) records to apply afterwards: a user-mode update that names a
    * colleague's Private bid fails the cross-reference check even though the lane rule grants the
-   * bid. Throws LaneSearchException("That bid is not available.") when any named bid is not
-   * readable through the rule, before any DML.
+   * bid. A value equal to the one the lane already stores (read once, in user mode) stays on the
+   * update untouched and is neither checked nor deferred: rewriting an unchanged lookup runs no
+   * cross-reference check, and a bid carried forward (an inline edit, pricingCopy) may have lost
+   * its lane outside the workbench, which the rule no longer grants. Throws
+   * LaneSearchException("That bid is not available.") when any changed bid is not readable through
+   * the rule, before any DML.
    */
   public static List<RFP_Lane__c> detachSelectedBids(
     List<RFP_Lane__c> updates
@@ -130,26 +159,21 @@ public without sharing class RfpBidAccess {
     return counts;
   }
 
-  /** Inserts bids on visible lanes only (a bid without a lane is refused) and returns them reloaded in input order. */
+  /**
+   * Inserts bids on visible lanes only (a bid without a lane is refused) and returns them reloaded
+   * in input order. Only SETTABLE_FIELDS and RFP_Lane__c travel, and the lane checks run on the
+   * records actually inserted - after the CREATABLE strip, so a stripped lane is refused too.
+   */
   public static List<Benchmark_Rate__c> insertBids(
     List<Benchmark_Rate__c> bids
   ) {
     GATE.create();
-    Set<Id> laneIds = new Set<Id>();
-    for (Benchmark_Rate__c bid : bids) {
-      if (bid.RFP_Lane__c == null) {
-        throw new LaneSearchException('A bid needs a lane.');
-      }
-      laneIds.add(bid.RFP_Lane__c);
-    }
-    if (!visibleLanes(laneIds).containsAll(laneIds)) {
-      throw new LaneSearchException(LANE_UNAVAILABLE);
-    }
     List<Benchmark_Rate__c> clean = Security.stripInaccessible(
         AccessType.CREATABLE,
-        bids
+        ROWS.settable(bids, true)
       )
       .getRecords();
+    GATE.lanesOf(clean);
     systemInsert(clean);
     List<Id> ids = new List<Id>();
     for (Benchmark_Rate__c bid : clean) {
@@ -158,7 +182,11 @@ public without sharing class RfpBidAccess {
     return bidsByIds(ids);
   }
 
-  /** Updates one bid whose stored lane the user can read; a lane change is refused only when the caller sets a different lane. */
+  /**
+   * Updates one bid whose stored lane the user can read. The lane is never written: a caller who
+   * sets RFP_Lane__c to anything but the stored lane (null included) is refused. Only
+   * SETTABLE_FIELDS travel.
+   */
   public static Benchmark_Rate__c updateBid(Benchmark_Rate__c bid) {
     GATE.edit();
     List<Benchmark_Rate__c> stored = bid.Id == null
@@ -172,15 +200,14 @@ public without sharing class RfpBidAccess {
     }
     assertLaneVisible(stored[0].RFP_Lane__c);
     Boolean moves =
-      bid.isSet('RFP_Lane__c') &&
-      bid.RFP_Lane__c != null &&
+      ROWS.posted(bid).contains('rfp_lane__c') &&
       bid.RFP_Lane__c != stored[0].RFP_Lane__c;
     if (moves) {
       throw new LaneSearchException('A bid cannot move to another lane.');
     }
     Benchmark_Rate__c clean = (Benchmark_Rate__c) Security.stripInaccessible(
         AccessType.UPDATABLE,
-        new List<Benchmark_Rate__c>{ bid }
+        ROWS.settable(new List<Benchmark_Rate__c>{ bid }, false)
       )
       .getRecords()[0];
     systemUpdate(clean);
@@ -233,6 +260,21 @@ public without sharing class RfpBidAccess {
       if (!RfpBidAccess.visibleLanes(laneIds).containsAll(laneIds)) {
         throw new LaneSearchException(RfpBidAccess.LANE_UNAVAILABLE);
       }
+    }
+    /** The insert gate, on the records about to be inserted: each names a lane (one the CREATABLE
+     * strip removed reads as none), and every lane is readable. */
+    private void lanesOf(List<Benchmark_Rate__c> bids) {
+      Set<Id> laneIds = new Set<Id>();
+      for (Benchmark_Rate__c bid : bids) {
+        Id laneId = RfpBidAccess.ROWS.posted(bid).contains('rfp_lane__c')
+          ? bid.RFP_Lane__c
+          : null;
+        if (laneId == null) {
+          throw new LaneSearchException('A bid needs a lane.');
+        }
+        laneIds.add(laneId);
+      }
+      lanes(laneIds);
     }
   }
 
@@ -287,11 +329,52 @@ public without sharing class RfpBidAccess {
     private List<Benchmark_Rate__c> readable(List<Benchmark_Rate__c> bids) {
       return Security.stripInaccessible(AccessType.READABLE, bids).getRecords();
     }
+
+    /** Fresh bids carrying only the SETTABLE_FIELDS populated on bids, plus RFP_Lane__c on insert or
+     * the Id on update; an update never writes null over a field the caller left out. */
+    private List<Benchmark_Rate__c> settable(
+      List<Benchmark_Rate__c> bids,
+      Boolean inserting
+    ) {
+      List<String> fields = new List<String>(RfpBidAccess.SETTABLE_FIELDS);
+      if (inserting) {
+        fields.add('RFP_Lane__c');
+      }
+      List<Benchmark_Rate__c> copies = new List<Benchmark_Rate__c>();
+      for (Benchmark_Rate__c bid : bids) {
+        Benchmark_Rate__c copy = new Benchmark_Rate__c();
+        if (!inserting) {
+          copy.Id = bid.Id;
+        }
+        Set<String> posted = posted(bid);
+        for (String field : fields) {
+          if (posted.contains(field.toLowerCase())) {
+            copy.put(field, bid.get(field));
+          }
+        }
+        copies.add(copy);
+      }
+      return copies;
+    }
+
+    /**
+     * The lower-cased names of the fields populated on bid: set in memory (null included) or
+     * queried. Not isSet: on a record JSON.deserialize built, isSet reports fields the JSON never
+     * named, which would copy a null checkbox into the insert and read an absent lane as a move.
+     */
+    private Set<String> posted(SObject bid) {
+      Set<String> names = new Set<String>();
+      for (String name : bid.getPopulatedFieldsAsMap().keySet()) {
+        names.add(name.toLowerCase());
+      }
+      return names;
+    }
   }
 
   /** The selected-bid stitching of attachSelectedBids, kept out of the outer class for the same
-   * complexity-budget reason as Gate above. */
-  private class Selected {
+   * complexity-budget reason as Gate above. Declared like Rows: its one query (the stored
+   * selections) is `WITH USER_MODE`, so the running user's sharing decides what comes back. */
+  private without sharing class Selected {
     private List<RFP_Lane__c> attach(List<RFP_Lane__c> lanes) {
       // A Set: two lanes can share one selected bid, and bidsByIds answers per input Id.
       Set<Id> bidIds = selectedIds(lanes);
@@ -313,18 +396,23 @@ public without sharing class RfpBidAccess {
       return lanes;
     }
 
-    /** The Selected_Bid__c values of updates, lifted out and nulled on the update records. */
+    /** The changed Selected_Bid__c values of updates, lifted out and nulled on the update records;
+     * a null or a value equal to the stored one stays on the update as posted. */
     private List<RFP_Lane__c> detach(List<RFP_Lane__c> updates) {
+      Map<Id, Id> stored = storedSelections(updates);
       List<RFP_Lane__c> deferred = new List<RFP_Lane__c>();
-      Set<Id> bidIds = selectedIds(updates);
+      Set<Id> bidIds = new Set<Id>();
       for (RFP_Lane__c u : updates) {
-        if (u.Selected_Bid__c != null) {
+        Boolean changed =
+          u.Selected_Bid__c != null &&
+          u.Selected_Bid__c != stored.get(u.Id);
+        if (changed) {
+          bidIds.add(u.Selected_Bid__c);
           deferred.add(
             new RFP_Lane__c(Id = u.Id, Selected_Bid__c = u.Selected_Bid__c)
           );
-          // Left isSet as null on purpose: a user switching back to a manual cost must still
-          // clear the field in the user-mode update that follows. A caller who means null
-          // defers nothing, so nothing is written back either.
+          // Left isSet as null on purpose, as a caller who means null leaves it: a user switching
+          // back to a manual cost must still clear the field in the user-mode update that follows.
           u.Selected_Bid__c = null;
         }
       }
@@ -334,6 +422,31 @@ public without sharing class RfpBidAccess {
         throw new LaneSearchException('That bid is not available.');
       }
       return deferred;
+    }
+
+    /** Selected_Bid__c as stored, for the updates that name a bid, in one user-mode query (none
+     * when no update names one). A lane the user cannot read comes back absent, so its value
+     * counts as changed and goes through the rule. */
+    private Map<Id, Id> storedSelections(List<RFP_Lane__c> updates) {
+      Map<Id, Id> stored = new Map<Id, Id>();
+      Set<Id> laneIds = new Set<Id>();
+      for (RFP_Lane__c u : updates) {
+        if (u.Selected_Bid__c != null && u.Id != null) {
+          laneIds.add(u.Id);
+        }
+      }
+      if (laneIds.isEmpty()) {
+        return stored;
+      }
+      for (RFP_Lane__c lane : [
+        SELECT Id, Selected_Bid__c
+        FROM RFP_Lane__c
+        WHERE Id IN :laneIds
+        WITH USER_MODE
+      ]) {
+        stored.put(lane.Id, lane.Selected_Bid__c);
+      }
+      return stored;
     }
 
     /** Writes the detached values back past sharing, once their lanes are proved readable. */
