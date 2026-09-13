@@ -50,6 +50,59 @@ private class LaneBenchmarkControllerTest {
     update hidden;
   }
 
+  /** A user holding only the named permission set (as RfpSecurityTest.restrictedUser), or null when the org has no usable profile. */
+  private static User restrictedUser(String permSetName) {
+    return restrictedUser(new List<String>{ permSetName });
+  }
+
+  /** A user holding only the named permission sets, or null when the org has no usable profile. */
+  private static User restrictedUser(List<String> permSetNames) {
+    List<Profile> profiles = [
+      SELECT Id
+      FROM Profile
+      WHERE Name IN ('Standard User', 'Minimum Access - Salesforce')
+      ORDER BY Name DESC
+      LIMIT 1
+    ];
+    if (profiles.isEmpty()) {
+      return null;
+    }
+    User u = new User(
+      ProfileId = profiles[0].Id,
+      Username = 'lanebench.' +
+        System.currentTimeMillis() +
+        '.' +
+        permSetNames.size() +
+        '@example.invalid',
+      Email = 'lanebench@example.invalid',
+      LastName = 'LaneBench',
+      Alias = 'lbench',
+      TimeZoneSidKey = 'America/Toronto',
+      LocaleSidKey = 'en_CA',
+      EmailEncodingKey = 'UTF-8',
+      LanguageLocaleKey = 'en_US'
+    );
+    List<PermissionSet> sets = [
+      SELECT Id
+      FROM PermissionSet
+      WHERE Name IN :permSetNames
+    ];
+    System.runAs(new User(Id = UserInfo.getUserId())) {
+      insert u;
+      List<PermissionSetAssignment> psa = new List<PermissionSetAssignment>();
+      for (PermissionSet ps : sets) {
+        psa.add(
+          new PermissionSetAssignment(
+            AssigneeId = u.Id,
+            PermissionSetId = ps.Id
+          )
+        );
+      }
+      insert psa;
+    }
+    return u;
+  }
+
   @IsTest
   static void searchPlacesMatchesNormalizedPrefixAndAliasesOrderedByLoads() {
     List<LaneBenchmarkController.PlaceOption> byPrefix = LaneBenchmarkController.searchPlaces(
@@ -218,6 +271,87 @@ private class LaneBenchmarkControllerTest {
         null,
         'MI'
       )
+    );
+  }
+
+  /**
+   * excludeProjectId binds into a system-mode bid query, so honouring it for a project the caller
+   * cannot read would let two searches reveal which bids belong to an RFP they cannot see (spec
+   * §5: that RFP does not exist for them). The exclusion counts only for a readable project. The
+   * Lane_Benchmark_User has no RFP_Project__c read at all; the stranger holds RFP_Tool_User too, so
+   * only the user-mode sharing check (no share on the customer) keeps the exclusion off for them.
+   */
+  @IsTest
+  static void searchExcludesAProjectOnlyWhenTheCallerCanReadIt() {
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
+    User viewer = restrictedUser('Lane_Benchmark_User');
+    User stranger = restrictedUser(
+      new List<String>{ 'RFP_Tool_User', 'Lane_Benchmark_User' }
+    );
+    if (viewer == null || stranger == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c mtl = [
+      SELECT Id, City__c, Province__c, Country__c, Postal_Prefix__c
+      FROM Pricing_Place__c
+      WHERE Key__c = 'montreal|qc|ca'
+    ];
+    Pricing_Place__c tor = [
+      SELECT Id, City__c, Province__c, Country__c, Postal_Prefix__c
+      FROM Pricing_Place__c
+      WHERE Key__c = 'toronto|on|ca'
+    ];
+    RFP_Project__c project = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(project, mtl, tor);
+    BenchmarkRateService.save(RfpTestDataFactory.buildBid(lane, 1200));
+    String requestJson =
+      '{"originKey":"montreal|qc|ca","destinationKey":"toronto|on|ca",' +
+      '"sourceFilter":"BIDS","excludeProjectId":"' +
+      project.Id +
+      '"}';
+    Test.startTest();
+    Integer viewerRows;
+    System.runAs(viewer) {
+      viewerRows = LaneBenchmarkController.search(requestJson).rows.size();
+    }
+    Id projectId = project.Id;
+    Integer strangerProjects;
+    Integer strangerRows;
+    System.runAs(stranger) {
+      strangerProjects = [
+        SELECT COUNT()
+        FROM RFP_Project__c
+        WHERE Id = :projectId
+        WITH USER_MODE
+      ];
+      strangerRows = LaneBenchmarkController.search(requestJson).rows.size();
+    }
+    Integer adminRows = LaneBenchmarkController.search(requestJson).rows.size();
+    Test.stopTest();
+    System.assertEquals(
+      1,
+      viewerRows,
+      'a project the caller cannot read excludes nothing'
+    );
+    System.assertEquals(
+      0,
+      strangerProjects,
+      'precondition: RFP read, but no share on the project\'s customer'
+    );
+    System.assertEquals(
+      1,
+      strangerRows,
+      'a project hidden by sharing excludes nothing'
+    );
+    System.assertEquals(
+      0,
+      adminRows,
+      'a project the caller can read keeps its exclusion'
     );
   }
 }

@@ -108,6 +108,8 @@
         <members>RfpHistoryServiceTest</members>
         <members>RfpProjectController</members>
         <members>RfpProjectControllerTest</members>
+        <members>RfpBidAccess</members>
+        <members>RfpBidAccessTest</members>
         <members>RfpBidController</members>
         <members>RfpBidControllerTest</members>
         <members>RfpPricingMath</members>

@@ -52,6 +52,7 @@ public without sharing class LaneBenchmarkController {
       );
     }
     try {
+      req.excludeProjectId = readableProject(req.excludeProjectId);
       return LaneSearchService.search(req);
     } catch (LaneSearchException e) {
       throw userError(e.getMessage());
@@ -61,6 +62,30 @@ public without sharing class LaneBenchmarkController {
           e.getMessage() +
           ')'
       );
+    }
+  }
+
+  /**
+   * The project a search may leave out. excludeProjectId binds into a system-mode bid query, so it
+   * counts only when the caller can read that project in user mode; otherwise two searches would
+   * reveal which bids belong to an RFP the caller cannot see (spec §5). A caller with no read on
+   * RFP_Project__c at all (Lane_Benchmark_User) makes the query throw: no exclusion either.
+   * RfpHistoryService calls LaneSearchService.search directly and keeps its exclusion.
+   */
+  private static Id readableProject(Id projectId) {
+    if (projectId == null) {
+      return null;
+    }
+    try {
+      List<RFP_Project__c> readable = [
+        SELECT Id
+        FROM RFP_Project__c
+        WHERE Id = :projectId
+        WITH USER_MODE
+      ];
+      return readable.isEmpty() ? null : projectId;
+    } catch (Exception e) {
+      return null;
     }
   }
 

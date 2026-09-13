@@ -752,8 +752,6 @@ private class LaneSearchServiceTest {
   @IsTest
   static void bidsMergeIntoRowsAndObeyTheSourceFilter() {
     Fixture f = fixture();
-    Test.startTest();
-    createLoadsAndQuotes(f);
     Pricing_Place__c mtl = [
       SELECT Id, City__c, Province__c, Country__c, Postal_Prefix__c
       FROM Pricing_Place__c
@@ -774,6 +772,9 @@ private class LaneSearchServiceTest {
     expired.Valid_From__c = Date.today().addDays(-60);
     expired.Expires_On__c = Date.today().addDays(-1);
     BenchmarkRateService.save(expired);
+
+    Test.startTest();
+    createLoadsAndQuotes(f);
 
     LaneSearchResult all = LaneSearchService.search(
       req('montreal|qc|ca', 'toronto|on|ca')

@@ -8,5 +8,5 @@
     <relationshipLabel>RFP Lanes</relationshipLabel>
     <relationshipOrder>0</relationshipOrder>
     <reparentableMasterDetail>false</reparentableMasterDetail>
-    <writeRequiresMasterRead>false</writeRequiresMasterRead>
+    <writeRequiresMasterRead>true</writeRequiresMasterRead>
 </CustomField>

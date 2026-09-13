@@ -32,12 +32,14 @@ public with sharing class RfpLaneController {
   @AuraEnabled
   public static List<RFP_Lane__c> getLanes(Id projectId) {
     try {
-      return Database.queryWithBinds(
-        'SELECT ' +
-          LANE_FIELDS +
-          ' FROM RFP_Lane__c WHERE RFP_Project__c = :projectId ORDER BY Row_Number__c LIMIT 2000',
-        new Map<String, Object>{ 'projectId' => projectId },
-        AccessLevel.USER_MODE
+      return RfpBidAccess.attachSelectedBids(
+        (List<RFP_Lane__c>) Database.queryWithBinds(
+          'SELECT ' +
+            LANE_FIELDS +
+            ' FROM RFP_Lane__c WHERE RFP_Project__c = :projectId ORDER BY Row_Number__c LIMIT 2000',
+          new Map<String, Object>{ 'projectId' => projectId },
+          AccessLevel.USER_MODE
+        )
       );
     } catch (Exception e) {
       throw RfpUserError.of(
@@ -83,6 +85,9 @@ public with sharing class RfpLaneController {
         Sell_Source__c = posted.Sell_Source__c,
         Notes__c = posted.Notes__c
       );
+      List<RFP_Lane__c> deferred = RfpBidAccess.detachSelectedBids(
+        new List<RFP_Lane__c>{ lane }
+      );
       Database.update(
         Security.stripInaccessible(
             AccessType.UPDATABLE,
@@ -91,7 +96,11 @@ public with sharing class RfpLaneController {
           .getRecords()[0],
         AccessLevel.USER_MODE
       );
+      RfpBidAccess.applySelectedBids(deferred);
       return one(posted.Id);
+    } catch (LaneSearchException e) {
+      // The bid rule's own sentences ("That bid is not available.") read whole, as importLanes does.
+      throw RfpUserError.of(e.getMessage());
     } catch (Exception e) {
       throw RfpUserError.of(
         'The lane price could not be saved. ' + RfpUserError.safe(e)
@@ -172,21 +181,25 @@ public with sharing class RfpLaneController {
   }
 
   private static RFP_Lane__c one(Id laneId) {
-    return (RFP_Lane__c) Database.queryWithBinds(
-      'SELECT ' + LANE_FIELDS + ' FROM RFP_Lane__c WHERE Id = :laneId',
-      new Map<String, Object>{ 'laneId' => laneId },
-      AccessLevel.USER_MODE
+    return RfpBidAccess.attachSelectedBids(
+      (List<RFP_Lane__c>) Database.queryWithBinds(
+        'SELECT ' + LANE_FIELDS + ' FROM RFP_Lane__c WHERE Id = :laneId',
+        new Map<String, Object>{ 'laneId' => laneId },
+        AccessLevel.USER_MODE
+      )
     )[0];
   }
 
   /** Shared by RfpHistoryService: the same field list as getLanes, for a set of Ids. */
   public static List<RFP_Lane__c> lanesByIds(List<Id> laneIds) {
-    return Database.queryWithBinds(
-      'SELECT ' +
-        LANE_FIELDS +
-        ' FROM RFP_Lane__c WHERE Id IN :laneIds ORDER BY Row_Number__c',
-      new Map<String, Object>{ 'laneIds' => laneIds },
-      AccessLevel.USER_MODE
+    return RfpBidAccess.attachSelectedBids(
+      (List<RFP_Lane__c>) Database.queryWithBinds(
+        'SELECT ' +
+          LANE_FIELDS +
+          ' FROM RFP_Lane__c WHERE Id IN :laneIds ORDER BY Row_Number__c',
+        new Map<String, Object>{ 'laneIds' => laneIds },
+        AccessLevel.USER_MODE
+      )
     );
   }
 }

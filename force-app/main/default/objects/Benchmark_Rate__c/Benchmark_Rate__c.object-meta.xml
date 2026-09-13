@@ -8,7 +8,7 @@
         <displayFormat>B-{000000}</displayFormat>
     </nameField>
     <deploymentStatus>Deployed</deploymentStatus>
-    <sharingModel>ReadWrite</sharingModel>
+    <sharingModel>Private</sharingModel>
     <enableActivities>false</enableActivities>
     <enableHistory>false</enableHistory>
     <enableReports>true</enableReports>

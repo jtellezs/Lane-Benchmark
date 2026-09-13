@@ -29,29 +29,10 @@ public with sharing class RfpBidController {
   @AuraEnabled
   public static List<Benchmark_Rate__c> getBids(Id laneId) {
     try {
-      return [
-        SELECT
-          Id,
-          Name,
-          Carrier__c,
-          Carrier_Display__c,
-          Contact_Name__c,
-          Contact_Email__c,
-          Contact_Phone__c,
-          Rate__c,
-          CurrencyIsoCode,
-          Fuel_Surcharge__c,
-          FSC_Included__c,
-          Transit_Days__c,
-          Valid_From__c,
-          Expires_On__c,
-          Status__c,
-          Notes__c
-        FROM Benchmark_Rate__c
-        WHERE RFP_Lane__c = :laneId
-        WITH USER_MODE
-        ORDER BY Rate__c
-      ];
+      RfpBidAccess.assertLaneVisible(laneId);
+      return RfpBidAccess.bidsOfLanes(new Set<Id>{ laneId });
+    } catch (LaneSearchException e) {
+      throw RfpUserError.of(e.getMessage());
     } catch (Exception e) {
       throw RfpUserError.of('The bids could not be loaded.');
     }

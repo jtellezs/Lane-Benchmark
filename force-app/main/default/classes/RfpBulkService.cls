@@ -265,14 +265,8 @@ public with sharing class RfpBulkService {
 
   public static Result deleteLanes(List<Id> laneIds) {
     Context c = load(laneIds);
-    List<Benchmark_Rate__c> bids = [
-      SELECT Id
-      FROM Benchmark_Rate__c
-      WHERE RFP_Lane__c IN :c.ids
-      WITH USER_MODE
-    ];
-    // An empty list is a no-op for Database.delete and costs no DML statement.
-    c.collect(Database.delete(bids, false, AccessLevel.USER_MODE), false);
+    // load() read the lanes in user mode, so their bids are the caller's to delete (RfpBidAccess).
+    c.collect(RfpBidAccess.deleteBidsOfLanes(new Set<Id>(c.ids)), false);
     c.collect(Database.delete(c.lanes, false, AccessLevel.USER_MODE), true);
     c.finish();
     c.result.lanes = RfpLaneController.lanesByIds(c.ids);
@@ -330,12 +324,20 @@ public with sharing class RfpBulkService {
   /** Writes c.updates; allOrNone=true is for callers holding a Savepoint (applyBid). */
   private static Result save(Context c, Boolean allOrNone) {
     if (!c.updates.isEmpty()) {
+      List<RFP_Lane__c> deferred = RfpBidAccess.detachSelectedBids(c.updates);
       List<RFP_Lane__c> clean = Security.stripInaccessible(
           AccessType.UPDATABLE,
           c.updates
         )
         .getRecords();
-      c.collect(Database.update(clean, allOrNone, AccessLevel.USER_MODE), true);
+      List<Database.SaveResult> results = Database.update(
+        clean,
+        allOrNone,
+        AccessLevel.USER_MODE
+      );
+      c.collect(results, true);
+      // The results, not just the deferred list: a lane this update refused keeps its old bid.
+      RfpBidAccess.applySelectedBids(deferred, results);
     }
     c.finish();
     c.result.lanes = RfpLaneController.lanesByIds(c.ids);
