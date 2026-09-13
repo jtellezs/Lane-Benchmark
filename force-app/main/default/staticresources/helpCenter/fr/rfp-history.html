@@ -1,0 +1,16 @@
+<h3>Lancer</h3>
+<p>Réglez <strong>History precision</strong> (City, Province ou Radius), <strong>Lookback (days)</strong>, <strong>Radius</strong> et son <strong>Unit</strong>, et <strong>Include RFP bids</strong>, puis cliquez sur <strong>Load history</strong>. Les voies sont traitées par lots avec une barre de progression; <strong>Stop</strong> arrête après le lot en cours. <strong>Refresh history</strong> relance toutes les voies; <strong>Retry failed</strong> ne relance que celles marquées Failed.</p>
+<h3>Repli sur le rayon</h3>
+<p>Avec la précision City, une voie dont la ville n&#39;a pas d&#39;historique est recherchée à nouveau dans le rayon. Sur une voie qui a une médiane, l&#39;infobulle de la cellule History indique la précision utilisée, par exemple <code>RADIUS-50KM</code>.</p>
+<h3>Include RFP bids</h3>
+<p>Activé (par défaut), les soumissions enregistrées sur <strong>d&#39;autres</strong> projets RFP comptent avec les chargements, même après leur date de validité, tant qu&#39;elles sont dans la période. Les soumissions du projet que vous tarifez ne sont jamais comptées - ce sont vos propres données. La cellule History se lit alors « 5 loads + 1 bid · median 5500.00 ». Désactivé, seuls les chargements comptent.</p>
+<h3>Lire la cellule</h3>
+<ul>
+<li><code>12 · median 5800.00</code> : douze cotations correspondent, la médiane des tarifées est 5 800.</li>
+<li><code>3 · no median</code> : trois correspondent mais aucune n&#39;avait de prix.</li>
+<li><strong>No match</strong> : rien dans la période à cette précision.</li>
+<li><strong>Failed</strong> : la recherche a rencontré une erreur.</li>
+<li><strong>Unresolved</strong> : une extrémité n&#39;est pas un lieu connu.</li>
+<li><strong>Pending</strong> : pas encore lancé.</li>
+</ul>
+<p>Les statistiques n&#39;utilisent que les cotations dans la devise de la voie.</p>

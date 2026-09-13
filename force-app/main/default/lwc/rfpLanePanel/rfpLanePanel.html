@@ -1,7 +1,15 @@
 <template>
   <template lwc:if={hasLane}>
     <div class="slds-box slds-box_x-small lane-panel">
-      <h2 class="slds-text-heading_small slds-m-bottom_x-small">{laneTitle}</h2>
+      <div
+        class="slds-grid slds-grid_vertical-align-center slds-m-bottom_x-small"
+      >
+        <h2 class="slds-text-heading_small">{laneTitle}</h2>
+        <c-help-hint
+          topic="rfp-pricing"
+          label="Help: pricing a lane"
+        ></c-help-hint>
+      </div>
 
       <div class="slds-grid slds-wrap slds-gutters_x-small">
         <div class="slds-col slds-size_1-of-1">

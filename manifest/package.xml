@@ -2,11 +2,13 @@
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <!-- Pricing Department app: Lightning App Page + tab -->
     <types>
+        <members>Help_Center</members>
         <members>Lane_Benchmark</members>
         <members>RFP_Tool</members>
         <name>FlexiPage</name>
     </types>
     <types>
+        <members>Help_Center</members>
         <members>Lane_Benchmark</members>
         <members>RFP_Tool</members>
         <name>CustomTab</name>
@@ -19,6 +21,9 @@
     <!-- UI -->
     <types>
         <members>marginMath</members>
+        <members>helpContent</members>
+        <members>helpHint</members>
+        <members>helpCenter</members>
         <members>laneBenchmarkCsv</members>
         <members>laneBenchmarkStorage</members>
         <members>laneBenchmarkPlacePicker</members>
@@ -51,6 +56,7 @@
         <name>LightningComponentBundle</name>
     </types>
     <types>
+        <members>helpCenter</members>
         <members>sheetJs</members>
         <name>StaticResource</name>
     </types>

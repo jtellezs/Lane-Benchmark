@@ -1,5 +1,11 @@
 <template>
   <template lwc:if={hasLanes}>
+    <div class="slds-grid slds-grid_align-end">
+      <c-help-hint
+        topic="rfp-inline"
+        label="Help: editing in the table"
+      ></c-help-hint>
+    </div>
     <table class="slds-table slds-table_bordered slds-table_fixed-layout lanes">
       <thead>
         <tr class="slds-line-height_reset">

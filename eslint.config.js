@@ -48,5 +48,25 @@ module.exports = defineConfig([
       eslintJs
     },
     extends: ["eslintJs/recommended"]
+  },
+
+  // Node build scripts (ESM)
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      sourceType: "module",
+      ecmaVersion: "latest",
+      globals: {
+        ...globals.node,
+        ...globals.es2021
+      }
+    },
+    plugins: {
+      eslintJs
+    },
+    extends: ["eslintJs/recommended"],
+    rules: {
+      "no-await-in-loop": "error"
+    }
   }
 ]);

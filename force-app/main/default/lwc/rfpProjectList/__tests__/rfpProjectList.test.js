@@ -95,6 +95,21 @@ describe("c-rfp-project-list", () => {
     expect(field(el2, "error").textContent).toContain("no access");
   });
 
+  it("keeps the help hint out of the list heading's name", async () => {
+    const el = await mount();
+    const heading = [...el.shadowRoot.querySelectorAll("h2")].find((h) =>
+      h.textContent.includes("RFP projects")
+    );
+    expect(heading.textContent.trim()).toBe("RFP projects");
+    // The hint's button carries assistive text, so a hint inside the h2 is
+    // read out as part of the heading's name.
+    expect(heading.querySelector("c-help-hint")).toBeNull();
+    const hints = [...el.shadowRoot.querySelectorAll("c-help-hint")].filter(
+      (h) => h.topic === "rfp-projects"
+    );
+    expect(hints.length).toBe(1);
+  });
+
   it("creates a project from the form and emits open", async () => {
     const el = await mount();
     const opened = jest.fn();
