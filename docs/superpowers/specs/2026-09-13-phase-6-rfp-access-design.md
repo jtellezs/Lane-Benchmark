@@ -512,5 +512,37 @@ pair on `ca84425`: `0AfbZ00000CprjKSAR` (NoTestRun, 246 components, 0 errors),
 `0AfbZ00000CprctSAB` (RunSpecifiedTests, the 23 test classes, 157/157, 0
 failures). Apex 157 (152 plus one method in `RfpBidAccessTest`, three in
 `RfpSecurityTest` and one in `RfpBulkControllerTest`). PMD clean;
-`RfpBidAccess` stays at 33 of 40 (`Rows` 22). Still open: only the known
-limits recorded above.
+`RfpBidAccess` stays at 33 of 40 (`Rows` 22).
+
+Review of the follow-ups (2026-09-14), closed in `c361024`. Three minor
+findings, each confirmed at `88f4f43`:
+
+1. R67's "adds no access" rested on a field users could edit. `RFP_Tool_User`
+   could edit `Benchmark_Rate__c.RFP_Project__c`, and the trigger stamps the
+   project only when a bid has a lane. So a pricer who could edit a bid could
+   clear its lane and point it at any project they could read, and that
+   project's readers were then granted the bid. The field is now readable but
+   not editable in `RFP_Tool_User`; the trigger still stamps it in system
+   context. `BenchmarkRateServiceTest.aPricerCannotPointABidAtAnotherProject`:
+   a restricted pricer who owns a bid and can read a second project edits
+   the bid's rate in user mode, but a user-mode update that clears the lane
+   and names the second project, and a user-mode lane-less insert naming it,
+   leave no bid on that project. It failed against the old permission set
+   (the bid moved to the second project).
+2. R67, the README and the `RfpBidAccess` header now name the invariant: a
+   bid's project is service-maintained, so a lane-less bid's project is the
+   project of the last lane it had.
+3. `RfpBidAccessTest.anUnchangedSelectedBidWhoseLaneIsGoneStillSaves` clears
+   the bid's project as well as its lane. With the project kept, R67 granted
+   the bid, and a `detachSelectedBids` that validated an unchanged selection
+   passed the test. A dry run with that mutation now fails it ("That bid is not
+   available.").
+
+Deploys: `0AfbZ00000Cq475SAB` (dry run of the new tests against the old
+permission set, with the mutation, Failed 30/32 on exactly those two tests),
+`0AfbZ00000Cq5O5SAJ` (the permission set, `RfpBidAccess` and two test classes;
+five test classes run, 53/53). Final pair on `c361024`: `0AfbZ00000Cq5zBSAR`
+(NoTestRun, 246 components, 0 errors), `0AfbZ00000Cq3CcSAJ`
+(RunSpecifiedTests, the 23 test classes, 158/158, 0 failures). Apex 158 (157
+plus one method in `BenchmarkRateServiceTest`). PMD clean. Still open: only
+the known limits recorded above.
