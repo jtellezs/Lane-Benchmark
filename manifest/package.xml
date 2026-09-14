@@ -86,6 +86,10 @@
         <members>MapboxGeocoder</members>
         <members>MapboxGeocoderTest</members>
         <members>MapboxResponseParser</members>
+        <members>MapboxHttp</members>
+        <members>MapboxTruckRoute</members>
+        <members>MapboxTruckRouteTest</members>
+        <members>TruckRoute</members>
         <members>LaneBenchmarkPlaceServiceTest</members>
         <members>RfpTestDataFactory</members>
         <members>RfpTestDataFactoryTest</members>
