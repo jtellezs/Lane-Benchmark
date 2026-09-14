@@ -2,6 +2,8 @@
 private class RfpBidAccessTest {
   private class Fx {
     PricingTestDataFactory.Graph g;
+    Pricing_Place__c mtl;
+    Pricing_Place__c tor;
     RFP_Project__c project;
     RFP_Lane__c lane;
     RFP_Lane__c other;
@@ -10,7 +12,7 @@ private class RfpBidAccessTest {
   private static Fx fx() {
     Fx f = new Fx();
     f.g = PricingTestDataFactory.createGraph();
-    Pricing_Place__c mtl = RfpTestDataFactory.createPlace(
+    f.mtl = RfpTestDataFactory.createPlace(
       'Montréal',
       'QC',
       'CA',
@@ -18,7 +20,7 @@ private class RfpBidAccessTest {
       -73.5674,
       'H1A'
     );
-    Pricing_Place__c tor = RfpTestDataFactory.createPlace(
+    f.tor = RfpTestDataFactory.createPlace(
       'Toronto',
       'ON',
       'CA',
@@ -27,8 +29,8 @@ private class RfpBidAccessTest {
       'M5V'
     );
     f.project = RfpTestDataFactory.createProject(f.g.customer);
-    f.lane = RfpTestDataFactory.createLane(f.project, mtl, tor);
-    f.other = RfpTestDataFactory.createLane(f.project, tor, mtl);
+    f.lane = RfpTestDataFactory.createLane(f.project, f.mtl, f.tor);
+    f.other = RfpTestDataFactory.createLane(f.project, f.tor, f.mtl);
     return f;
   }
 
@@ -549,9 +551,12 @@ private class RfpBidAccessTest {
 
   /**
    * A lane deleted outside RfpBulkService.deleteLanes (the record page) leaves its bids with a
-   * null RFP_Lane__c (set-null lookup), so no lane grants them through the rule any more. A lane
-   * that still points at such a bid must keep saving its margin, sell and notes: the stored
-   * Selected_Bid__c carried forward unchanged is neither validated nor deferred.
+   * null RFP_Lane__c (set-null lookup); a bid that has lost its RFP_Project__c too (its project
+   * deleted, or the field cleared by an admin) is granted to nobody, neither through a lane nor
+   * through a project (R67). A lane that still points at such a bid must keep saving its margin,
+   * sell and notes: the stored Selected_Bid__c carried forward unchanged is neither validated nor
+   * deferred (R63). Both lookups are cleared, so a detach that validated the unchanged value would
+   * refuse this save; with the project kept, R67 would grant the bid and hide that defect.
    */
   @IsTest
   static void anUnchangedSelectedBidWhoseLaneIsGoneStillSaves() {
@@ -565,7 +570,11 @@ private class RfpBidAccessTest {
       Cost_Source__c = 'Bid',
       Selected_Bid__c = saved.Id
     );
-    update new Benchmark_Rate__c(Id = saved.Id, RFP_Lane__c = null);
+    update new Benchmark_Rate__c(
+      Id = saved.Id,
+      RFP_Lane__c = null,
+      RFP_Project__c = null
+    );
     List<RFP_Lane__c> updates = new List<RFP_Lane__c>{
       new RFP_Lane__c(
         Id = f.other.Id,
@@ -609,6 +618,71 @@ private class RfpBidAccessTest {
       saved.Id,
       [SELECT Selected_Bid__c FROM RFP_Lane__c WHERE Id = :f.other.Id]
       .Selected_Bid__c
+    );
+  }
+
+  /**
+   * A lane deleted with plain DML (the record page) clears its bids' RFP_Lane__c (set-null lookup)
+   * and leaves their RFP_Project__c. Such a bid is granted through its project (R67): bidsByIds
+   * returns it, and copying the pricing of a lane that selected it carries it to another lane, whose
+   * carrier the attach then fills. A bid with neither a lane nor a project stays hidden.
+   */
+  @IsTest
+  static void aBidWhoseLaneIsGoneIsGrantedThroughItsProject() {
+    Fx f = fx();
+    RFP_Lane__c target = RfpTestDataFactory.createLane(f.project, f.mtl, f.tor);
+    Benchmark_Rate__c saved = RfpBidAccess.insertBids(
+      new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 900) }
+    )[0];
+    update new RFP_Lane__c(
+      Id = f.other.Id,
+      Cost__c = 900,
+      Cost_Source__c = 'Bid',
+      Selected_Bid__c = saved.Id
+    );
+    delete new RFP_Lane__c(Id = f.lane.Id);
+    Benchmark_Rate__c orphan = [
+      SELECT RFP_Lane__c, RFP_Project__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :saved.Id
+    ];
+    System.assertEquals(null, orphan.RFP_Lane__c, 'the lane lookup is cleared');
+    System.assertEquals(
+      f.project.Id,
+      orphan.RFP_Project__c,
+      'the project lookup stays'
+    );
+    Test.startTest();
+    List<Benchmark_Rate__c> back = RfpBidAccess.bidsByIds(
+      new List<Id>{ saved.Id }
+    );
+    RfpBulkService.Result copied = RfpBulkService.copyPricing(
+      f.other.Id,
+      new List<Id>{ target.Id }
+    );
+    Test.stopTest();
+    System.assertEquals(1, back.size(), 'the project grants the bid');
+    System.assertEquals(saved.Id, back[0].Id);
+    System.assertEquals(1, copied.updated, String.join(copied.errors, '; '));
+    System.assertEquals(
+      saved.Id,
+      [SELECT Selected_Bid__c FROM RFP_Lane__c WHERE Id = :target.Id]
+      .Selected_Bid__c,
+      'the target lane takes the bid whose lane is gone'
+    );
+    List<RFP_Lane__c> filled = RfpBidAccess.attachSelectedBids(
+      [SELECT Id, Selected_Bid__c FROM RFP_Lane__c WHERE Id = :target.Id]
+    );
+    System.assertEquals(
+      'Bid Carrier',
+      filled[0].Selected_Bid__r?.Carrier_Display__c,
+      'the attach fills the carrier of the target lane'
+    );
+    update new Benchmark_Rate__c(Id = saved.Id, RFP_Project__c = null);
+    System.assertEquals(
+      0,
+      RfpBidAccess.bidsByIds(new List<Id>{ saved.Id }).size(),
+      'a bid with neither a lane nor a project is granted to nobody'
     );
   }
 
