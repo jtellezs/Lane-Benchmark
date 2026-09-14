@@ -1,108 +1,16 @@
 @IsTest
 private class RfpSecurityTest {
-  /** Creates a user holding only the named permission set. Returns null when the org has no usable profile. */
-  private static User restrictedUser(String permSetName) {
-    return restrictedUser(new List<String>{ permSetName });
-  }
-
-  /** Creates a user holding only the named permission sets. Returns null when the org has no usable profile. */
-  private static User restrictedUser(List<String> permSetNames) {
-    List<Profile> profiles = [
-      SELECT Id
-      FROM Profile
-      WHERE Name IN ('Standard User', 'Minimum Access - Salesforce')
-      ORDER BY Name DESC
-      LIMIT 1
-    ];
-    if (profiles.isEmpty()) {
-      return null;
-    }
-    User u = new User(
-      ProfileId = profiles[0].Id,
-      Username = 'rfp.' +
-        System.currentTimeMillis() +
-        '.' +
-        permSetNames.size() +
-        '@example.invalid',
-      Email = 'rfp@example.invalid',
-      LastName = 'Rfp',
-      Alias = 'rfp',
-      TimeZoneSidKey = 'America/Toronto',
-      LocaleSidKey = 'en_CA',
-      EmailEncodingKey = 'UTF-8',
-      LanguageLocaleKey = 'en_US'
-    );
-    List<PermissionSet> sets = [
-      SELECT Id
-      FROM PermissionSet
-      WHERE Name IN :permSetNames
-    ];
-    System.runAs(new User(Id = UserInfo.getUserId())) {
-      insert u;
-      List<PermissionSetAssignment> psa = new List<PermissionSetAssignment>();
-      for (PermissionSet ps : sets) {
-        psa.add(
-          new PermissionSetAssignment(
-            AssigneeId = u.Id,
-            PermissionSetId = ps.Id
-          )
-        );
-      }
-      insert psa;
-    }
-    return u;
-  }
-
   /**
-   * Account is Private in this org and an RFP follows its account (phase 6): a manual share
-   * on the customer is what lets a restricted user see, and with Read alone also work, the RFP.
+   * The admin's bid on f.lane after f.lane is deleted with plain DML, as the record page does: the
+   * set-null lookup clears the bid's RFP_Lane__c and its RFP_Project__c stays.
    */
-  private static void shareAccount(Account customer, User u, String level) {
-    insert new AccountShare(
-      AccountId = customer.Id,
-      UserOrGroupId = u.Id,
-      AccountAccessLevel = level,
-      OpportunityAccessLevel = 'None',
-      CaseAccessLevel = 'None',
-      RowCause = 'Manual'
-    );
-  }
-
-  /**
-   * A carrier account the admin creates and a restricted user cannot read. In this org an ordinary
-   * carrier is readable by every internal user: the flow Ownership_update_Carrier_and hands an
-   * account whose TMS type contains "Carrier" and that is not blacklisted to the Public Accounts
-   * user, whose owner-based rules share Edit with All Internal Users, and the criteria rule
-   * Carrier_Sharing_Setting shares a carrier whose Company_Org__c is 'Trans-Pro Logistics Inc' (the
-   * picklist default). So the graph's vendor will not do: this carrier is blacklisted (the flow
-   * leaves its owner alone) and belongs to 'Trans-Pro Logistica' (no rule shares it). If a
-   * precondition assertion on this account fails, that org configuration changed, not the code.
-   */
-  private static Account hiddenCarrier() {
-    Account carrier = new Account(
-      Name = 'Hidden Carrier',
-      RecordTypeId = Schema.SObjectType.Account
-        .getRecordTypeInfosByDeveloperName()
-        .get('Carrier')
-        .getRecordTypeId(),
-      rtms__TMS_Type__c = 'Carrier (Ground)',
-      Company_Org__c = 'Trans-Pro Logistica',
-      Black_List__c = true,
-      CurrencyIsoCode = 'CAD'
-    );
-    insert carrier;
-    return carrier;
-  }
-
-  /** The carrier's sharing inputs, for a precondition message: who owns it and what the rules read. */
-  private static String sharingInputs(Id accountId) {
-    return String.valueOf(
-      [
-        SELECT OwnerId, Company_Org__c, rtms__TMS_Type__c, Black_List__c
-        FROM Account
-        WHERE Id = :accountId
-      ]
-    );
+  private static Id orphanedBid(Fx f) {
+    Id bidId = BenchmarkRateService.save(
+        RfpTestDataFactory.buildBid(f.lane, 900)
+      )
+      .Id;
+    delete new RFP_Lane__c(Id = f.lane.Id);
+    return bidId;
   }
 
   private class Fx {
@@ -202,8 +110,8 @@ private class RfpSecurityTest {
   @IsTest
   static void readOnTheAccountIsEnoughToRecordABidAndLaneBenchmarkSeesIt() {
     Fx f = fx();
-    User pricing = restrictedUser('RFP_Tool_User');
-    User viewer = restrictedUser('Lane_Benchmark_User');
+    User pricing = RfpTestDataFactory.restrictedUser('RFP_Tool_User');
+    User viewer = RfpTestDataFactory.restrictedUser('Lane_Benchmark_User');
     if (pricing == null || viewer == null) {
       System.assert(
         true,
@@ -211,7 +119,7 @@ private class RfpSecurityTest {
       );
       return;
     }
-    shareAccount(f.g.customer, pricing, 'Read');
+    RfpTestDataFactory.shareAccount(f.g.customer, pricing, 'Read');
     Test.startTest();
     Benchmark_Rate__c saved;
     Benchmark_Rate__c resaved;
@@ -257,7 +165,7 @@ private class RfpSecurityTest {
   @IsTest
   static void readSharedUserDeletesLanesAndAColleaguesBids() {
     Fx f = fx();
-    User pricing = restrictedUser('RFP_Tool_User');
+    User pricing = RfpTestDataFactory.restrictedUser('RFP_Tool_User');
     if (pricing == null) {
       System.assert(
         true,
@@ -270,7 +178,7 @@ private class RfpSecurityTest {
     // admin records the bid, so the delete removes a colleague's Private bid, not the user's own.
     RFP_Project__c own = RfpTestDataFactory.createProject(f.g.customer);
     RFP_Lane__c lane = RfpTestDataFactory.createLane(own, f.mtl, f.tor);
-    shareAccount(f.g.customer, pricing, 'Read');
+    RfpTestDataFactory.shareAccount(f.g.customer, pricing, 'Read');
     Id laneId = lane.Id;
     Id bidId = BenchmarkRateService.save(RfpTestDataFactory.buildBid(lane, 900))
       .Id;
@@ -304,7 +212,7 @@ private class RfpSecurityTest {
   @IsTest
   static void withoutAccountAccessTheRfpIsAbsentButLaneBenchmarkStillCountsItsBid() {
     Fx f = fx();
-    User stranger = restrictedUser(
+    User stranger = RfpTestDataFactory.restrictedUser(
       new List<String>{ 'RFP_Tool_User', 'Lane_Benchmark_User' }
     );
     if (stranger == null) {
@@ -321,22 +229,7 @@ private class RfpSecurityTest {
     Id accountId = f.g.customer.Id;
     // A second customer, with a lane of its own, that the stranger is given Read on after the
     // absence checks below: a readable lane must not let them name a bid on a lane they cannot read.
-    Account second = new Account(
-      Name = 'Second Customer',
-      RecordTypeId = Schema.SObjectType.Account
-        .getRecordTypeInfosByDeveloperName()
-        .get('Customer')
-        .getRecordTypeId(),
-      rtms__TMS_Type__c = 'Customer',
-      Industry = 'Other',
-      BillingStreet = '2 Test St',
-      BillingCity = 'Montreal',
-      BillingState = 'Quebec',
-      BillingPostalCode = 'H1A 1A1',
-      BillingCountry = 'Canada',
-      CurrencyIsoCode = 'CAD'
-    );
-    insert second;
+    Account second = RfpTestDataFactory.secondCustomer();
     RFP_Lane__c readable = RfpTestDataFactory.createLane(
       RfpTestDataFactory.createProject(second),
       f.laval,
@@ -400,7 +293,7 @@ private class RfpSecurityTest {
         );
       }
     }
-    shareAccount(second, stranger, 'Read');
+    RfpTestDataFactory.shareAccount(second, stranger, 'Read');
     System.runAs(stranger) {
       try {
         RfpLaneController.saveLanePricing(
@@ -447,7 +340,7 @@ private class RfpSecurityTest {
   @IsTest
   static void readOnTheAccountLetsAUserCreateAProjectItsLanesAndBids() {
     Fx f = fx();
-    User reader = restrictedUser('RFP_Tool_User');
+    User reader = RfpTestDataFactory.restrictedUser('RFP_Tool_User');
     if (reader == null) {
       System.assert(
         true,
@@ -455,7 +348,7 @@ private class RfpSecurityTest {
       );
       return;
     }
-    shareAccount(f.g.customer, reader, 'Read');
+    RfpTestDataFactory.shareAccount(f.g.customer, reader, 'Read');
     Benchmark_Rate__c adminBid = BenchmarkRateService.save(
       RfpTestDataFactory.buildBid(f.lane, 900)
     );
@@ -599,7 +492,7 @@ private class RfpSecurityTest {
   @IsTest
   static void aBidSaveNamesOnlyACarrierAccountTheCallerCanRead() {
     Fx f = fx();
-    User pricing = restrictedUser('RFP_Tool_User');
+    User pricing = RfpTestDataFactory.restrictedUser('RFP_Tool_User');
     if (pricing == null) {
       System.assert(
         true,
@@ -607,9 +500,18 @@ private class RfpSecurityTest {
       );
       return;
     }
-    shareAccount(f.g.customer, pricing, 'Read');
-    Account carrier = hiddenCarrier();
+    RfpTestDataFactory.shareAccount(f.g.customer, pricing, 'Read');
+    Account carrier = RfpTestDataFactory.hiddenCarrier();
     Id carrierId = carrier.Id;
+    if (!RfpTestDataFactory.hiddenFrom(pricing, carrierId)) {
+      System.assert(
+        true,
+        'this org shares the hidden carrier ' +
+          RfpTestDataFactory.sharingInputs(carrierId) +
+          '; carrier check coverage skipped (ledgered, R68)'
+      );
+      return;
+    }
     Id laneId = f.lane.Id;
     // What rfpBidForm posts for a new bid on a carrier picked from the account lookup.
     String bidJson =
@@ -618,15 +520,8 @@ private class RfpSecurityTest {
       '","Carrier__c":"' +
       carrierId +
       '","Carrier_Name__c":null,"Rate__c":880,"CurrencyIsoCode":"CAD"}';
-    String carrierInputs = sharingInputs(carrierId);
     Test.startTest();
     System.runAs(pricing) {
-      System.assertEquals(
-        0,
-        [SELECT COUNT() FROM Account WHERE Id = :carrierId WITH USER_MODE],
-        'precondition: the pricer cannot read the admin\'s carrier account ' +
-        carrierInputs
-      );
       try {
         RfpBidController.saveBid(bidJson);
         System.assert(false, 'expected AuraHandledException');
@@ -639,7 +534,7 @@ private class RfpSecurityTest {
       [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Lane__c = :laneId],
       'the refused save wrote no bid'
     );
-    shareAccount(carrier, pricing, 'Read');
+    RfpTestDataFactory.shareAccount(carrier, pricing, 'Read');
     Benchmark_Rate__c saved;
     System.runAs(pricing) {
       saved = RfpBidController.saveBid(bidJson);
@@ -665,7 +560,7 @@ private class RfpSecurityTest {
   @IsTest
   static void aColleagueEditsTheRateOfABidWhoseCarrierTheyCannotRead() {
     Fx f = fx();
-    User pricing = restrictedUser('RFP_Tool_User');
+    User pricing = RfpTestDataFactory.restrictedUser('RFP_Tool_User');
     if (pricing == null) {
       System.assert(
         true,
@@ -673,24 +568,26 @@ private class RfpSecurityTest {
       );
       return;
     }
-    shareAccount(f.g.customer, pricing, 'Read');
-    Id carrierId = hiddenCarrier().Id;
+    RfpTestDataFactory.shareAccount(f.g.customer, pricing, 'Read');
+    Id carrierId = RfpTestDataFactory.hiddenCarrier().Id;
+    if (!RfpTestDataFactory.hiddenFrom(pricing, carrierId)) {
+      System.assert(
+        true,
+        'this org shares the hidden carrier ' +
+          RfpTestDataFactory.sharingInputs(carrierId) +
+          '; carrier check coverage skipped (ledgered, R68)'
+      );
+      return;
+    }
     Benchmark_Rate__c posted = RfpTestDataFactory.buildBid(f.lane, 900);
     posted.Carrier__c = carrierId;
     posted.Carrier_Name__c = null;
     Id bidId = BenchmarkRateService.save(posted).Id;
     Id laneId = f.lane.Id;
-    String carrierInputs = sharingInputs(carrierId);
     Test.startTest();
     Benchmark_Rate__c edited;
     Benchmark_Rate__c resent;
     System.runAs(pricing) {
-      System.assertEquals(
-        0,
-        [SELECT COUNT() FROM Account WHERE Id = :carrierId WITH USER_MODE],
-        'precondition: the pricer cannot read the carrier account on the bid ' +
-        carrierInputs
-      );
       edited = RfpBidController.saveBid('{"Id":"' + bidId + '","Rate__c":925}');
       resent = RfpBidController.saveBid(
         '{"RFP_Lane__c":"' +
@@ -720,6 +617,187 @@ private class RfpSecurityTest {
       'the carrier is unchanged'
     );
     System.assertEquals(930, stored.Rate__c);
+  }
+
+  /**
+   * The update path of the carrier check (R66): a colleague editing the admin's bid cannot switch it
+   * to a carrier account they cannot read. The stored carrier is the graph's vendor, which every
+   * internal user can read in this org; only the posted, changed carrier is checked, and refused.
+   */
+  @IsTest
+  static void aColleagueCannotSwitchABidToACarrierTheyCannotRead() {
+    Fx f = fx();
+    User pricing = RfpTestDataFactory.restrictedUser('RFP_Tool_User');
+    if (pricing == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    RfpTestDataFactory.shareAccount(f.g.customer, pricing, 'Read');
+    Id carrierId = RfpTestDataFactory.hiddenCarrier().Id;
+    if (!RfpTestDataFactory.hiddenFrom(pricing, carrierId)) {
+      System.assert(
+        true,
+        'this org shares the hidden carrier ' +
+          RfpTestDataFactory.sharingInputs(carrierId) +
+          '; carrier check coverage skipped (ledgered, R68)'
+      );
+      return;
+    }
+    Id vendorId = f.g.vendor.Id;
+    Benchmark_Rate__c posted = RfpTestDataFactory.buildBid(f.lane, 900);
+    posted.Carrier__c = vendorId;
+    posted.Carrier_Name__c = null;
+    Id bidId = BenchmarkRateService.save(posted).Id;
+    Id laneId = f.lane.Id;
+    Test.startTest();
+    System.runAs(pricing) {
+      try {
+        RfpBidController.saveBid(
+          '{"RFP_Lane__c":"' +
+            laneId +
+            '","Carrier__c":"' +
+            carrierId +
+            '","Carrier_Name__c":null,"Rate__c":950,"CurrencyIsoCode":"CAD","Id":"' +
+            bidId +
+            '"}'
+        );
+        System.assert(false, 'expected AuraHandledException');
+      } catch (AuraHandledException e) {
+        System.assert(
+          e.getMessage().contains('That carrier is not available.'),
+          e.getMessage()
+        );
+      }
+    }
+    Test.stopTest();
+    Benchmark_Rate__c stored = [
+      SELECT Carrier__c, Rate__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :bidId
+    ];
+    System.assertEquals(
+      vendorId,
+      stored.Carrier__c,
+      'the stored carrier is unchanged'
+    );
+    System.assertEquals(900, stored.Rate__c, 'and so is the rate');
+  }
+
+  /**
+   * A lane deleted outside RfpBulkService.deleteLanes leaves its bids with no lane and their project
+   * (R67). A Read-shared pricer copies the pricing of a lane whose selected bid lost its lane: the
+   * project grants the bid, so the target lane takes it and shows its carrier.
+   */
+  @IsTest
+  static void aReadSharedUserCopiesPricingWhoseSelectedBidLostItsLane() {
+    Fx f = fx();
+    User pricing = RfpTestDataFactory.restrictedUser('RFP_Tool_User');
+    if (pricing == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    RfpTestDataFactory.shareAccount(f.g.customer, pricing, 'Read');
+    RFP_Project__c project = new RFP_Project__c(Id = f.lane.RFP_Project__c);
+    Id sourceId = RfpTestDataFactory.createLane(project, f.laval, f.tor).Id;
+    Id targetId = RfpTestDataFactory.createLane(project, f.tor, f.mtl).Id;
+    Id bidId = orphanedBid(f);
+    update new RFP_Lane__c(
+      Id = sourceId,
+      Cost__c = 900,
+      Cost_Source__c = 'Bid',
+      Selected_Bid__c = bidId
+    );
+    Test.startTest();
+    RfpBulkService.Result copied;
+    System.runAs(pricing) {
+      copied = RfpBulkController.copyPricing(
+        sourceId,
+        new List<Id>{ targetId }
+      );
+    }
+    Test.stopTest();
+    System.assertEquals(1, copied.updated, String.join(copied.errors, '; '));
+    System.assertEquals(
+      bidId,
+      [SELECT Selected_Bid__c FROM RFP_Lane__c WHERE Id = :targetId]
+      .Selected_Bid__c,
+      'the target lane takes the bid whose lane is gone'
+    );
+    System.assertEquals(
+      'Bid Carrier',
+      copied.lanes[0].Selected_Bid__r?.Carrier_Display__c,
+      'and shows its carrier to the pricer'
+    );
+  }
+
+  /**
+   * The project grant adds no access (R67): a stranger who can read a lane of another customer is
+   * refused a bid whose lane is gone when they cannot read that bid's project.
+   */
+  @IsTest
+  static void aStrangerCannotNameABidWhoseLaneIsGone() {
+    Fx f = fx();
+    User stranger = RfpTestDataFactory.restrictedUser(
+      new List<String>{ 'RFP_Tool_User', 'Lane_Benchmark_User' }
+    );
+    if (stranger == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    Id bidId = orphanedBid(f);
+    Account second = RfpTestDataFactory.secondCustomer();
+    Id readableId = RfpTestDataFactory.createLane(
+        RfpTestDataFactory.createProject(second),
+        f.laval,
+        f.tor
+      )
+      .Id;
+    RfpTestDataFactory.shareAccount(second, stranger, 'Read');
+    Test.startTest();
+    System.runAs(stranger) {
+      System.assertEquals(
+        1,
+        [SELECT COUNT() FROM RFP_Lane__c WHERE Id = :readableId WITH USER_MODE],
+        'the stranger can read the lane they price'
+      );
+      try {
+        RfpLaneController.saveLanePricing(
+          JSON.serialize(
+            new RFP_Lane__c(
+              Id = readableId,
+              Cost__c = 900,
+              Cost_Source__c = 'Bid',
+              Selected_Bid__c = bidId,
+              Margin__c = 15,
+              Sell__c = 1058.82,
+              Sell_Source__c = 'Margin'
+            )
+          )
+        );
+        System.assert(false, 'expected AuraHandledException');
+      } catch (AuraHandledException e) {
+        System.assert(
+          e.getMessage().contains('That bid is not available.'),
+          e.getMessage()
+        );
+      }
+    }
+    Test.stopTest();
+    System.assertEquals(
+      null,
+      [SELECT Selected_Bid__c FROM RFP_Lane__c WHERE Id = :readableId]
+      .Selected_Bid__c,
+      'the readable lane did not take the bid'
+    );
   }
 
   /**

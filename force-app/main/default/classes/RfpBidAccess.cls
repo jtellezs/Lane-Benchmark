@@ -7,7 +7,9 @@
  * queries, and user mode enforces the running user's sharing whatever the class keyword says,
  * so sharing still decides which lanes count; the bid reads and writes then run in system mode
  * past sharing, restricted to those lanes, because a Private bid recorded by a colleague must be
- * visible and editable to anyone who can read its lane. A bid save that names a Carrier__c
+ * visible and editable to anyone who can read its lane. A bid whose lane is gone (RFP_Lane__c is a
+ * set-null lookup; RFP_Project__c stays) is granted through its project, read in user mode, which
+ * adds no access because lanes are Controlled by Parent. A bid save that names a Carrier__c
  * account is checked in user mode too (Gate.carriers), because the system-mode DML skips the
  * sharing check a lookup target gets. Lane Benchmark (BidSearchService) does not use this class:
  * it reads every bid in system mode on purpose and shows no customer.
@@ -71,7 +73,10 @@ public without sharing class RfpBidAccess {
     );
   }
 
-  /** The bids among bidIds whose lane the user can read, in the order of bidIds. */
+  /**
+   * The bids among bidIds the rule grants the user - through their lane, or through their project
+   * once their lane is gone - in the order of bidIds.
+   */
   public static List<Benchmark_Rate__c> bidsByIds(List<Id> bidIds) {
     GATE.read();
     if (bidIds == null || bidIds.isEmpty()) {
@@ -102,7 +107,7 @@ public without sharing class RfpBidAccess {
    * bid. A value equal to the one the lane already stores (read once, in user mode) stays on the
    * update untouched and is neither checked nor deferred: rewriting an unchanged lookup runs no
    * cross-reference check, and a bid carried forward (an inline edit, pricingCopy) may have lost
-   * its lane outside the workbench, which the rule no longer grants. Throws
+   * both its lane and its project outside the workbench, which the rule no longer grants. Throws
    * LaneSearchException("That bid is not available.") when any changed bid is not readable through
    * the rule, before any DML.
    */
@@ -330,8 +335,9 @@ public without sharing class RfpBidAccess {
   }
 
   /** Row-filtering helpers, kept out of the outer class for the same complexity-budget reason
-   * as Gate above. Declared like the outer class: the lane query below is `WITH USER_MODE`, so
-   * the running user's sharing decides which lanes come back whatever the keyword says. */
+   * as Gate above. Declared like the outer class: the lane and project queries below are
+   * `WITH USER_MODE`, so the running user's sharing decides what comes back whatever the keyword
+   * says. */
   private without sharing class Rows {
     /** The subset of laneIds the running user can read; sharing decides, in one query. */
     private Set<Id> visibleLanes(Set<Id> laneIds) {
@@ -354,26 +360,61 @@ public without sharing class RfpBidAccess {
       return visible;
     }
 
-    /** The bids among byId whose lane the user can read, in the order of ids. */
+    /**
+     * The bids among byId the user is granted, in the order of ids: a bid on a lane through that
+     * lane; a bid whose lane is gone through its project; a bid with neither, to nobody. The project
+     * query runs only when such a bid is present.
+     */
     private List<Benchmark_Rate__c> keepVisible(
       List<Id> ids,
       Map<Id, Benchmark_Rate__c> byId
     ) {
       Set<Id> laneIds = new Set<Id>();
+      Set<Id> projectIds = new Set<Id>();
       for (Benchmark_Rate__c bid : byId.values()) {
         if (bid.RFP_Lane__c != null) {
           laneIds.add(bid.RFP_Lane__c);
+        } else if (bid.RFP_Project__c != null) {
+          projectIds.add(bid.RFP_Project__c);
         }
       }
-      Set<Id> lanes = RfpBidAccess.visibleLanes(laneIds);
+      // Lane and project Ids never collide, so one set holds both grants; each bid is looked up by
+      // its lane, or by its project only when it has no lane, so a readable project never grants a
+      // bid whose lane is still there but hidden. A bid with neither looks up null, never held.
+      Set<Id> granted = RfpBidAccess.visibleLanes(laneIds);
+      granted.addAll(readableProjects(projectIds));
       List<Benchmark_Rate__c> kept = new List<Benchmark_Rate__c>();
       for (Id id : ids) {
         Benchmark_Rate__c bid = byId.get(id);
-        if (bid != null && lanes.contains(bid.RFP_Lane__c)) {
+        if (
+          bid != null && granted.contains(bid.RFP_Lane__c ?? bid.RFP_Project__c)
+        ) {
           kept.add(bid);
         }
       }
       return kept;
+    }
+
+    /** The projects among projectIds the caller can read in user mode, sharing deciding: no query
+     * for an empty set, and none readable for a caller with no read on RFP_Project__c (the query
+     * throws). */
+    private Set<Id> readableProjects(Set<Id> projectIds) {
+      if (projectIds.isEmpty()) {
+        return new Set<Id>();
+      }
+      try {
+        return new Map<Id, RFP_Project__c>(
+            [
+              SELECT Id
+              FROM RFP_Project__c
+              WHERE Id IN :projectIds
+              WITH USER_MODE
+            ]
+          )
+          .keySet();
+      } catch (QueryException e) {
+        return new Set<Id>();
+      }
     }
 
     /** Field-level security on the way out: only the fields the caller may read. */
@@ -545,7 +586,7 @@ public without sharing class RfpBidAccess {
       return bidIds;
     }
 
-    /** The bidIds the lane rule grants the caller. */
+    /** The bidIds the rule grants the caller (bidsByIds). */
     private Set<Id> grantedBids(Set<Id> bidIds) {
       return new Map<Id, Benchmark_Rate__c>(
           RfpBidAccess.bidsByIds(new List<Id>(bidIds))
