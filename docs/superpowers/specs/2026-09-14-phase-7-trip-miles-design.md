@@ -35,18 +35,18 @@ Excel export) and Lane Benchmark (statistics, results, CSV).
 - `Miles__c` — Number(10, 1), the trip miles for this lane.
 - `Miles_Source__c` — Picklist: `History`, `Map estimate`, `No route`, `No coordinates`, `Unavailable`. Blank means history has not run since phase 7.
 
-Both are written by the history run with the same permissions as the `Hist_*` fields.
+Both are written by the history run, which updates lanes in user mode after `Security.stripInaccessible(UPDATABLE)`. `RFP_Tool_User` must therefore grant them read and edit, exactly like the `Hist_*` fields; a missing grant would silently drop the miles. `Lane_Benchmark_User` has no lane permissions and needs none.
 
 **New object `Place_Distance__c`** (label "Place Distance", Public Read Only, not reportable by default, no tab):
 
-- `Origin_Place__c` — Lookup to `Pricing_Place__c`, required, delete constraint Restrict.
-- `Destination_Place__c` — Lookup to `Pricing_Place__c`, required, delete constraint Restrict.
+- `Origin_Place__c` — Lookup to `Pricing_Place__c`, not required, delete constraint Set Null (the same as every other place lookup in the app).
+- `Destination_Place__c` — Lookup to `Pricing_Place__c`, not required, delete constraint Set Null.
 - `Pair_Key__c` — Text(40), External ID, Unique: `<origin place Id>:<destination place Id>`, so a save is an upsert.
 - `Miles__c` — Number(10, 1); blank when Mapbox found no route.
 - `Status__c` — Picklist: `Found`, `No route`.
 - `Checked_On__c` — Datetime of the Mapbox answer.
 
-Distances between public places are not sensitive, so the object is Public Read Only; only Apex writes it, in system mode, through the service below. Both permission sets gain read on the object and its fields. A row never expires: an admin deletes a row to have that pair asked again.
+Distances between public places are not sensitive, so the object is Public Read Only; only Apex writes it, in system mode, through the service below. Both permission sets gain read on the object and its fields. A row never expires: an admin deletes a row to have that pair asked again. A row whose origin or destination place was deleted keeps a stale `Pair_Key__c` that no lane can produce, and the service ignores rows with a blank place.
 
 ## 4. Apex
 
@@ -102,3 +102,4 @@ A shared LWC module **`c/distanceUnit`** holds the unit (`mi` or `km`, key `trip
 - R71 — map distances are saved per ordered place pair and never expire; direction matters because Mapbox routes are not symmetric.
 - R72 — the unit toggle is shared through a Lightning message channel rather than a DOM event, so components in different parts of the page stay in step under Lightning Web Security.
 - R73 — no backfill job; the next Load or Refresh history fills existing lanes.
+- R74 — the place lookups on `Place_Distance__c` clear on delete instead of blocking it: no code deletes places today, and an admin cleaning up the place dictionary must not be stopped by a cached distance.
