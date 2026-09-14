@@ -526,7 +526,7 @@
         <readable>true</readable>
     </fieldPermissions>
     <fieldPermissions>
-        <editable>true</editable>
+        <editable>false</editable>
         <field>Benchmark_Rate__c.RFP_Project__c</field>
         <readable>true</readable>
     </fieldPermissions>

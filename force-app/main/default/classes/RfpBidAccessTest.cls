@@ -551,9 +551,12 @@ private class RfpBidAccessTest {
 
   /**
    * A lane deleted outside RfpBulkService.deleteLanes (the record page) leaves its bids with a
-   * null RFP_Lane__c (set-null lookup), so no lane grants them through the rule any more. A lane
-   * that still points at such a bid must keep saving its margin, sell and notes: the stored
-   * Selected_Bid__c carried forward unchanged is neither validated nor deferred.
+   * null RFP_Lane__c (set-null lookup); a bid that has lost its RFP_Project__c too (its project
+   * deleted, or the field cleared by an admin) is granted to nobody, neither through a lane nor
+   * through a project (R67). A lane that still points at such a bid must keep saving its margin,
+   * sell and notes: the stored Selected_Bid__c carried forward unchanged is neither validated nor
+   * deferred (R63). Both lookups are cleared, so a detach that validated the unchanged value would
+   * refuse this save; with the project kept, R67 would grant the bid and hide that defect.
    */
   @IsTest
   static void anUnchangedSelectedBidWhoseLaneIsGoneStillSaves() {
@@ -567,7 +570,11 @@ private class RfpBidAccessTest {
       Cost_Source__c = 'Bid',
       Selected_Bid__c = saved.Id
     );
-    update new Benchmark_Rate__c(Id = saved.Id, RFP_Lane__c = null);
+    update new Benchmark_Rate__c(
+      Id = saved.Id,
+      RFP_Lane__c = null,
+      RFP_Project__c = null
+    );
     List<RFP_Lane__c> updates = new List<RFP_Lane__c>{
       new RFP_Lane__c(
         Id = f.other.Id,

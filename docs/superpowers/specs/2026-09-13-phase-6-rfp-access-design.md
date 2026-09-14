@@ -210,9 +210,14 @@ who viewed what.
   it in user mode; an unchanged carrier is not re-checked.
 - R67 — a bid whose lane is gone (its `RFP_Lane__c` cleared by the set-null
   lookup, `RFP_Project__c` kept) is granted through its project, read in user
-  mode; lanes are Controlled by Parent, so this adds no access. Such a bid stays
+  mode. This adds no access because a bid's project is service-maintained:
+  `BenchmarkRateTrigger` stamps it from the lane in system context, and
+  `RFP_Tool_User` can read it but not edit it (`Lane_Benchmark_User` cannot
+  edit it either). A lane-less bid's project is therefore the project of the
+  last lane it had, and lanes are Controlled by Parent, so that project's
+  readers could already read the bid through its lane. Such a bid stays
   uneditable (`updateBid` needs a lane), and a bid with neither lookup is
-  granted to nobody.
+  granted to nobody. Moving a bid to another project is an admin data fix.
 - R68 — the carrier tests skip, like the no-usable-profile branch, when the org
   shares the hidden carrier with the restricted user, so carrier-sharing
   configuration cannot block a deploy; PostProduc does not share it, so they run

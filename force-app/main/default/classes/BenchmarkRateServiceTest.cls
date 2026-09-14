@@ -220,6 +220,100 @@ private class BenchmarkRateServiceTest {
     );
   }
 
+  /**
+   * R67 grants a bid whose lane is gone through its RFP_Project__c, which adds no access only while
+   * that project is service-maintained: BenchmarkRateTrigger stamps it from the lane in system
+   * context and RFP_Tool_User cannot write it. A pricer who owns a bid and can read another project
+   * edits the bid in user mode, as the record page or the API does: clearing its lane while pointing
+   * it at that project leaves the bid on the project its lane had, and a bid inserted without a
+   * lane cannot name a project either. Asserted on the stored rows, so a refused write and a
+   * stripped field both pass, and a written project fails.
+   */
+  @IsTest
+  static void aPricerCannotPointABidAtAnotherProject() {
+    Fx f = fx();
+    User pricing = RfpTestDataFactory.restrictedUser('RFP_Tool_User');
+    if (pricing == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    RfpTestDataFactory.shareAccount(f.g.customer, pricing, 'Read');
+    RFP_Project__c other = RfpTestDataFactory.createProject(f.g.customer);
+    List<String> refusals = new List<String>();
+    Id bidId;
+    Test.startTest();
+    System.runAs(pricing) {
+      System.assertEquals(
+        1,
+        [
+          SELECT COUNT()
+          FROM RFP_Project__c
+          WHERE Id = :other.Id
+          WITH USER_MODE
+        ],
+        'the pricer can read the other project, so no sharing check refuses the lookup'
+      );
+      bidId = BenchmarkRateService.save(
+          RfpTestDataFactory.buildBid(f.lane, 900)
+        )
+        .Id;
+      Database.update(
+        new Benchmark_Rate__c(Id = bidId, Rate__c = 950),
+        AccessLevel.USER_MODE
+      );
+      try {
+        Database.update(
+          new Benchmark_Rate__c(
+            Id = bidId,
+            RFP_Lane__c = null,
+            RFP_Project__c = other.Id
+          ),
+          AccessLevel.USER_MODE
+        );
+      } catch (DmlException e) {
+        refusals.add(e.getMessage());
+      }
+      try {
+        Database.insert(
+          new Benchmark_Rate__c(
+            RFP_Project__c = other.Id,
+            Carrier_Name__c = 'Laneless Carrier',
+            Rate__c = 1,
+            CurrencyIsoCode = 'CAD'
+          ),
+          AccessLevel.USER_MODE
+        );
+      } catch (DmlException e) {
+        refusals.add(e.getMessage());
+      }
+    }
+    Test.stopTest();
+    Benchmark_Rate__c stored = [
+      SELECT RFP_Project__c, Rate__c
+      FROM Benchmark_Rate__c
+      WHERE Id = :bidId
+    ];
+    System.assertEquals(
+      950,
+      stored.Rate__c,
+      'the pricer can edit the bid in user mode'
+    );
+    System.assertEquals(
+      f.project.Id,
+      stored.RFP_Project__c,
+      'the bid keeps the project its lane had; refusals: ' +
+      String.join(refusals, ' | ')
+    );
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Benchmark_Rate__c WHERE RFP_Project__c = :other.Id],
+      'no bid was pointed at or created on the other project'
+    );
+  }
+
   @IsTest
   static void saveAllInsertsEveryBidWithItsLaneKeys() {
     Fx f = fx();

@@ -8,8 +8,10 @@
  * so sharing still decides which lanes count; the bid reads and writes then run in system mode
  * past sharing, restricted to those lanes, because a Private bid recorded by a colleague must be
  * visible and editable to anyone who can read its lane. A bid whose lane is gone (RFP_Lane__c is a
- * set-null lookup; RFP_Project__c stays) is granted through its project, read in user mode, which
- * adds no access because lanes are Controlled by Parent. A bid save that names a Carrier__c
+ * set-null lookup; RFP_Project__c stays) is granted through its project, read in user mode. That
+ * adds no access because the project is service-maintained - BenchmarkRateTrigger stamps it from
+ * the lane in system context and RFP_Tool_User cannot edit it - so it is the project of the last
+ * lane the bid had, and lanes are Controlled by Parent. A bid save that names a Carrier__c
  * account is checked in user mode too (Gate.carriers), because the system-mode DML skips the
  * sharing check a lookup target gets. Lane Benchmark (BidSearchService) does not use this class:
  * it reads every bid in system mode on purpose and shows no customer.

@@ -419,7 +419,7 @@ created directly on the record page — bypassing `save()` entirely — is
 stamped too; `save()` itself now only validates `Rate__c`. Since phase 6 the
 insert/update/reload go through `RfpBidAccess`, in system mode after the lane
 check (see "Access model (phase 6)" below). The caller still cannot set the
-lane keys or geolocations: `RFP_Tool_User` marks those fields not editable
+project, lane keys or geolocations: `RFP_Tool_User` marks those fields not editable
 (see Permission sets below), and `RfpBidAccess` copies only the
 caller-settable fields and strips the rest through
 `Security.stripInaccessible` before the DML. The trigger also defaults `Valid_From__c` /
@@ -440,11 +440,12 @@ the standard "New" page, not an Apex-created record — hence the trigger).
   `RfpController`, `RfpHistoryController`, `RfpHistoryService`,
   `RfpImportService`, `RfpLaneController`, `RfpPricingInput`,
   `RfpPricingMath`, and `RfpProjectController`, and the `RFP_Tool` custom
-  permission (gates `rfpProjectsForAccount`, below). `City_Lane__c` /
-  `State_Lane__c` / `Zip3_Lane__c` / `Origin_Geolocation__c` /
+  permission (gates `rfpProjectsForAccount`, below). `RFP_Project__c` /
+  `City_Lane__c` / `State_Lane__c` / `Zip3_Lane__c` / `Origin_Geolocation__c` /
   `Destination_Geolocation__c` on `Benchmark_Rate__c` are readable but not
   editable: they are service-maintained by `BenchmarkRateTrigger`, never
-  user-entered.
+  user-entered. The project's grant through a lane-less bid (R67) relies on
+  that.
 - `Lane_Benchmark_User` gains object read on `Benchmark_Rate__c` and field read
   on all of its fields, including the formula fields `Carrier_Display__c` /
   `Status__c` (no create/edit — bids are entered through the RFP tool, not
@@ -606,7 +607,9 @@ through `Security.stripInaccessible`. The user-mode lane query does traverse
 `RfpBidAccess.attachSelectedBids` fills it after every `RfpLaneController` lane read.
 Rule: a lane you can see grants its bids, whoever recorded them. A bid whose lane was
 deleted outside the workbench keeps its project and is granted through it, read in user
-mode, which adds no access because lanes follow their project (R67).
+mode (R67). That adds no access because a bid's project is service-maintained:
+`BenchmarkRateTrigger` stamps it from the lane and `RFP_Tool_User` cannot edit it, so it is
+the project of the last lane the bid had, and lanes follow their project.
 
 Three hardening points from the phase 6 final review and its residual round. A bid save
 copies only the caller-settable fields (carrier, contact, rate, currency, fuel surcharge,
