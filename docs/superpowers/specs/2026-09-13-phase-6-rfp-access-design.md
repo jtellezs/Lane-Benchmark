@@ -208,6 +208,19 @@ who viewed what.
   that project in user mode.
 - R66 — a bid save may name a `Carrier__c` account only if the caller can read
   it in user mode; an unchanged carrier is not re-checked.
+- R67 — a bid whose lane is gone (its `RFP_Lane__c` cleared by the set-null
+  lookup, `RFP_Project__c` kept) is granted through its project, read in user
+  mode; lanes are Controlled by Parent, so this adds no access. Such a bid stays
+  uneditable (`updateBid` needs a lane), and a bid with neither lookup is
+  granted to nobody.
+- R68 — the carrier tests skip, like the no-usable-profile branch, when the org
+  shares the hidden carrier with the restricted user, so carrier-sharing
+  configuration cannot block a deploy; PostProduc does not share it, so they run
+  there.
+- R69 — a stored carrier's name shown on reads is not a defect:
+  `Carrier_Display__c` is a cross-object formula, which Salesforce evaluates
+  regardless of the reader's access to the related account; it behaved the same
+  before phase 6, and Lane Benchmark shows carrier names to everyone.
 
 ## Outcome — phase 6 (2026-09-13)
 
@@ -330,23 +343,9 @@ restriction itself cannot be shown in PostProduc with one RFP user; a
 colleague's login would show a project on an unshared account absent from
 their list.
 
-**Open follow-ups.** No test drives `RfpBidAccess.updateBid`'s carrier check
-with a changed, unreadable carrier: the insert path is proven (deploy
-`0AfbZ00000CppG5SAJ` failed before the fix), the update path only by code
-review. `RfpSecurityTest`'s two carrier tests,
-`aBidSaveNamesOnlyACarrierAccountTheCallerCanRead` and
-`aColleagueEditsTheRateOfABidWhoseCarrierTheyCannotRead`, build their hidden
-carrier from the unmanaged Account fields `Company_Org__c` (created 2018) and
-`Black_List__c` (created 2021) and the Carrier record type, and rely on the
-flow `Ownership_update_Carrier_and` and the Account sharing rules leaving a
-blacklisted Trans-Pro Logistica carrier unshared; their precondition
-assertions fail rather than skip in an org configured differently, so check
-carrier sharing before the production go-live deploy (the fields predate the
-sandbox, so production has them), or change the preconditions to skip like the
-no-usable-profile branch. Reads (`getBids`, `attachSelectedBids`) still return
-`Carrier_Display__c` for a stored carrier account the reader cannot read; R66
-covers writes only. The bulk "Add carrier rate" refusal path ("No lane was
-updated: That carrier is not available") has no test.
+**Open follow-ups.** None. Each one recorded here, and the copy-pricing limit
+from the fix wave, is closed under "Follow-ups closed (2026-09-13)" at the end
+of this Outcome.
 
 **Review record.** Task 1 review clean; Task 2 one fix round (`updateBid`
 `isSet`); Task 3 three fix rounds (`without sharing`; attach/detach/apply;
@@ -406,10 +405,9 @@ master-detail that is not reparentable as not updateable, so the value is
 stripped. No end-to-end test fails one row of `RfpBulkService.save` to prove
 the two-argument `applySelectedBids`: `RFP_Lane__c` has no validation rule that
 could fail a single row, and the filter itself is unit-tested. The fix wave's
-report adds two more. Copying pricing from a lane whose selected bid has lost
-its lane is still refused, because each target lane receives a changed value.
-The second, that no test posted a JSON null in a bid update, is closed by the
-residual round below.
+report adds two more, both since closed: that no test posted a JSON null in a
+bid update (the residual round below), and that copying pricing from a lane
+whose selected bid had lost its lane was refused ("Follow-ups closed" below).
 
 **Residual round (2026-09-13).** The re-review of the fix wave left four
 findings, closed in `be73fd9`:
@@ -453,3 +451,61 @@ fix, Failed 17/19: the factory's carrier was readable), `0AfbZ00000CppETSAZ`
 test classes, 62/62). Final pair: `0AfbZ00000CppXpSAJ` (NoTestRun, 246
 components, 0 errors), `0AfbZ00000CpoWwSAJ` (RunSpecifiedTests, the 23 test classes,
 152/152, 0 failures). PMD clean; `RfpBidAccess` stays at 33 of 40.
+
+**Follow-ups closed (2026-09-13).** Branch `phase-6/follow-ups` from `main` at
+`009e9a0`; commits `ca84425` Grant a bid whose lane is gone through its project
+and harden the carrier tests, and this documentation commit, Record the phase 6
+follow-ups as closed. Closed, from "Open follow-ups" and the fix wave's known
+limits:
+
+1. Copying pricing from a lane whose selected bid has lost its lane (R67).
+   `RfpBidAccess.Rows.keepVisible` keeps the lane check for a bid on a lane and
+   grants a bid whose `RFP_Lane__c` is null through its `RFP_Project__c`, read
+   `WITH USER_MODE` (a `QueryException` counts as none), in one extra query that
+   runs only when such a bid is present; a bid with neither lookup stays hidden.
+   `updateBid` and `deleteBidsOfLanes` are unchanged, so such a bid still cannot
+   be edited. `RfpBidAccessTest.aBidWhoseLaneIsGoneIsGrantedThroughItsProject`
+   (the admin: `bidsByIds` returns the bid, `copyPricing` carries it to another
+   lane, `attachSelectedBids` fills its carrier, and with the project cleared
+   too the bid is hidden) and
+   `RfpSecurityTest.aReadSharedUserCopiesPricingWhoseSelectedBidLostItsLane`
+   failed before the change with "That bid is not available.";
+   `RfpSecurityTest.aStrangerCannotNameABidWhoseLaneIsGone` (a stranger with
+   Read on a second customer names that bid on their own lane) passed before and
+   after, the guard that the grant adds no access.
+2. The update path of the carrier check.
+   `RfpSecurityTest.aColleagueCannotSwitchABidToACarrierTheyCannotRead`: a
+   Read-shared pricer who posts the admin's bid, stored with the graph's vendor,
+   with the hidden carrier and a new rate is refused with "That carrier is not
+   available.", and the stored carrier and rate stay. It passed before the
+   change, as expected: the check already existed.
+3. The bulk "Add carrier rate" refusal.
+   `RfpBulkControllerTest.addCarrierRateRefusesACarrierTheCallerCannotRead`:
+   `applyBid` naming the hidden carrier is refused ("No lane was updated: That
+   carrier is not available"), no bid is inserted, and the lane keeps its cost
+   and selected bid. It passed before the change too.
+4. The carrier tests' portability (R68). The four tests built on
+   `hiddenCarrier()` skip, like the no-usable-profile branch, when the
+   restricted user can read that carrier; their real assertions are unchanged,
+   and they still need the Account fields `Company_Org__c` and `Black_List__c`
+   and the Carrier record type, which predate the sandbox. In PostProduc they
+   run rather than skip: in a per-test coverage run (`707bZ00000rFQhq`, 4/4)
+   the three refusal tests each cover the `CARRIER_UNAVAILABLE` throw in
+   `RfpBidAccess`, and the rate-edit test covers 164 of its lines, where a
+   skipped test covers none.
+5. A stored carrier's name on reads (R69): a ruling, no code.
+
+`RfpSecurityTest` would have reached a cyclomatic complexity of 51 against
+PMD's class budget of 40, so its restricted-user helpers (`restrictedUser`,
+`shareAccount`, `hiddenCarrier`, `sharingInputs`, and the new `hiddenFrom` and
+`secondCustomer`) moved to `RfpTestDataFactory`, and the bulk test went to
+`RfpBulkControllerTest`, which shares them; `RfpSecurityTest` is at 38.
+Deploys: `0AfbZ00000CprWPSAZ` (the new tests against the classes before the
+change, Failed 35/37 on the two copy tests, as expected), `0AfbZ00000CprZdSAJ`
+(`RfpBidAccess` and four test classes, seven test classes run, 69/69). Final
+pair on `ca84425`: `0AfbZ00000CprjKSAR` (NoTestRun, 246 components, 0 errors),
+`0AfbZ00000CprctSAB` (RunSpecifiedTests, the 23 test classes, 157/157, 0
+failures). Apex 157 (152 plus one method in `RfpBidAccessTest`, three in
+`RfpSecurityTest` and one in `RfpBulkControllerTest`). PMD clean;
+`RfpBidAccess` stays at 33 of 40 (`Rows` 22). Still open: only the known
+limits recorded above.

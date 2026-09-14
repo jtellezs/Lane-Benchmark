@@ -604,7 +604,9 @@ running user can read the lane, then works in system mode restricted to those la
 through `Security.stripInaccessible`. The user-mode lane query does traverse
 `Selected_Bid__r`; for a colleague's Private bid that traversal comes back empty, and
 `RfpBidAccess.attachSelectedBids` fills it after every `RfpLaneController` lane read.
-Rule: a lane you can see grants its bids, whoever recorded them.
+Rule: a lane you can see grants its bids, whoever recorded them. A bid whose lane was
+deleted outside the workbench keeps its project and is granted through it, read in user
+mode, which adds no access because lanes follow their project (R67).
 
 Three hardening points from the phase 6 final review and its residual round. A bid save
 copies only the caller-settable fields (carrier, contact, rate, currency, fuel surcharge,
@@ -634,10 +636,11 @@ proven by `RfpSecurityTest` (restricted users created per scenario, holding
 
 **Production.** None of these objects exist there yet; the go-live deploy creates them in
 their final shape. A sandbox that already holds RFP data converts in place as long as
-every project has a customer (the New project form requires one). `RfpSecurityTest`'s
-carrier tests expect the Account fields `Company_Org__c` and `Black_List__c` and a
-carrier-sharing setup like PostProduc's; see the phase 6 spec's Open follow-ups before
-deploying to production.
+every project has a customer (the New project form requires one). The carrier tests in
+`RfpSecurityTest` and `RfpBulkControllerTest` expect the Account fields `Company_Org__c`
+and `Black_List__c`; in an org whose carrier sharing lets a restricted user read their
+blacklisted Trans-Pro Logistica carrier they skip instead of failing (R68), so there the
+carrier check is proven only by the PostProduc runs.
 
 ## Help center (phase 5)
 
