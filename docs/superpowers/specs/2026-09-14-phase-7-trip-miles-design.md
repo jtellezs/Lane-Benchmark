@@ -1,113 +1,122 @@
 # Phase 7 — Trip miles and truck routes on every lane
 
 Date: 2026-09-14. Roadmap: phase 7, after phase 6 and its follow-ups merged as
-`bc4710b`. Adds the length of the trip, in miles with km on click, the rate per
-mile, and a truck route drawn on the map wherever the app shows a lane: the RFP
+`bc4710b`. Adds the length of the trip (miles, km on click), the rate per mile
+and a truck route drawn on the map, wherever the app shows a lane: the RFP
 workbench (table, lane panel, Excel export) and Lane Benchmark (statistics,
-results, CSV, map). Routing starts on the public openrouteservice API and is
-built to switch to Trans-Pro's own Valhalla server without changing the app.
+results, CSV, map). Three sources only: Revenova's billed miles, Mapbox truck
+routes and an approximate distance from the two places' coordinates.
 
-## 1. Decisions (brainstorm, 2026-09-14)
+## 1. Decisions (brainstorm and research, 2026-09-14)
 
-| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | A lane's miles, in order of preference: (1) the **median of Revenova's billed miles** (`rtms__Load__c.rtms__Distance_Miles__c`, PC*Miler) on the loads its history search matched; (2) a **stored truck route** for the same place pair and truck; (3) an **approximate** distance: the straight line between the two places × **1.2**, labelled "approx.".                                             |
-| D2  | Truck routes come from **OpenStreetMap**. Now: the public **openrouteservice** API (`driving-hgv` profile with truck limits). Later: Trans-Pro's **self-hosted Valhalla** server, whose contract is fixed in the owner's server brief (`/Users/iulian/Documents/Personal/valhalla-server-project-prompt.md`). Mapbox routing is not used.                                                               |
-| D3  | A truck route is requested **when a pricer opens a lane** (RFP lane panel) or **runs a Lane Benchmark search**, one route per request. With openrouteservice, Load history makes **no routing calls** (its matrix ignores truck limits and its free quota is 2,000 routes a day); it only reuses stored routes. With Valhalla, Load history fills truck miles in batches through `/sources_to_targets`. |
-| D4  | The app **stores** the miles and the route lines it receives (owner decision). openrouteservice's terms contain no storage ban and license results CC-BY-SA 4.0; Valhalla is self-hosted on OpenStreetMap data (ODbL). The app shows the required credit wherever a route or its miles appear.                                                                                                          |
-| D5  | Routes are drawn on the **existing Mapbox Static Images** map: the main truck route and, when the router returns them, up to two alternatives in different colours, with a legend of miles and hours. The image is built on each view and **never stored or proxied**. openrouteservice gives no alternatives for trips over 100 km, so alternatives appear once Valhalla is live.                      |
-| D6  | Miles appear **everywhere a lane appears**: RFP lane table, lane panel (with a new route map), Excel export, cost and sell per mile, Lane Benchmark statistics, results, CSV and map.                                                                                                                                                                                                                   |
-| D7  | **Miles by default, km on click**; each browser remembers the choice. The Excel export always carries both.                                                                                                                                                                                                                                                                                             |
-| D8  | No backfill job. Out of scope: tolls, per-stop mileage, choosing a route for pricing, per-customer truck profiles. Production is not deployed (user decision).                                                                                                                                                                                                                                          |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D1  | A lane's miles come from, in order: **History** — the median of Revenova's billed Distance (Miles) (`rtms__Load__c.rtms__Distance_Miles__c`, filled by PC*Miler) on the loads its history search matched; **Truck route** — the miles of the Mapbox truck route stored for the lane's two places; **Approx** — the straight-line distance between the two places' coordinates × 1.2. |
+| D2  | Routing is **Mapbox only**: the Directions API, driving profile with the truck's height, width and weight, alternatives on. openrouteservice and a self-hosted Valhalla server were considered and dropped (owner, 2026-09-14).                                                                                                                                                      |
+| D3  | The truck route is fetched **when a pricer opens a lane** in the RFP workbench or **runs a Lane Benchmark search**, once per place pair and truck profile; the result is **stored** and reused. Storing Mapbox routing results is the **owner's decision**, taken after the Mapbox Product Terms clause against caching or storing Navigation API results (§2.10.1) was raised.      |
+| D4  | **Load history** fills every resolved lane without calling Mapbox: history miles when matched loads have miles; otherwise the stored truck-route miles for the lane's place pair; otherwise Approx. Mapbox's Matrix API takes no truck limits, and routing is only ever requested by a person's action.                                                                              |
+| D5  | The map is the **existing Mapbox static image**: pins for the two places, the main route as a thick line and up to two alternatives in other colours, with a legend of miles and hours per route. No interactive map (Mapbox GL JS is blocked by Lightning Web Security).                                                                                                            |
+| D6  | **Miles by default, km on click**, remembered per browser, shared by every component on the page. Rate per mile (per km) wherever a price and miles meet. The Excel export always carries miles and km.                                                                                                                                                                              |
+| D7  | The Approx factor **1.2** is measured, not guessed: on 10,939 PostProduc loads from the last year, billed miles ÷ straight-line miles has a median of 1.196 (middle half 1.148 to 1.271), stable across country pairs and trip lengths.                                                                                                                                              |
+| D8  | Out of scope: any other routing provider, hazmat routing (Mapbox has no parameter), truck length or axle limits (no Mapbox parameters), tolls, per-stop mileage, a background backfill job. Production is not deployed (owner decision).                                                                                                                                             |
 
-## 2. Facts this design rests on (2026-09-14)
+## 2. Today (measured, 2026-09-14)
 
-- **Billed miles.** `rtms__Distance_Miles__c` is filled on 53,054 of 54,480 loads created in the last 365 days (97 %). Revenova gets them from PC*Miler; its classes are "Type is not visible" to our Apex (check-only compile), so the app reads the field only.
-- **Straight-line factor.** On 10,939 recent loads with stop coordinates, billed miles ÷ straight-line miles has a median of 1.196 (middle half 1.148–1.271); by country pair 1.17–1.25. Stop coordinates: `rtms__First_Stop__r` / `rtms__Last_Stop__r` → `rtms__Location2__r.ShippingLatitude/Longitude`.
-- **Places.** 694 of the 712 sandbox RFP lanes have coordinates at both ends (`Pricing_Place__c.Geolocation__c`).
-- **openrouteservice** (public API): `POST /v2/directions/driving-hgv/json` with `options.vehicle_type` = `hgv` and `options.profile_params.restrictions` (height, width, length in metres; weight, axleload in tonnes; `hazmat` true/false). No default truck dimensions: every limit must be sent. `units` = `mi`; geometry is an encoded polyline (precision 5); the summary gives distance and duration. Free Standard plan: 2,000 directions a day, 40 a minute; no SLA; no paid plan. Alternative routes only under 100 km. The matrix endpoint ignores truck restrictions. The key is sent in the `Authorization` header. Results are CC-BY-SA 4.0 with the credit "© openrouteservice by HeiGIT | Data from OpenStreetMap". The terms neither allow nor forbid company use in so many words.
-- **Valhalla** (owner's server brief): one HTTPS base URL, header `X-Api-Key`; `POST /route` (costing `truck`, `costing_options.truck` height, width, length, weight, axle_load, axle_count, hazmat, use_truck_route; `units` = `miles`; `alternates` = 2; `format` = `osrm`; `shape_format` = `polyline5`); `POST /sources_to_targets` (the same truck costing, `units` = `miles`); `GET /status`. Default truck: 53 ft dry van, 80,000 lb (36.29 t), 13 ft 6 in (4.11 m), 102 in (2.6 m), length 21.64 m, axle load 9.07 t, 5 axles.
-- **Mapbox Static Images**: path overlays take a precision-5 polyline with their own colour and width; URLs are limited to 8,192 characters; `auto` framing fits all overlays. Mapbox Product Terms forbid storing, proxying or screenshotting map images; no clause found against drawing another router's line. The token is already in the image URL the browser loads today (`MapboxGeocoder.staticMapUrl`).
-- **OpenStreetMap truck data** is thin in North America (for example about 20,000 height-limit ways in Canada among 5.4 million road ways), so truck routes are best effort. Billed miles stay the first source.
-- **Salesforce**: `LaneBenchmarkController.search` is cacheable (no DML or new callouts there); synchronous Apex has 6 MB of heap, 100 callouts and about 120 s of callout time per transaction; callouts must come before DML. `rfpTool.js` is at 554 of its 560-line ceiling; this phase adds no line to it.
+- Billed miles: `rtms__Distance_Miles__c` is filled on 53,054 of 54,480 loads created in the last 365 days (97 %). Revenova's mileage classes (`rtms.MileageAPI`, `rtms.PCMilerAPI`, …) are "Type is not visible" to our Apex (check-only compile), so PC*Miler cannot be called directly.
+- History rows come from `rtms__CarrierQuote__c` through `LaneSearchQueryBuilder.SELECT_CLAUSE`; `RfpHistoryService.run` handles at most 10 lanes per call. 694 of 712 sandbox RFP lanes have coordinates at both ends (`Pricing_Place__c.Geolocation__c`).
+- Mapbox: token `TPRO_KPI__c.Mapbox_Api_Key__c` (public `pk.` token), remote site `MapBox`, CSP trusted site `Mapbox_API` (img-src). `MapboxGeocoder` does forward geocoding and builds the static map URL (`staticMapUrl`, GeoJSON overlay, 600×300). `LaneBenchmarkController.search` and `mapPreviewUrl` are cacheable, so anything that calls out and saves needs its own method.
+- Mapbox Directions API: profiles `mapbox/driving` and `mapbox/driving-traffic`; `max_height` and `max_width` in metres (0–10), `max_weight` in metric tons (0–100), best-effort with regional coverage and violation notifications; no truck profile, no hazmat, no length or axle parameters; `alternatives=true` returns up to two alternatives (the docs contradict themselves on whether that is two or three routes in total); distance in metres, duration in seconds, geometry as a 5-decimal polyline by default with `overview=simplified`; 300 requests per minute; billed per request. The Matrix API accepts none of the truck parameters.
+- Mapbox Static Images API: several path overlays per image (`path-{width}+{colour}-{opacity}({polyline})`), `auto` framing, 8,192-character URL limit.
+- `rfpTool.js` is at 554 of its 560-line ceiling; this phase adds no line to it.
 
-## 3. Data model
+## 3. Mapbox truck routes
+
+**`MapboxTruckRoute`** (new Apex class): `TruckRoute.Result route(TruckRoute.Point origin, TruckRoute.Point destination, TruckRoute.Profile profile)` — `GET /directions/v5/mapbox/driving/{lon},{lat};{lon},{lat}?alternatives=true&overview=simplified&geometries=polyline&max_height=&max_width=&max_weight=&access_token=`; up to 3 routes, each `{ miles, hours, polyline5, violations }`, main route first; status `Found`, `No route` or `Unavailable`; metres to miles and seconds to hours. It reuses `MapboxGeocoder`'s token read and one-retry send, moved into a small shared `MapboxHttp` helper. The token is never logged or put in a thrown message.
+
+**`TruckRoute`** (value types): `Point`, `Profile` (built from the setting below) and `profileKey` — the rounded height, width and weight — so a change of truck never reuses an old route.
+
+**Configuration**: `Truck_Routing_Setting__mdt` (new), record `Default`: `Height_M__c` 4.11, `Width_M__c` 2.6, `Weight_T__c` 36.29, `Alternatives__c` (checkbox, on), `Approx_Factor__c` 1.2, `Timeout_Ms__c` 8000. The defaults describe a 53 ft dry-van tractor-trailer at 80,000 lb, 13 ft 6 in high, 102 in wide.
+
+## 4. Data model
 
 **`RFP_Lane__c`** gains:
 
 - `Miles__c` — Number(10, 1).
-- `Miles_Source__c` — Picklist: `History`, `Truck route`, `Approx.`, `No coordinates`. Blank means history has not run since phase 7.
+- `Miles_Source__c` — Picklist: `History`, `Truck route`, `Approx`, `No route`, `No coordinates`.
+- `Route_Hours__c` — Number(6, 1), drive hours of the stored truck route; blank for History and Approx.
 
-The history run and the lane route method write them in user mode after `Security.stripInaccessible(UPDATABLE)`, so `RFP_Tool_User` grants read and edit exactly like the `Hist_*` fields. A `Truck route` or `Approx.` value never overwrites `History`.
+`RFP_Tool_User` grants read and edit on the three fields, like the `Hist_*` fields (the history run writes lanes in user mode after `Security.stripInaccessible(UPDATABLE)`; a missing grant would silently drop the miles). `Lane_Benchmark_User` has no lane permissions and needs none.
 
-**New object `Truck_Route__c`** (label "Truck Route", Public Read Only, no tab): one stored route per place pair, router and truck.
+**`Truck_Route__c`** (new, label "Truck Route", Public Read Only, no tab):
 
-- `Origin_Place__c`, `Destination_Place__c` — Lookups to `Pricing_Place__c`, not required, Set Null on delete.
-- `Route_Key__c` — Text(120), External ID, Unique: `<origin place Id>:<destination place Id>:<router>:<truck key>`; the truck key is a short hash of the limits sent plus the hazmat flag.
-- `Router__c` — Picklist: `openrouteservice`, `valhalla`.
-- `Status__c` — Picklist: `Found`, `No route`.
-- `Miles__c`, `Hours__c` — Number(10, 1) and Number(6, 1) for the main route.
-- `Routes__c` — Long Text Area(131072): JSON list of up to 3 routes, each `{ miles, hours, polyline }`, polylines simplified to fit the map URL.
+- `Origin_Place__c`, `Destination_Place__c` — Lookups to `Pricing_Place__c`, not required, delete constraint Set Null (like every place lookup in the app); rows with a blank place are ignored.
+- `Profile_Key__c` — Text(80).
+- `Route_Key__c` — Text(160), External ID, Unique: `<origin Id>:<destination Id>:<profileKey>`.
+- `Miles__c` — Number(10, 1), main route; `Hours__c` — Number(6, 1).
+- `Status__c` — Picklist `Found`, `No route`.
+- `Routes_Json__c` — Long Text Area(131072): up to 3 routes `{ miles, hours, polyline5, violations }`, main first, for redrawing the map without a new request.
 - `Checked_On__c` — Datetime.
 
-Only Apex writes it, in system mode, with a justification comment. Both permission sets gain read on it. A row never expires; an admin deletes rows to re-ask. A row whose place was deleted is ignored.
+Only `TripMilesService` writes it, in system mode with a justification comment. Both permission sets gain read. A row never expires; the lane panel's **Refresh route** action replaces it (one new request). Direction matters: A→B and B→A are separate rows.
 
-**New custom metadata `Truck_Routing_Setting__mdt`**, record `Default`:
+## 5. Apex behaviour
 
-- `Router__c` (Text: `openrouteservice` or `valhalla`), `Named_Credential__c` (Text: `OpenRouteService` or `Valhalla`), `Enabled__c` (Checkbox).
-- Truck: `Height_M__c` 4.11, `Width_M__c` 2.6, `Length_M__c` 21.64, `Weight_T__c` 36.29, `Axle_Load_T__c` 9.07, `Axle_Count__c` 5, `Use_Truck_Route__c` 0.5, `Alternates__c` 2.
+**`TripMilesService`** (new):
 
-**Named Credential `OpenRouteService`** (`https://api.openrouteservice.org`) with an External Credential that sends the key in `Authorization`; the admin enters the key in Setup, never in git. The `Valhalla` Named Credential (header `X-Api-Key`) is created by the admin when the server exists, from the server's handover note; the README runbook lists the values.
+- `Decimal medianMiles(List<LaneSearchResult.Row> rows)` — median of `miles` over rows above zero, same rule as `LaneSearchService` (odd count middle value, even count mean of the two middle values).
+- `Decimal approxMiles(Pricing_Place__c o, Pricing_Place__c d)` — great-circle miles (Earth radius 3,958.7613 mi) × `Approx_Factor__c`, one decimal; `null` without coordinates.
+- `TruckRoute.Result storedOrRoute(Pricing_Place__c o, Pricing_Place__c d, TruckRoute.Profile p, Boolean refresh)` — a saved `Truck_Route__c` wins unless `refresh`; otherwise one Mapbox call. Returns the result and the row to save; the caller saves after its callout.
+- `void save(List<Truck_Route__c> rows)` — upsert on `Route_Key__c`.
 
-## 4. Apex
+**Lane history** (`LaneSearchQueryBuilder`, `LaneSearchResult`, `LaneSearchService`, `RfpHistoryService`):
 
-- **`TruckRouter`** (interface): `TruckRoute route(RouteRequest r)`; `Map<String, Decimal> matrixMiles(RouteMatrixRequest r)`; `Boolean supportsTruckMatrix()`; `Boolean supportsAlternatives()`; `String credit()`.
-- **`OpenRouteServiceRouter`**: POST `callout:OpenRouteService/v2/directions/driving-hgv/json` with the truck limits from the setting and the lane's hazmat flag, `units` = `mi`, `instructions` = false; maps 400/404 "no route", 401/403 (key), 429 (quota) and 5xx to user sentences; `supportsTruckMatrix` and `supportsAlternatives` are false; credit "© openrouteservice by HeiGIT | Data from OpenStreetMap".
-- **`ValhallaRouter`**: POST `callout:Valhalla/route` and `callout:Valhalla/sources_to_targets` exactly as the owner's server brief shows (costing `truck`, `format` = `osrm`, `shape_format` = `polyline5`, `alternates` from the setting); `supportsTruckMatrix` and `supportsAlternatives` are true; credit "© OpenStreetMap contributors". Built and unit-tested now against mocked responses; not enabled until the server exists.
-- **`TruckRouters.current()`** reads `Truck_Routing_Setting__mdt.Default` and returns the router, or `null` when `Enabled__c` is false.
-- **`TripMilesService`**:
-  - `medianMiles(rows)` — median of load miles above zero, same median rule as `LaneSearchService`.
-  - `approxMiles(Pricing_Place__c a, Pricing_Place__c b)` — great-circle miles × 1.2 (`CIRCUITY = 1.2`), rounded to whole miles; `null` without coordinates.
-  - `storedRoutes(pairs, router, truckKey)` — reads `Truck_Route__c` by `Route_Key__c`.
-  - `saveRoutes(...)` — upserts on `Route_Key__c` after the transaction's callouts.
-- **`RouteMap`**: `String url(Pricing_Place__c origin, Pricing_Place__c destination, List<RouteLine> routes)` — Mapbox Static Images URL with pin `a` and pin `b`, the main route thick blue and alternatives amber and grey, `auto` framing, @2x; simplifies each polyline (Douglas–Peucker, tolerance raised until the URL is under 8,192 characters) and never includes anything but the public token already used.
-- **History** (`LaneSearchQueryBuilder`, `LaneSearchResult`, `RfpHistoryService`): the query adds `rtms__Load__r.rtms__Distance_Miles__c`; rows carry `miles`; `LaneSearchResult` gains `medianMiles` and each `Stats` gains `ratePerMileMedian` (median of `carrierTotal ÷ miles` for that currency). `RfpHistoryService.run`, for each lane: `History` from `medianMiles`; else a stored `Truck_Route__c` for the lane's pair; else, when the current router `supportsTruckMatrix`, one `matrixMiles` call for the chunk's missing pairs (callout before DML) stored as `Truck route`; else `Approx.`. Unresolved lanes: `No coordinates`.
-- **Live route**:
-  - `RfpLaneController.truckRoute(Id laneId)` (new, `@AuraEnabled`, not cacheable): reads the lane in user mode; returns the stored route or asks the router once, stores it, updates the lane's miles when its source is not `History`, and returns `{ miles, hours, source, routes[{ miles, hours }], mapUrl, credit, message }`.
-  - `LaneBenchmarkController.truckRoute(String originKey, String destinationKey, Boolean hazmat)` (new, not cacheable): the same for the searched places, without a lane update.
-  - A disabled router, a missing key, a 429 or a failed callout returns the approximate miles, a map with the two pins and no line, and a one-sentence message; nothing is stored for that request.
+- `SELECT_CLAUSE` adds `rtms__Load__r.rtms__Distance_Miles__c`; `LaneSearchResult.Row` gains `miles` (bid rows `null`); `LaneSearchResult` gains `medianMiles`; `LaneSearchResult.Stats` gains `ratePerMileMedian` (median of `carrierTotal / miles` over that currency's rows with both above zero).
+- `RfpHistoryService.run`, after its searches: each lane with `medianMiles` takes it (`History`); otherwise a stored `Truck_Route__c` for its place pair and the current profile (`Truck route`, with its hours); otherwise `Approx`, or `No coordinates`. No callout. One extra query per call reads the stored routes for the chunk's pairs.
 
-## 5. What people see
+**On demand**
 
-- **`c/distanceUnit`** module (`mi`/`km`, key `tripMiles.unit.v1`, `formatDistance`, `perDistance`; 1 mi = 1.609344 km) and **`c-distance-unit-toggle`** ("mi | km", `aria-pressed`) sharing the choice on the Lightning message channel **`Distance_Unit__c`**.
-- **RFP toolbar**: the toggle, next to Include RFP bids (in `rfpToolbar`).
-- **RFP lane table**: a **Miles** column after History: "1,234 mi" (history), "1,234 mi" with a `truck` tag (stored truck route), "~1,234 mi" with an `approx.` tag, "—" for no coordinates; tooltip names the source.
-- **Lane panel**: under the title, the miles and their source; **Cost per mile** and **Sell per mile** next to the prices, live; a **route map** loaded when the lane opens (calls `truckRoute`), with a legend of miles and hours per route and the credit line; a spinner while it loads and the message when routing is unavailable.
-- **Excel export**: after "Transit days": Miles, Km, Miles source, Cost per mile, Sell per mile.
-- **Lane Benchmark**: statistics header "Trip: 1,234 mi (median of N loads)" or "(truck route)" or "(approx.)"; **Rate per mile (median)** per currency; the existing map draws the truck route (calls `truckRoute` after a search) with its legend and credit; a **Miles** column in results and CSV (load rows: their load's miles; bid rows: "—"). The toggle sits in the statistics card header.
-- **Help guide** (EN and FR): "Trip miles and truck routes" in `rfp-history`, `rfp-pricing` and `lb-stats`, including what "approx." and "truck" mean and that routes follow OpenStreetMap truck data; the static resource is rebuilt.
+- `RfpLaneController.laneRoute(Id laneId, Boolean refresh)` (`@AuraEnabled`, not cacheable): reads the lane in user mode; if it has resolved places, calls `storedOrRoute`; saves the store row after the callout; when the lane's source is not `History`, writes `Miles__c` (main route), `Miles_Source__c = Truck route`, `Route_Hours__c`; returns `{ routes[], mapUrl, source, message }`.
+- `LaneBenchmarkController.truckRoute(String originKey, String destinationKey, Boolean refresh)` (`@AuraEnabled`, not cacheable): resolves the two places, `storedOrRoute`, save, returns `{ routes[], mapUrl, message }`. The page calls it after a search; the cacheable `search` is unchanged apart from the new row and statistics fields.
 
-## 6. Limits, terms, operations
+**Map URL** (`RouteMapUrl`, new, next to `MapboxGeocoder.staticMapUrl`): `pin-s-a+0070d2` and `pin-s-b+2e844a` for the places, the main route `path-5+0070d2-0.9`, alternatives `path-3+f59e0b-0.8` and `path-3+706e6b-0.7`; `auto` framing, 600×300 @2x. If the URL would pass 8,000 characters, Apex simplifies each line (Douglas–Peucker, growing tolerance) and re-encodes it until it fits; if it still does not fit, alternatives are dropped before the main route. The Lane Benchmark radius circles stay when a radius search is shown. The image is built on each view and never stored.
 
-- **Quota**: openrouteservice allows 2,000 routes a day and 40 a minute. Routes are requested only on a person's action, stored, and reused by every lane and search with the same pair and truck; a 429 shows "Routing limit reached; try again later." and keeps the approximate miles.
-- **Terms and credit**: openrouteservice results are CC-BY-SA 4.0; OpenStreetMap data is ODbL. The credit line is shown under every route map and in the lane panel; the Excel export adds it in a footer row. Sharing stored miles or routes outside Trans-Pro (customer files, carrier portals) may add attribution and share-alike duties: a legal read before doing so. Mapbox images are never stored, proxied or pre-generated. Two open questions for the owner, not blocking: HeiGIT's written confirmation of company use on the free key; a legal read of Mapbox §1.13 (share-alike data) for CC-BY-SA route lines drawn on its images.
-- **Keys**: openrouteservice keys belong to one person; the admin creates it with a shared company mailbox and stores it only in the External Credential.
-- **Switching to Valhalla** (runbook in the README): create the `Valhalla` Named Credential from the server's handover note, set `Router__c` = `valhalla` and `Named_Credential__c` = `Valhalla` on the `Default` setting, deploy or edit in Setup. Stored openrouteservice routes stay; new requests use the new router key, so lanes are re-routed as they are opened, and Load history fills missing truck miles in batches.
-- **Callouts**: one route per `truckRoute` call; one matrix per 10-lane history chunk with Valhalla (at most 10 × 10); per-callout timeout 20 s.
+## 6. What people see
 
-## 7. Testing
+A shared LWC module **`c/distanceUnit`** holds the unit (`mi` default, `km`; localStorage key `tripMiles.unit.v1`, guarded), `formatDistance(miles, unit)`, `perDistance(amount, miles, unit)` (1 mi = 1.609344 km). **`c-distance-unit-toggle`** ("mi | km", `aria-pressed`) publishes on the Lightning message channel **`Distance_Unit__c`**. A shared **`c-route-map`** shows the image, a legend (route, miles or km, hours, and "restrictions not guaranteed" when Mapbox reports a violation) and a Refresh route button.
 
-- **Apex** (new `TripMilesServiceTest`, `OpenRouteServiceRouterTest`, `ValhallaRouterTest`, `RouteMapTest`; extended `RfpHistoryServiceTest`, `LaneSearchServiceTest`, `LaneBenchmarkControllerTest`, `RfpLaneControllerTest`, `RfpSecurityTest`): median and approximate miles; source order History → stored route → Valhalla matrix → Approx.; `History` never overwritten; openrouteservice request body (limits in metres and tonnes, hazmat, units) and error mapping (400/404, 401/403, 429, 5xx); Valhalla `/route` and `/sources_to_targets` bodies match the server brief's examples and responses parse (routes, alternates, miles, polyline5); a stored route makes no callout; the router switch through the setting; disabled router and missing key fall back to approx. with nothing stored; the map URL stays under 8,192 characters for a 3,000 km route and three lines; callouts before DML in the history run and in `truckRoute`; an RFP Tool user can call `truckRoute` on a lane they can read and gets `This lane is not available.` on one they cannot. `LaneSearchServiceTest`'s governor-sensitive method keeps its setup outside `Test.startTest`.
-- **Jest**: `distanceUnit`; toggle on the channel; table column and tags; panel per-mile values, route map, legend, credit and fallback message; workbook columns and credit row; Lane Benchmark header, rate per mile, map legend, results column and CSV.
-- **Browser (PostProduc)**, after the admin enters a test openrouteservice key: Load history fills Miles on every resolved lane (history or approx.); opening a lane draws a truck route and changes its tag to `truck`; reopening makes no new request (stored); a hazmat lane shows its own route; the km toggle switches table, panel and Lane Benchmark together; a Lane Benchmark search draws the route; the Excel export has the new columns and the credit row.
-- The Apex test roster (README, CI) gains the four new test classes.
+- **RFP toolbar**: the unit toggle next to Include RFP bids (`rfpToolbar`).
+- **RFP lane table**: a **Miles** column after History — the value with a small tag: none for History, `truck` for Truck route, `approx.` for Approx; "—" with the reason as a tooltip otherwise.
+- **Lane panel**: miles and source under the lane title; **Cost per mile** and **Sell per mile** next to the prices, live as the pricer types; `c-route-map` below, loaded on open through `laneRoute` (a spinner while it loads; a short message if the route is unavailable).
+- **Excel export** (`rfpWorkbook` lane sheet): Miles, Km, Miles source, Route hours, Cost per mile, Sell per mile.
+- **Lane Benchmark statistics**: "Trip: 1,234 mi · median of N loads" and "Truck route: 1,260 mi · 21.5 h"; **Rate per mile (median)** per currency; the toggle in the card header.
+- **Lane Benchmark map**: `c-route-map` replaces the plain preview when a truck route is available; the radius preview stays otherwise.
+- **Lane Benchmark results**: a **Miles** column (load miles; bid rows "—") and the CSV column.
+- **Help guide** (EN and FR): "Trip miles and truck routes" in `rfp-history`, `rfp-pricing` and `lb-stats`, the table column in `rfp-inline`; the resource is rebuilt.
 
-## 8. Rulings
+## 7. Limits, errors, cost
 
-- R70 — the lane's miles are the median over every matched load row at the precision the history used (radius matches included).
-- R71 — the approximate distance is great-circle miles × 1.2, measured on Trans-Pro's own loads; one factor for every country pair (by-pair factors ranged 1.17–1.25).
-- R72 — stored routes are keyed by ordered place pair, router and truck; direction matters and a different truck or hazmat flag is a different route.
-- R73 — no automated routing calls with openrouteservice (quota and bulk-use limits); batch routing waits for Valhalla.
+- One on-demand route is one callout, always before the transaction's DML. The timeout is 8 s (setting), well inside the 120 s cumulative callout limit. Load history makes no callout.
+- Mapbox Directions: 300 requests per minute, billed per request; each place pair and truck profile is requested once, then served from `Truck_Route__c` until a pricer refreshes it. The static map image is billed per view as today.
+- A missing token, an HTTP error or a timeout returns `Unavailable`: nothing is saved, the lane keeps its current miles, the panel says "The truck route is not available right now."
+- Mapbox answers with no route (for example across water): saved as `No route`, shown as "—".
+- Mapbox truck limits are best effort: a route that breaks one comes back with a violation notification; the service stores it in `Routes_Json__c` and the legend says "restrictions not guaranteed on this route".
+- Hazmat lanes get the same route as other lanes (Mapbox has no hazmat parameter); the legend says so on a hazmat lane.
+
+## 8. Testing
+
+- **Apex**: `TripMilesServiceTest` (median rules; approx math and factor; a stored route makes no callout — `Limits.getCallouts()` stays 0; refresh replaces the row; a missing place is ignored; the profile key changes with any truck value), `MapboxTruckRouteTest` (request URL carries the truck values and alternatives; metres→miles, seconds→hours; up to 3 routes; violations kept; no route; HTTP 401 and timeout → Unavailable; token never in a thrown message), `RouteMapUrlTest` (overlays and colours; a long route is simplified under 8,000 characters; alternatives dropped as a last resort), extended `RfpHistoryServiceTest` (History > stored Truck route > Approx > No coordinates; no callout), `LaneSearchServiceTest` (row miles, median miles, rate per mile; its governor-sensitive method keeps setup outside `Test.startTest`), `RfpLaneControllerTest` and `LaneBenchmarkControllerTest` (on-demand routes, saved, lane written only when not History, callout before DML), `RfpSecurityTest` (an RFP Tool user opens a lane route; a Lane Benchmark user gets a truck route; a stranger without the lane gets the existing unavailable-lane error).
+- **Jest**: `distanceUnit`, the toggle and channel, table column tags, panel per-mile values, `c-route-map` legend and refresh, workbook columns, stats lines, results column and CSV.
+- **Browser (PostProduc)**: Load history on "Phase 3c browser check" fills Miles for every resolved lane (History or Approx); opening a lane without history draws the truck route with alternatives and stores Truck route miles; reopening makes no new request; km toggle switches table, panel and Lane Benchmark together; a Lane Benchmark search draws the route; the Excel export has the new columns.
+- The Apex roster (README, CI) gains the new test classes.
+
+## 9. Rulings
+
+- R70 — history miles are the median over every matched load row at the precision the history used (radius matches included).
+- R71 — stored routes are keyed by ordered place pair and truck profile and never expire; the pricer refreshes on demand.
+- R72 — the unit toggle is shared through a Lightning message channel, so components in different parts of the page stay in step under Lightning Web Security.
+- R73 — no backfill job and no routing during Load history; opening a lane or searching fills truck routes.
 - R74 — place lookups on `Truck_Route__c` clear on delete instead of blocking it.
-- R75 — the unit toggle is shared through a Lightning message channel, so components in different parts of the page stay in step under Lightning Web Security.
-- R76 — storing routing miles and route lines is the owner's decision; openrouteservice's terms do not forbid it and Valhalla is self-hosted, while Mapbox images stay unstored.
+- R75 — History miles outrank a stored truck route: billed PC*Miler miles are what the company invoices on.
+- R76 — the Approx factor is 1.2 from the measured median billed/straight-line ratio (D7), kept in the setting so it can be tuned without code.
+- R77 — storing Mapbox routing results is the owner's decision (D3); nothing else in the code depends on it, so a later change of mind only removes the save.
+- R78 — one routing provider (Mapbox), no provider interface: other providers were dropped by the owner, so the seam would be unused code.
