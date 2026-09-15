@@ -155,6 +155,9 @@
         <members>LaneQueriesTest</members>
         <members>CarrierLeadService</members>
         <members>CarrierLeadServiceTest</members>
+        <members>CarrierLeadController</members>
+        <members>CarrierLeadControllerTest</members>
+        <members>CarrierSplitSecurityTest</members>
         <name>ApexClass</name>
     </types>
     <types>

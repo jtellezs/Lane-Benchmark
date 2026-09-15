@@ -9,6 +9,10 @@
         <visible>true</visible>
     </applicationVisibilities>
     <classAccesses>
+        <apexClass>CarrierLeadController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>LaneBenchmarkController</apexClass>
         <enabled>true</enabled>
     </classAccesses>

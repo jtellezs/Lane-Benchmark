@@ -662,4 +662,743 @@ private class CarrierLeadServiceTest {
     );
     System.assertEquals(CarrierLeadResult.NONE, new CarrierLeadResult().stage);
   }
+
+  // ---- Task 6: stage 2, the state or province lane ----
+
+  /** A carrier the way Revenova quotes it: account, quote contact, transportation profile, service. */
+  private class StateLaneCarrier {
+    Account carrierAccount;
+    Contact quoteContact;
+    rtms__TransportationProfile__c carrierProfile;
+    rtms__CarrierService__c carrierService;
+  }
+
+  /**
+   * The stage 2 helpers. An inner class used through an instance, so its loops stay out of this
+   * class's PMD complexity total (Task 5's tests already use 28 of 40); no name here can clash with
+   * Task 5's helpers.
+   */
+  private class StateLaneFixtures {
+    /** No excluded contact; the intercompany list is the test's (custom metadata cannot be inserted). */
+    void settings(Set<Id> intercompany) {
+      IntercompanyCarriers.idsOverride = intercompany;
+      LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
+    }
+
+    /**
+     * Carriers keyed by name, one insert per object, each built like createGraph builds the graph's
+     * vendor. A quote's rtms__Vendor__c is its carrier service's carrier on every recent PostProduc
+     * quote, so each carrier quotes through its own service and contact (as in Task 5's tests). One
+     * list per object keeps the Account and Revenova automation to one pass before Test.startTest().
+     * Measured 2026-09-15: that pass costs 17 to 23 queries for carriers that are not blacklisted and
+     * 6 to 8 for blacklisted ones, whether the list holds 2 or 51. So the carriers are blacklisted: no
+     * stage 2 assertion reads the flag, and a blacklisted carrier is still listed.
+     */
+    Map<String, StateLaneCarrier> carriers(
+      PricingTestDataFactory.Graph g,
+      List<String> carrierNames
+    ) {
+      Map<String, StateLaneCarrier> byName = new Map<String, StateLaneCarrier>();
+      List<Account> accounts = new List<Account>();
+      for (String carrierName : carrierNames) {
+        StateLaneCarrier c = new StateLaneCarrier();
+        c.carrierAccount = new Account(
+          Name = carrierName,
+          RecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName()
+            .get('Carrier')
+            .getRecordTypeId(),
+          rtms__TMS_Type__c = 'Carrier (Ground)',
+          Black_List__c = true,
+          CurrencyIsoCode = 'CAD'
+        );
+        byName.put(carrierName, c);
+        accounts.add(c.carrierAccount);
+      }
+      insert accounts;
+      List<Contact> contacts = new List<Contact>();
+      List<rtms__TransportationProfile__c> profiles = new List<rtms__TransportationProfile__c>();
+      for (StateLaneCarrier c : byName.values()) {
+        c.quoteContact = new Contact(
+          FirstName = 'Quote',
+          LastName = c.carrierAccount.Name,
+          AccountId = c.carrierAccount.Id,
+          Email = 'quote' + contacts.size() + '@example.invalid',
+          Phone = '514-555-0100'
+        );
+        c.carrierProfile = new rtms__TransportationProfile__c(
+          Name = c.carrierAccount.Name + ' Profile',
+          RecordTypeId = Schema.SObjectType.rtms__TransportationProfile__c.getRecordTypeInfosByDeveloperName()
+            .get('Carrier')
+            .getRecordTypeId(),
+          rtms__Company_Risk__c = 'Acceptable',
+          rtms__Carrier_Remit_To__c = c.carrierAccount.Id
+        );
+        contacts.add(c.quoteContact);
+        profiles.add(c.carrierProfile);
+      }
+      insert contacts;
+      insert profiles;
+      List<rtms__CarrierService__c> services = new List<rtms__CarrierService__c>();
+      for (StateLaneCarrier c : byName.values()) {
+        c.carrierService = new rtms__CarrierService__c(
+          Name = c.carrierAccount.Name + ' Service',
+          rtms__Carrier__c = c.carrierAccount.Id,
+          rtms__Mode__c = g.mode.Id,
+          rtms__Transportation_Profile__c = c.carrierProfile.Id,
+          rtms__Quote_Contact__c = c.quoteContact.Id,
+          rtms__Minimum_Weight__c = 0,
+          rtms__Maximum_Weight__c = 100000
+        );
+        services.add(c.carrierService);
+      }
+      insert services;
+      return byName;
+    }
+
+    /** A quote by the given carrier, through its own service and contact; uninserted. */
+    rtms__CarrierQuote__c quote(
+      PricingTestDataFactory.Graph g,
+      rtms__Load__c load,
+      StateLaneCarrier carrier,
+      Boolean accepted
+    ) {
+      rtms__CarrierQuote__c q = PricingTestDataFactory.buildQuote(
+        g,
+        load,
+        1000
+      );
+      q.rtms__Carrier_Service__c = carrier.carrierService.Id;
+      q.rtms__Vendor__c = carrier.carrierAccount.Id;
+      q.rtms__Quote_Contact__c = carrier.quoteContact.Id;
+      q.rtms__Accepted__c = accepted;
+      return q;
+    }
+
+    /** City precision on both ends (the LaneSearchRequest defaults). */
+    LaneSearchRequest request(String originKey, String destinationKey) {
+      LaneSearchRequest r = new LaneSearchRequest();
+      r.originKey = originKey;
+      r.destinationKey = destinationKey;
+      return r;
+    }
+
+    /** 'Carrier 01', 'Carrier 02', ... up to count. */
+    List<String> numberedNames(Integer count) {
+      List<String> out = new List<String>();
+      for (Integer i = 1; i <= count; i++) {
+        out.add('Carrier ' + String.valueOf(i).leftPad(2, '0'));
+      }
+      return out;
+    }
+
+    List<String> leadNames(CarrierLeadResult r) {
+      List<String> out = new List<String>();
+      for (CarrierLeadResult.Lead entry : r.leads) {
+        out.add(entry.name);
+      }
+      return out;
+    }
+  }
+
+  /**
+   * R81: stage 2 runs only when stage 1 has no carrier left after the removals. Laval to Toronto has
+   * one quote (Alpha); Montréal to Toronto is on the same state lane QC:ON but not on that city
+   * lane (Beta). Once Alpha is intercompany, stage 1 is empty and stage 2 names Beta.
+   */
+  @IsTest
+  static void stateLaneRunsOnlyWhenTheSameLaneHasNoCarrierLeft() {
+    StateLaneFixtures fixtures = new StateLaneFixtures();
+    fixtures.settings(new Set<Id>());
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RfpTestDataFactory.createPlace(
+      'Laval',
+      'QC',
+      'CA',
+      45.6066,
+      -73.7124,
+      'H7P'
+    );
+    RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    Map<String, StateLaneCarrier> carriers = fixtures.carriers(
+      g,
+      new List<String>{ 'Alpha Lane Carrier', 'Beta State Carrier' }
+    );
+    rtms__Load__c montrealToronto = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    insert fixtures.quote(
+      g,
+      montrealToronto,
+      carriers.get('Beta State Carrier'),
+      true
+    );
+    Test.startTest();
+    // Inside Test.startTest(): graph 33, carriers 6-8, contacts 3, a load 35 and a quote 12 fill the
+    // context before it, and the Laval location (12) would pass 100 (measured 2026-09-15).
+    Account lavalCo = PricingTestDataFactory.createLocation(
+      'Laval Co',
+      'Laval',
+      'Quebec',
+      'Canada',
+      'H7P 1T2',
+      45.6066,
+      -73.7124
+    );
+    rtms__Load__c lavalToronto = PricingTestDataFactory.createLoad(
+      g,
+      lavalCo,
+      g.destinationLocation
+    );
+    insert fixtures.quote(
+      g,
+      lavalToronto,
+      carriers.get('Alpha Lane Carrier'),
+      false
+    );
+    CarrierLeadResult sameLane = CarrierLeadService.find(
+      fixtures.request('laval|qc|ca', 'toronto|on|ca')
+    );
+    IntercompanyCarriers.idsOverride = new Set<Id>{
+      carriers.get('Alpha Lane Carrier').carrierAccount.Id
+    };
+    CarrierLeadResult afterRemoval = CarrierLeadService.find(
+      fixtures.request('laval|qc|ca', 'toronto|on|ca')
+    );
+    Test.stopTest();
+    System.assertEquals(
+      CarrierLeadResult.SAME_LANE,
+      sameLane.stage,
+      JSON.serialize(sameLane)
+    );
+    System.assertEquals(
+      new List<String>{ 'Alpha Lane Carrier' },
+      fixtures.leadNames(sameLane),
+      'stage 2 never mixes with stage 1'
+    );
+    System.assertEquals(
+      null,
+      sameLane.stateLaneLabel,
+      'no state lane label on stage 1'
+    );
+    System.assertEquals(
+      CarrierLeadResult.STATE_LANE,
+      afterRemoval.stage,
+      'an intercompany carrier leaves stage 1 empty: ' +
+      JSON.serialize(afterRemoval)
+    );
+    System.assertEquals(
+      new List<String>{ 'Beta State Carrier' },
+      fixtures.leadNames(afterRemoval),
+      'the intercompany carrier is left out of stage 2 as well'
+    );
+    System.assertEquals(
+      'QC to ON',
+      afterRemoval.stateLaneLabel,
+      'the stage 2 wording names the state lane'
+    );
+    System.assertEquals(1, afterRemoval.leads[0].loadsMoved, 'accepted');
+    System.assertEquals(1, afterRemoval.leads[0].loadsQuoted, 'quoted');
+    System.assertEquals(
+      new List<String>{ CarrierLeadResult.SOURCE_QUOTE },
+      afterRemoval.leads[0].sources,
+      'a quote source only'
+    );
+  }
+
+  /**
+   * R82 and R97: stage 2 ranks by loads moved, then last seen, and shows its top 10. Carrier 12
+   * moved the load 12 days ago; Carrier 01 to 11 only quoted it, 1 to 11 days ago.
+   */
+  @IsTest
+  static void stateLaneKeepsTheTopTenByLoadsMovedThenLastSeen() {
+    StateLaneFixtures fixtures = new StateLaneFixtures();
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RfpTestDataFactory.createPlace(
+      'Laval',
+      'QC',
+      'CA',
+      45.6066,
+      -73.7124,
+      'H7P'
+    );
+    RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    fixtures.settings(new Set<Id>());
+    List<String> names = new List<String>();
+    for (Integer i = 1; i <= 12; i++) {
+      names.add('Carrier ' + String.valueOf(i).leftPad(2, '0'));
+    }
+    Map<String, StateLaneCarrier> carriers = fixtures.carriers(g, names);
+    rtms__Load__c montrealToronto = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    List<rtms__CarrierQuote__c> quotes = new List<rtms__CarrierQuote__c>();
+    for (Integer i = 1; i <= 12; i++) {
+      quotes.add(
+        fixtures.quote(g, montrealToronto, carriers.get(names[i - 1]), i == 12)
+      );
+    }
+    insert quotes;
+    for (Integer i = 1; i <= 12; i++) {
+      Test.setCreatedDate(quotes[i - 1].Id, Datetime.now().addDays(-i));
+    }
+    Test.startTest();
+    CarrierLeadResult r = CarrierLeadService.find(
+      fixtures.request('laval|qc|ca', 'toronto|on|ca')
+    );
+    Test.stopTest();
+    System.assertEquals(
+      CarrierLeadResult.STATE_LANE,
+      r.stage,
+      JSON.serialize(r)
+    );
+    System.assertEquals('QC to ON', r.stateLaneLabel, 'the label');
+    System.assertEquals(
+      new List<String>{
+        'Carrier 12',
+        'Carrier 01',
+        'Carrier 02',
+        'Carrier 03',
+        'Carrier 04',
+        'Carrier 05',
+        'Carrier 06',
+        'Carrier 07',
+        'Carrier 08',
+        'Carrier 09'
+      },
+      fixtures.leadNames(r),
+      'loads moved first, then the latest quote; Carrier 10 and 11 fall past the top 10'
+    );
+    System.assertEquals(
+      false,
+      r.truncated,
+      'the top 10 cut does not mark the list incomplete'
+    );
+    System.assertEquals(1, r.leads[0].loadsMoved, 'Carrier 12 moved it');
+    System.assertEquals(
+      Datetime.now().addDays(-1).date(),
+      r.leads[1].lastSeen,
+      'Carrier 01 was last seen a day ago'
+    );
+  }
+
+  /**
+   * R102: NL is both Newfoundland and Labrador and Nuevo León, so both loads below carry the state
+   * lane NL:QC. Only the load whose first stop account is in Canada counts for Corner Brook, NL, CA.
+   * A stop account with a blank ShippingCountry fails the same equality, so its load never counts
+   * (spec §3); no extra load is built for it, to keep the fixture budget.
+   */
+  @IsTest
+  static void stateLaneCountsOnlyLoadsWhoseStopsAreInEachPlacesCountry() {
+    StateLaneFixtures fixtures = new StateLaneFixtures();
+    fixtures.settings(new Set<Id>());
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Account newfoundland = PricingTestDataFactory.createLocation(
+      'Newfoundland Co',
+      'St. John\'s',
+      'Newfoundland and Labrador',
+      'Canada',
+      'A1B 3T2',
+      47.5615,
+      -52.7126
+    );
+    RfpTestDataFactory.createPlace(
+      'Corner Brook',
+      'NL',
+      'CA',
+      48.949,
+      -57.9503,
+      'A2H'
+    );
+    RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    Map<String, StateLaneCarrier> carriers = fixtures.carriers(
+      g,
+      new List<String>{ 'Canada Carrier', 'Mexico Carrier' }
+    );
+    rtms__Load__c fromCanada = PricingTestDataFactory.createLoad(
+      g,
+      newfoundland,
+      g.originLocation
+    );
+    Test.startTest();
+    // Inside Test.startTest(): graph 33, the Newfoundland location 12, carriers 6-8, contacts 3 and a
+    // load 35 fill the context before it; the Canadian quote (12) and the Mexican location (10) would
+    // pass 100 there (measured 2026-09-15). Neither needs Test.setCreatedDate.
+    insert fixtures.quote(g, fromCanada, carriers.get('Canada Carrier'), true);
+    Account nuevoLeon = PricingTestDataFactory.createLocation(
+      'Nuevo Leon Co',
+      'Monterrey',
+      'Nuevo León',
+      'Mexico',
+      '64000',
+      25.6866,
+      -100.3161
+    );
+    rtms__Load__c fromMexico = PricingTestDataFactory.createLoad(
+      g,
+      nuevoLeon,
+      g.originLocation
+    );
+    insert fixtures.quote(g, fromMexico, carriers.get('Mexico Carrier'), true);
+    CarrierLeadResult r = CarrierLeadService.find(
+      fixtures.request('corner brook|nl|ca', 'montreal|qc|ca')
+    );
+    String mexicanStateLane = [
+      SELECT rtms__State_Lane__c
+      FROM rtms__Load__c
+      WHERE Id = :fromMexico.Id
+    ]
+    .rtms__State_Lane__c;
+    Test.stopTest();
+    System.assertEquals(
+      'NL:QC',
+      mexicanStateLane,
+      'precondition: the Mexican load carries the same state lane key'
+    );
+    System.assertEquals(
+      CarrierLeadResult.STATE_LANE,
+      r.stage,
+      JSON.serialize(r)
+    );
+    System.assertEquals('NL to QC', r.stateLaneLabel, 'the label');
+    System.assertEquals(
+      new List<String>{ 'Canada Carrier' },
+      fixtures.leadNames(r),
+      'a load whose first stop is in Mexico is not on a Canadian NL lane'
+    );
+  }
+
+  /**
+   * Stage 2 counts the carrier legs of split shipments whose customer load is on the state lane,
+   * dated by the customer load (R84). Called through stateLaneLeads, because a plan built by
+   * SplitTestData in memory (Task 1, branch B) would also answer stage 1's plan read.
+   */
+  @IsTest
+  static void stateLaneCountsTheLegsOfSplitShipments() {
+    StateLaneFixtures fixtures = new StateLaneFixtures();
+    fixtures.settings(new Set<Id>());
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c laval = RfpTestDataFactory.createPlace(
+      'Laval',
+      'QC',
+      'CA',
+      45.6066,
+      -73.7124,
+      'H7P'
+    );
+    Pricing_Place__c toronto = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    Account legCarrier = SplitTestData.carrier('Leg Carrier', true);
+    // The leg ends at a Quebec yard (state lane QC:QC), off QC:ON, so no quote the automation might
+    // give a leg can reach the stage 2 quote counts (Task 1 asserts it gives legs none).
+    Account yard = PricingTestDataFactory.createLocation(
+      'Drummondville Yard',
+      'Drummondville',
+      'Quebec',
+      'Canada',
+      'J2C 1A1',
+      45.8833,
+      -72.4833
+    );
+    rtms__Load__c customerLoad = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    Test.startTest();
+    rtms__Load__c leg = SplitTestData.legLoad(
+      g,
+      g.originLocation,
+      yard,
+      legCarrier,
+      900,
+      'Delivered'
+    );
+    SplitTestData.plan(customerLoad, new List<rtms__Load__c>{ leg });
+    CarrierLeadResult r = CarrierLeadService.stateLaneLeads(
+      fixtures.request(laval.Key__c, toronto.Key__c),
+      laval,
+      toronto,
+      new CarrierLeadResult()
+    );
+    Date customerDay = [
+        SELECT CreatedDate
+        FROM rtms__Load__c
+        WHERE Id = :customerLoad.Id
+      ]
+      .CreatedDate.date();
+    Test.stopTest();
+    SplitTestData.resetPlans();
+    System.assertEquals(
+      CarrierLeadResult.STATE_LANE,
+      r.stage,
+      JSON.serialize(r)
+    );
+    System.assertEquals(1, r.leads.size(), 'the leg carrier');
+    CarrierLeadResult.Lead entry = r.leads[0];
+    System.assertEquals('Leg Carrier', entry.name, 'by name');
+    System.assertEquals(1, entry.loadsMoved, 'one leg load moved');
+    System.assertEquals(0, entry.loadsQuoted, 'no quote');
+    System.assertEquals(
+      new List<String>{ CarrierLeadResult.SOURCE_SPLIT_LEG },
+      entry.sources,
+      'a split leg source only'
+    );
+    System.assertEquals(
+      customerDay,
+      entry.lastSeen,
+      'dated by the customer load'
+    );
+    System.assertEquals(true, entry.blacklisted, 'the badge stays');
+    System.assertEquals('QC to ON', r.stateLaneLabel, 'the label');
+  }
+
+  /**
+   * Stage 2 is skipped when both ends used province keys (R95), when a place has a blank province,
+   * and when a place's country has no stop country name (LaneQueries.COUNTRY_NAMES); a French place
+   * then names nobody, without an error.
+   */
+  @IsTest
+  static void stateLaneIsSkippedForProvinceEndsBlankProvincesAndOtherCountries() {
+    StateLaneFixtures fixtures = new StateLaneFixtures();
+    fixtures.settings(new Set<Id>());
+    Pricing_Place__c quebec = new Pricing_Place__c(
+      Key__c = 'laval|qc|ca',
+      City__c = 'Laval',
+      Province__c = 'QC',
+      Country__c = 'CA'
+    );
+    Pricing_Place__c ontario = new Pricing_Place__c(
+      Key__c = 'toronto|on|ca',
+      City__c = 'Toronto',
+      Province__c = 'ON',
+      Country__c = 'CA'
+    );
+    Pricing_Place__c noProvince = new Pricing_Place__c(
+      Key__c = 'nowhere||ca',
+      City__c = 'Nowhere',
+      Country__c = 'CA'
+    );
+    Pricing_Place__c paris = RfpTestDataFactory.createPlace(
+      'Paris',
+      'IDF',
+      'FR',
+      48.8566,
+      2.3522,
+      '750'
+    );
+    Pricing_Place__c toronto = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    LaneSearchRequest cityEnds = fixtures.request(
+      'laval|qc|ca',
+      'toronto|on|ca'
+    );
+    LaneSearchRequest provinceEnds = fixtures.request(
+      'laval|qc|ca',
+      'toronto|on|ca'
+    );
+    provinceEnds.originPrecision = LaneSearchRequest.Precision.PROVINCE;
+    provinceEnds.destinationPrecision = LaneSearchRequest.Precision.PROVINCE;
+    LaneSearchRequest oneProvinceEnd = fixtures.request(
+      'laval|qc|ca',
+      'toronto|on|ca'
+    );
+    oneProvinceEnd.originPrecision = LaneSearchRequest.Precision.PROVINCE;
+    Map<String, Object> binds = new Map<String, Object>();
+    Test.startTest();
+    List<String> conditions = CarrierLeadService.stateLane(
+      cityEnds,
+      quebec,
+      ontario,
+      binds
+    );
+    CarrierLeadResult french = CarrierLeadService.find(
+      fixtures.request(paris.Key__c, toronto.Key__c)
+    );
+    Test.stopTest();
+    System.assertNotEquals(null, conditions, 'city ends read the state lane');
+    System.assert(
+      conditions.contains('rtms__Load__r.rtms__State_Lane__c = :stateLane'),
+      String.join(conditions, ' AND ')
+    );
+    System.assertEquals('QC:ON', binds.get('stateLane'), 'the state lane key');
+    System.assertEquals('Canada', binds.get('oCountry'), 'origin country');
+    System.assertEquals('Canada', binds.get('dCountry'), 'destination country');
+    System.assertEquals(
+      null,
+      CarrierLeadService.stateLane(
+        provinceEnds,
+        quebec,
+        ontario,
+        new Map<String, Object>()
+      ),
+      'both ends on province keys: stage 1 already read that lane'
+    );
+    System.assertNotEquals(
+      null,
+      CarrierLeadService.stateLane(
+        oneProvinceEnd,
+        quebec,
+        ontario,
+        new Map<String, Object>()
+      ),
+      'one province end does not skip stage 2'
+    );
+    System.assertEquals(
+      null,
+      CarrierLeadService.stateLane(
+        cityEnds,
+        quebec,
+        noProvince,
+        new Map<String, Object>()
+      ),
+      'a blank destination province'
+    );
+    System.assertEquals(
+      null,
+      CarrierLeadService.stateLane(
+        cityEnds,
+        noProvince,
+        ontario,
+        new Map<String, Object>()
+      ),
+      'a blank origin province'
+    );
+    System.assertEquals(
+      null,
+      CarrierLeadService.stateLane(
+        cityEnds,
+        paris,
+        ontario,
+        new Map<String, Object>()
+      ),
+      'FR has no stop country name'
+    );
+    System.assertEquals(
+      CarrierLeadResult.NONE,
+      french.stage,
+      JSON.serialize(french)
+    );
+    System.assertEquals(0, french.leads.size(), 'nobody');
+    System.assertEquals(null, french.stateLaneLabel, 'no label');
+  }
+
+  /**
+   * Controller ruling 2026-09-15: a 51st carrier group marks only stage 1 incomplete, because stage
+   * 2's groups come back ordered by loads, so its top 10 is exact. 51 carriers each move the Montréal
+   * to Toronto load. Searched as Montréal to Toronto, stage 1 reaches the group cap and says so;
+   * searched as Laval to Toronto, stage 1 is empty and stage 2 keeps 10 without the note.
+   */
+  @IsTest
+  static void stateLaneIgnoresTheGroupCap() {
+    StateLaneFixtures fixtures = new StateLaneFixtures();
+    fixtures.settings(new Set<Id>());
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RfpTestDataFactory.createPlace(
+      'Montreal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    RfpTestDataFactory.createPlace(
+      'Laval',
+      'QC',
+      'CA',
+      45.6066,
+      -73.7124,
+      'H7P'
+    );
+    RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    Map<String, StateLaneCarrier> carriers = fixtures.carriers(
+      g,
+      fixtures.numberedNames(LaneQueries.GROUP_LIMIT + 1)
+    );
+    Test.startTest();
+    // The 51 carriers take 44 queries before Test.startTest(). The load (35) and the 51 quotes (20)
+    // need no Test.setCreatedDate, so they are made here (measured 2026-09-15).
+    rtms__Load__c montrealToronto = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation
+    );
+    List<rtms__CarrierQuote__c> quotes = new List<rtms__CarrierQuote__c>();
+    for (StateLaneCarrier carrier : carriers.values()) {
+      quotes.add(fixtures.quote(g, montrealToronto, carrier, true));
+    }
+    insert quotes;
+    CarrierLeadResult sameLane = CarrierLeadService.find(
+      fixtures.request('montreal|qc|ca', 'toronto|on|ca')
+    );
+    CarrierLeadResult r = CarrierLeadService.find(
+      fixtures.request('laval|qc|ca', 'toronto|on|ca')
+    );
+    Test.stopTest();
+    System.assertEquals(
+      CarrierLeadResult.SAME_LANE,
+      sameLane.stage,
+      'precondition: the city lane search stops at stage 1'
+    );
+    System.assertEquals(
+      true,
+      sameLane.truncated,
+      'precondition: the 51 carrier groups reach the cap, which marks stage 1 incomplete'
+    );
+    System.assertEquals(
+      CarrierLeadResult.STATE_LANE,
+      r.stage,
+      JSON.serialize(r)
+    );
+    System.assertEquals(10, r.leads.size(), 'the top 10');
+    System.assertEquals(
+      false,
+      r.truncated,
+      'a 51st carrier group does not mark stage 2 incomplete'
+    );
+    System.assertEquals('QC to ON', r.stateLaneLabel, 'the label');
+  }
 }
