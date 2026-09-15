@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description
+  >Carrier accounts that belong to the Trans-Pro group. Carriers to ask and Split-lane options leave out their quotes, their split legs and any split shipment that uses them. One record per account.</description>
+    <label>Intercompany Carrier</label>
+    <pluralLabel>Intercompany Carriers</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

@@ -135,6 +135,9 @@
         <members>TripMilesService</members>
         <members>TripMilesServiceTest</members>
         <members>TripRouteView</members>
+        <members>FreightPlanReader</members>
+        <members>SplitTestData</members>
+        <members>SplitTestDataTest</members>
         <name>ApexClass</name>
     </types>
     <types>
@@ -149,11 +152,18 @@
         <members>Benchmark_Rate__c</members>
         <members>Truck_Route__c</members>
         <members>Truck_Routing_Setting__mdt</members>
+        <members>Intercompany_Carrier__mdt</members>
+        <members>Handoff_Point__mdt</members>
         <name>CustomObject</name>
     </types>
     <types>
         <members>Pricing_Department_Setting.Default</members>
         <members>Truck_Routing_Setting.Default</members>
+        <members>Intercompany_Carrier.Tpml_TP_Org</members>
+        <members>Intercompany_Carrier.Lessard_Org</members>
+        <members>Handoff_Point.Laredo_TX_US</members>
+        <members>Handoff_Point.San_Diego_CA_US</members>
+        <members>Handoff_Point.Calexico_CA_US</members>
         <name>CustomMetadata</name>
     </types>
     <!-- Security -->
@@ -216,6 +226,10 @@
         <members>Truck_Routing_Setting__mdt.Timeout_Ms__c</members>
         <members>Truck_Routing_Setting__mdt.Weight_T__c</members>
         <members>Truck_Routing_Setting__mdt.Width_M__c</members>
+        <members>Intercompany_Carrier__mdt.Carrier_Account_Id__c</members>
+        <members>Intercompany_Carrier__mdt.Note__c</members>
+        <members>Handoff_Point__mdt.Active__c</members>
+        <members>Handoff_Point__mdt.Place_Key__c</members>
         <members>Pricing_Place__c.Key__c</members>
         <members>Pricing_Place__c.City__c</members>
         <members>Pricing_Place__c.Province__c</members>

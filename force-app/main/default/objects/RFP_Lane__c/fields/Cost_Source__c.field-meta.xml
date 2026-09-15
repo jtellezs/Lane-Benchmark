@@ -14,6 +14,8 @@
         >false</default><label>History median</label></value>
             <value><fullName>Manual</fullName><default>false</default><label
         >Manual</label></value>
+            <value><fullName>Split</fullName><default>false</default><label
+        >Split</label></value>
         </valueSetDefinition>
     </valueSet>
 </CustomField>
