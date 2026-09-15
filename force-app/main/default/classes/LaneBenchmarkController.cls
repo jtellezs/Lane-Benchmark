@@ -226,6 +226,30 @@ public without sharing class LaneBenchmarkController {
     );
   }
 
+  /**
+   * The truck route between two place keys (phase 7), for the Lane Benchmark map and statistics.
+   * Not cacheable: it calls out and saves the Truck_Route__c row. Places are read in system mode
+   * like every place lookup on this page. An unknown or blank key has no coordinates, so the view
+   * is Unavailable rather than an error: the page asks only after a search that validated both
+   * keys. Never writes a lane. No try/catch: this class sat at 36 of PMD's complexity budget of 40
+   * before this method, and each catch and throw counts.
+   */
+  @AuraEnabled
+  public static TripRouteView truckRoute(
+    String originKey,
+    String destinationKey,
+    Boolean refresh
+  ) {
+    Map<String, Pricing_Place__c> places = LaneBenchmarkPlaceService.placesByKey(
+      new Set<String>{ originKey, destinationKey }
+    );
+    return TripRouteView.routeBetween(
+      places.get(originKey),
+      places.get(destinationKey),
+      refresh
+    );
+  }
+
   private static PlaceOption toOption(Pricing_Place__c p) {
     PlaceOption o = new PlaceOption();
     o.key = p.Key__c;

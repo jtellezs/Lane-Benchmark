@@ -264,6 +264,12 @@ private class RfpSecurityTest {
       } catch (AuraHandledException e) {
         System.assertEquals(RfpBidAccess.LANE_UNAVAILABLE, e.getMessage());
       }
+      try {
+        RfpLaneController.laneRoute(laneId, false);
+        System.assert(false, 'expected AuraHandledException');
+      } catch (AuraHandledException e) {
+        System.assertEquals(RfpBidAccess.LANE_UNAVAILABLE, e.getMessage());
+      }
       LaneSearchResult found = LaneSearchService.search(
         req('montreal|qc|ca', 'toronto|on|ca', LaneSearchRequest.Precision.CITY)
       );

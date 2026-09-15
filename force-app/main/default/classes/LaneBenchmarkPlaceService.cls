@@ -171,10 +171,11 @@ public without sharing class LaneBenchmarkPlaceService {
     return MapboxGeocoder.staticMapUrl(circles);
   }
 
+  /** Places by Key__c with their Id and coordinates, system mode; also LaneBenchmarkController.truckRoute's lookup. */
   @SuppressWarnings(
     'PMD.ApexCRUDViolation'
   ) // system mode by design (see class comment)
-  private static Map<String, Pricing_Place__c> placesByKey(Set<String> keys) {
+  public static Map<String, Pricing_Place__c> placesByKey(Set<String> keys) {
     Map<String, Pricing_Place__c> places = new Map<String, Pricing_Place__c>();
     for (Pricing_Place__c p : [
       SELECT Key__c, Geolocation__Latitude__s, Geolocation__Longitude__s

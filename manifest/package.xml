@@ -127,6 +127,7 @@
         <members>RfpBulkControllerTest</members>
         <members>TripMilesService</members>
         <members>TripMilesServiceTest</members>
+        <members>TripRouteView</members>
         <name>ApexClass</name>
     </types>
     <types>

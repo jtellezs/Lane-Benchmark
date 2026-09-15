@@ -165,6 +165,52 @@ public with sharing class RfpLaneController {
   }
 
   /**
+   * The truck route of one lane (phase 7), for the lane panel; not cacheable, it calls out and
+   * saves. The lane is read in user mode, so a lane the caller cannot read is "This lane is not
+   * available." TripRouteView.routeBetween makes the callouts and then saves the store row; the
+   * lane's miles are written last, in user mode after the FLS strip like every lane save here,
+   * unless they come from History (TripRouteView.laneUpdate). view.lane is the re-read lane when
+   * it was written, for the table. The lane read and its refusal sit before the try so that no
+   * AuraHandledException needs re-throwing: each catch and throw counts toward PMD's class
+   * complexity budget, which this class is close to.
+   */
+  @AuraEnabled
+  public static TripRouteView laneRoute(Id laneId, Boolean refresh) {
+    List<RFP_Lane__c> lanes = lanesByIds(new List<Id>{ laneId });
+    if (lanes.isEmpty()) {
+      throw RfpUserError.of(RfpBidAccess.LANE_UNAVAILABLE);
+    }
+    try {
+      RFP_Lane__c stored = lanes[0];
+      TripRouteView view = TripRouteView.routeBetween(
+        TripRouteView.laneEnd(stored.Origin_Place__c, stored.Origin_Place__r),
+        TripRouteView.laneEnd(
+          stored.Destination_Place__c,
+          stored.Destination_Place__r
+        ),
+        refresh
+      );
+      RFP_Lane__c miles = TripRouteView.laneUpdate(stored, view);
+      if (miles != null) {
+        Database.update(
+          Security.stripInaccessible(
+              AccessType.UPDATABLE,
+              new List<RFP_Lane__c>{ miles }
+            )
+            .getRecords()[0],
+          AccessLevel.USER_MODE
+        );
+        view.lane = one(laneId);
+      }
+      return view;
+    } catch (Exception e) {
+      throw RfpUserError.of(
+        'The truck route could not be loaded. ' + RfpUserError.safe(e)
+      );
+    }
+  }
+
+  /**
    * 'Pending' only once BOTH ends are resolved (the side being fixed now, plus whatever the
    * other side already is on the stored lane); otherwise the lane stays 'Unresolved', same rule
    * RfpImportService applies on import.
