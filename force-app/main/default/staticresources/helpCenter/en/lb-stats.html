@@ -2,5 +2,15 @@
 <p>Statistics are never mixed across currencies. Each box shows how many quotes matched and how many had a price, then the minimum, median, average and maximum of the priced ones.</p>
 <h3>Margin and suggested sell</h3>
 <p>Type a margin percentage (15 is the default) or click <strong>15%</strong> / <strong>20%</strong>. The box shows <strong>Sell (median)</strong> and <strong>Sell (average)</strong>: the median or average cost plus that margin. These are suggestions, not prices; nothing is saved here.</p>
+<h3>Trip miles and truck routes</h3>
+<p>The <strong>Statistics</strong> card also shows how long the trip is:</p>
+<ul>
+<li><strong>Trip: 1,234 mi · median of 12 loads</strong>: the median of the billed miles on the matched loads. Bids have no miles and do not count.</li>
+<li><strong>Truck route: 1,260 mi · 21.5 h</strong>: the Mapbox truck route between the two places, with its drive hours. <strong>Regular route</strong> instead means the truck limits could not be met, so a regular driving route is shown.</li>
+</ul>
+<p>The truck route always runs between the two places you picked, even after a <strong>Province / state</strong> or <strong>Postal prefix</strong> search: <strong>Truck route</strong> then measures city to city, while <strong>Trip</strong> covers every load the wider search matched.</p>
+<p>Each currency box adds <strong>Rate per mile (median)</strong>: the median of each priced quote&#39;s total divided by its load&#39;s miles, in that box&#39;s currency.</p>
+<p>After a search with both an origin and a destination, the map draws the truck route (pins A and B, the main route and up to two alternatives, a legend line per route) in place of the plain preview; a radius search keeps its radius preview under the route, and when no route is available the preview stays. The route is asked from Mapbox once per pair of places and stored, so the next search on the same lane reuses it; <strong>Refresh route</strong> asks again. The results table has a <strong>Miles</strong> column (bids show &quot;—&quot;), and the CSV export carries it.</p>
+<p>The <strong>mi</strong> and <strong>km</strong> buttons in the card header switch every distance on the page, per-mile rates included. The choice is remembered in this browser, and the RFP Tool uses it too.</p>
 <h3>Duplicates</h3>
 <p>The same quote can appear on several loads. Identical rows (same carrier, lane, mode, equipment and total) are counted once; the header says how many duplicates were removed.</p>

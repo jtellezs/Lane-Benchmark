@@ -12,10 +12,12 @@ const UNITS = [
 
 /**
  * The workbench toolbar row: the two navigation buttons, the four history
- * settings, the "Include RFP bids" toggle, the three history buttons and the
- * Excel export. It holds no state of its own — every control reports back to
- * rfpTool, which owns the settings and runs the calls, the same split
- * c/rfpBulkBar already uses for the bulk actions.
+ * settings, the "Include RFP bids" toggle, the mi | km distance toggle, the
+ * three history buttons and the Excel export. It holds no state of its own —
+ * every control reports back to rfpTool, which owns the settings and runs the
+ * calls, the same split c/rfpBulkBar already uses for the bulk actions. The
+ * distance toggle is the exception: it publishes on Distance_Unit__c itself,
+ * so the table, the lane panel and Lane Benchmark follow it without rfpTool.
  */
 export default class RfpToolbar extends LightningElement {
   @api busy = false;

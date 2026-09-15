@@ -59,10 +59,9 @@ public with sharing class BidSearchQueryBuilder {
       ' ORDER BY CreatedDate DESC LIMIT :bRowLimitPlusOne';
   }
 
-  /** Bids have no accepted/declined state and no customer, so those filters exclude every bid. */
+  /** Bids have no accepted/declined state, so that filter excludes every bid. */
   private static Boolean canMatchBids(LaneSearchRequest req) {
     return req.sourceFilter != LaneSearchRequest.RowSource.LOADS &&
-      req.marketTestOnly != true &&
       req.acceptedFilter == LaneSearchRequest.Accepted.ANY_STATUS;
   }
 

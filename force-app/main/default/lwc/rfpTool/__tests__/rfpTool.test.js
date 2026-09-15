@@ -72,6 +72,11 @@ jest.mock(
   { virtual: true }
 );
 jest.mock(
+  "@salesforce/apex/RfpLaneController.laneRoute",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
   "@salesforce/apex/RfpHistoryController.loadHistory",
   () => ({ default: jest.fn() }),
   { virtual: true }

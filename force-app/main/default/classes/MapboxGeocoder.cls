@@ -3,10 +3,11 @@
  * Token: TPRO_KPI__c org default, Mapbox_Api_Key__c (public pk. token). Remote site: MapBox.
  * Only the search CENTER is geocoded; historical data is never sent to Mapbox.
  * Response parsing lives in MapboxResponseParser (see that class's doc comment for why): this
- * class keeps the callout itself (build the request, send with one retry, callout-error mapping).
+ * class builds the request and maps the HTTP status. The token read and the send with one retry
+ * (callout-error mapping included) live in MapboxHttp, shared with MapboxTruckRoute.
  */
 public with sharing class MapboxGeocoder {
-  private static final String BASE = 'https://api.mapbox.com';
+  private static final String BASE = MapboxHttp.BASE;
   private static final Integer TIMEOUT_MS = 10000;
 
   public class GeoResult {
@@ -28,7 +29,7 @@ public with sharing class MapboxGeocoder {
 
   @TestVisible
   private static String token() {
-    return TPRO_KPI__c.getOrgDefaults().Mapbox_Api_Key__c;
+    return MapboxHttp.token();
   }
 
   public static List<GeoResult> forward(String query, String countryHint) {
@@ -74,16 +75,7 @@ public with sharing class MapboxGeocoder {
   }
 
   private static HttpResponse sendWithRetry(HttpRequest req) {
-    Http http = new Http();
-    try {
-      HttpResponse res = http.send(req);
-      if (res.getStatusCode() >= 500) {
-        res = http.send(req); // one retry
-      }
-      return res;
-    } catch (System.CalloutException e) {
-      throw new MapboxException('Mapbox is not reachable right now');
-    }
+    return MapboxHttp.send(req);
   }
 
   /** Only 'xx' or 'xx,yy,...' (ISO-3166 alpha-2, lowercase) is forwarded to Mapbox; anything else is dropped. */

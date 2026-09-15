@@ -53,12 +53,19 @@
         <members>rfpLaneFilter</members>
         <members>rfpBulk</members>
         <members>rfpBulkBar</members>
+        <members>distanceUnit</members>
+        <members>distanceUnitToggle</members>
+        <members>routeMap</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>
         <members>helpCenter</members>
         <members>sheetJs</members>
         <name>StaticResource</name>
+    </types>
+    <types>
+        <members>Distance_Unit</members>
+        <name>LightningMessageChannel</name>
     </types>
     <!-- Apex -->
     <types>
@@ -86,6 +93,12 @@
         <members>MapboxGeocoder</members>
         <members>MapboxGeocoderTest</members>
         <members>MapboxResponseParser</members>
+        <members>MapboxHttp</members>
+        <members>MapboxTruckRoute</members>
+        <members>MapboxTruckRouteTest</members>
+        <members>TruckRoute</members>
+        <members>RouteMapUrl</members>
+        <members>RouteMapUrlTest</members>
         <members>LaneBenchmarkPlaceServiceTest</members>
         <members>RfpTestDataFactory</members>
         <members>RfpTestDataFactoryTest</members>
@@ -119,6 +132,9 @@
         <members>RfpBulkServiceTest</members>
         <members>RfpBulkController</members>
         <members>RfpBulkControllerTest</members>
+        <members>TripMilesService</members>
+        <members>TripMilesServiceTest</members>
+        <members>TripRouteView</members>
         <name>ApexClass</name>
     </types>
     <types>
@@ -131,10 +147,13 @@
         <members>RFP_Project__c</members>
         <members>RFP_Lane__c</members>
         <members>Benchmark_Rate__c</members>
+        <members>Truck_Route__c</members>
+        <members>Truck_Routing_Setting__mdt</members>
         <name>CustomObject</name>
     </types>
     <types>
         <members>Pricing_Department_Setting.Default</members>
+        <members>Truck_Routing_Setting.Default</members>
         <name>CustomMetadata</name>
     </types>
     <!-- Security -->
@@ -191,6 +210,12 @@
         <members>Account.Number_of_Loads__c</members>
         <members
     >Pricing_Department_Setting__mdt.Excluded_Contact_Ids__c</members>
+        <members>Truck_Routing_Setting__mdt.Alternatives__c</members>
+        <members>Truck_Routing_Setting__mdt.Approx_Factor__c</members>
+        <members>Truck_Routing_Setting__mdt.Height_M__c</members>
+        <members>Truck_Routing_Setting__mdt.Timeout_Ms__c</members>
+        <members>Truck_Routing_Setting__mdt.Weight_T__c</members>
+        <members>Truck_Routing_Setting__mdt.Width_M__c</members>
         <members>Pricing_Place__c.Key__c</members>
         <members>Pricing_Place__c.City__c</members>
         <members>Pricing_Place__c.Province__c</members>
@@ -240,6 +265,8 @@
         <members>RFP_Lane__c.Hist_Precision__c</members>
         <members>RFP_Lane__c.Hist_Status__c</members>
         <members>RFP_Lane__c.Margin__c</members>
+        <members>RFP_Lane__c.Miles_Source__c</members>
+        <members>RFP_Lane__c.Miles__c</members>
         <members>RFP_Lane__c.Mode__c</members>
         <members>RFP_Lane__c.Notes__c</members>
         <members>RFP_Lane__c.Origin_City__c</members>
@@ -252,6 +279,7 @@
         <members>RFP_Lane__c.Quantity__c</members>
         <members>RFP_Lane__c.RFP_Project__c</members>
         <members>RFP_Lane__c.Raw_Row__c</members>
+        <members>RFP_Lane__c.Route_Hours__c</members>
         <members>RFP_Lane__c.Row_Number__c</members>
         <members>RFP_Lane__c.Selected_Bid__c</members>
         <members>RFP_Lane__c.Sell__c</members>
@@ -292,6 +320,16 @@
         <members>Benchmark_Rate__c.Transit_Days__c</members>
         <members>Benchmark_Rate__c.Valid_From__c</members>
         <members>Benchmark_Rate__c.Zip3_Lane__c</members>
+        <members>Truck_Route__c.Checked_On__c</members>
+        <members>Truck_Route__c.Destination_Place__c</members>
+        <members>Truck_Route__c.Hours__c</members>
+        <members>Truck_Route__c.Miles__c</members>
+        <members>Truck_Route__c.Origin_Place__c</members>
+        <members>Truck_Route__c.Profile_Key__c</members>
+        <members>Truck_Route__c.Route_Key__c</members>
+        <members>Truck_Route__c.Route_Type__c</members>
+        <members>Truck_Route__c.Routes_Json__c</members>
+        <members>Truck_Route__c.Status__c</members>
         <name>CustomField</name>
     </types>
     <types>

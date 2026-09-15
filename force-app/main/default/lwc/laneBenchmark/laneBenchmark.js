@@ -1,9 +1,18 @@
-import { LightningElement, track } from "lwc";
+import { LightningElement, track, wire } from "lwc";
 import search from "@salesforce/apex/LaneBenchmarkController.search";
 import getFilterOptions from "@salesforce/apex/LaneBenchmarkController.getFilterOptions";
 import mapPreviewUrl from "@salesforce/apex/LaneBenchmarkController.mapPreviewUrl";
+import truckRoute from "@salesforce/apex/LaneBenchmarkController.truckRoute";
+import {
+  subscribe,
+  unsubscribe,
+  MessageContext,
+  APPLICATION_SCOPE
+} from "lightning/messageService";
+import DISTANCE_UNIT from "@salesforce/messageChannel/Distance_Unit__c";
 import { load, save, clear } from "c/laneBenchmarkStorage";
 import { DEFAULT_FILTERS, cloneDefaults } from "c/laneBenchmarkFilters";
+import { readUnit } from "c/distanceUnit";
 
 const LONG_RADIUS_DAYS = 365;
 
@@ -40,6 +49,20 @@ export default class LaneBenchmark extends LightningElement {
   // the request as it was when the last successful search ran, so a margin-only
   // edit can be saved without persisting unapplied filter changes
   lastSearched = null;
+  // Phase 7: the truck route for the searched place pair (TripRouteView). Fetched after the
+  // search, not awaited by it: a Mapbox route can take several seconds and the results must not wait.
+  routeView = null;
+  isRouteLoading = false;
+  // bumped by every route request and every reset; an answer carrying an older ticket belongs
+  // to an earlier search and is dropped
+  routeTicket = 0;
+  // 'mi' | 'km' for the whole page: starts from this browser's choice and follows
+  // Distance_Unit__c, which c-distance-unit-toggle (in the statistics card) publishes on
+  unit = readUnit();
+  unitSubscription = null;
+
+  @wire(MessageContext)
+  messageContext;
 
   get filters() {
     const f = {};
@@ -66,8 +89,46 @@ export default class LaneBenchmark extends LightningElement {
       this.request.destinationPrecision === "RADIUS"
     );
   }
+  get medianMiles() {
+    return this.result ? this.result.medianMiles : null;
+  }
+  /**
+   * The loads whose billed miles fed the median, each counted once however many of its quotes
+   * matched, as LaneSearchResult.medianMiles counts them (bid rows carry no load).
+   */
+  get milesCount() {
+    const loads = new Set();
+    this.rows.forEach((r) => {
+      if (r.load && r.load.loadId && Number(r.load.miles) > 0) {
+        loads.add(r.load.loadId);
+      }
+    });
+    return loads.size;
+  }
+  /** The route image shows whenever there is one to draw. */
+  get hasRouteMap() {
+    return !!(this.routeView && this.routeView.mapUrl);
+  }
+  /**
+   * The preview keeps its place after a radius search, under the route image: its circles show
+   * the matched area (spec §5). After any other search the route image takes its place (spec §6).
+   */
+  get showPreview() {
+    const s = this.lastSearched;
+    const radius =
+      !!s &&
+      (s.originPrecision === "RADIUS" || s.destinationPrecision === "RADIUS");
+    return !this.hasRouteMap || radius;
+  }
 
   async connectedCallback() {
+    // subscribe before the first await, so a unit published while the options load is not missed
+    this.unitSubscription = subscribe(
+      this.messageContext,
+      DISTANCE_UNIT,
+      (message) => this.handleUnit(message),
+      { scope: APPLICATION_SCOPE }
+    );
     try {
       this.filterOptions = await getFilterOptions();
     } catch (e) {
@@ -82,6 +143,17 @@ export default class LaneBenchmark extends LightningElement {
 
   disconnectedCallback() {
     window.clearInterval(this.ticker);
+    if (this.unitSubscription) {
+      unsubscribe(this.unitSubscription);
+    }
+    this.unitSubscription = null;
+  }
+
+  handleUnit(message) {
+    const unit = message && message.unit;
+    if (unit === "mi" || unit === "km") {
+      this.unit = unit;
+    }
   }
 
   handleOrigin(event) {
@@ -128,6 +200,7 @@ export default class LaneBenchmark extends LightningElement {
     this.request = emptyRequest();
     this.result = null;
     this.previewUrl = null;
+    this.clearRoute();
     this.lastSearched = null;
     this.error = null;
     this.needsConfirmation = false;
@@ -174,7 +247,6 @@ export default class LaneBenchmark extends LightningElement {
       equipmentCategories: r.equipmentCategories,
       equipmentTypes: r.equipmentTypes,
       hazmatOnly: r.hazmatOnly,
-      marketTestOnly: r.marketTestOnly,
       acceptedFilter: r.acceptedFilter,
       sourceFilter: r.sourceFilter,
       rowLimit: 2000,
@@ -198,6 +270,8 @@ export default class LaneBenchmark extends LightningElement {
       // the search succeeded: keep it even if the map preview below fails
       this.lastSearched = { ...this.request };
       save(this.request);
+      // not awaited: the route runs beside the preview and never holds the results back
+      this.loadRoute(svc.originKey, svc.destinationKey, false);
       try {
         this.previewUrl = await mapPreviewUrl({
           originKey: svc.originKey,
@@ -214,11 +288,57 @@ export default class LaneBenchmark extends LightningElement {
     } catch (e) {
       this.result = null;
       this.previewUrl = null;
+      this.clearRoute();
       this.error = this.messageOf(e);
     } finally {
       window.clearInterval(this.ticker);
       this.isSearching = false;
     }
+  }
+
+  /**
+   * Asks LaneBenchmarkController.truckRoute for the pair's route: the stored one, or Mapbox
+   * when there is none or refresh is true. Needs both ends; never throws.
+   */
+  async loadRoute(originKey, destinationKey, refresh) {
+    this.routeTicket += 1;
+    const ticket = this.routeTicket;
+    if (!refresh) {
+      this.routeView = null;
+    }
+    if (!originKey || !destinationKey) {
+      this.isRouteLoading = false;
+      return;
+    }
+    this.isRouteLoading = true;
+    try {
+      const view = await truckRoute({ originKey, destinationKey, refresh });
+      if (ticket === this.routeTicket) {
+        this.routeView = view;
+      }
+    } catch {
+      // the route is a nice-to-have like the preview: a failure keeps the results, and a
+      // failed refresh keeps the route already shown
+    } finally {
+      if (ticket === this.routeTicket) {
+        this.isRouteLoading = false;
+      }
+    }
+  }
+  handleRefreshRoute() {
+    if (!this.lastSearched || this.isRouteLoading) {
+      return;
+    }
+    this.loadRoute(
+      this.lastSearched.originKey,
+      this.lastSearched.destinationKey,
+      true
+    );
+  }
+  clearRoute() {
+    this.routeTicket += 1;
+    this.routeView = null;
+    this.isRouteLoading = false;
   }
 
   messageOf(e) {

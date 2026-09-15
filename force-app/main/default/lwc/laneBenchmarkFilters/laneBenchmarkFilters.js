@@ -7,7 +7,6 @@ export const DEFAULT_FILTERS = Object.freeze({
   equipmentCategories: [],
   equipmentTypes: [],
   hazmatOnly: false,
-  marketTestOnly: false,
   acceptedFilter: "ANY_STATUS",
   sourceFilter: "ALL"
 });
@@ -45,10 +44,8 @@ export default class LaneBenchmarkFilters extends LightningElement {
     { label: "Loads only", value: "LOADS" },
     { label: "Bids only", value: "BIDS" }
   ];
-  flagOptions = [
-    { label: "Hazmat only", value: "hazmatOnly" },
-    { label: "Market test only", value: "marketTestOnly" }
-  ];
+  // Market Test quotes are left out of every lane search (LaneSearchFilters), so the only flag is Hazmat.
+  flagOptions = [{ label: "Hazmat only", value: "hazmatOnly" }];
 
   get lookbackDays() {
     return this._value.lookbackDays;
@@ -127,10 +124,7 @@ export default class LaneBenchmarkFilters extends LightningElement {
   }
   handleFlags(event) {
     const set = new Set(event.detail.value);
-    this.update({
-      hazmatOnly: set.has("hazmatOnly"),
-      marketTestOnly: set.has("marketTestOnly")
-    });
+    this.update({ hazmatOnly: set.has("hazmatOnly") });
   }
   handleApply() {
     this.dispatchEvent(new CustomEvent("apply"));

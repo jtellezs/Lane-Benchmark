@@ -6,13 +6,14 @@
  * orchestrates (validate, build, query, dedupe, aggregate); every precision branch that used to
  * push LaneSearchService's class-wide PMD complexity total past 40 lives here instead. Task 7's
  * fix round 1 found this class alone (lane-precision logic plus the filters) still totaled 44
- * against the 40 threshold; fix round 2 moved the currency/mode/equipment/hazmat/market-test/
+ * against the 40 threshold; fix round 2 moved the currency/mode/equipment/hazmat/
  * accepted filters into their own class, LaneSearchFilters, called from buildSoql below.
  */
 public with sharing class LaneSearchQueryBuilder {
   private static final String SELECT_CLAUSE =
     'SELECT Id, Name, rtms__Load__c, Origin__c, Destination__c, Mode__c, Equipment_Type__c, ' +
-    'rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c, Carrier_Name__c, Carrier_Contact__c, ' +
+    'rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c, rtms__Load__r.rtms__Distance_Miles__c, ' +
+    'Carrier_Name__c, Carrier_Contact__c, ' +
     'CurrencyIsoCode, rtms__Carrier_Total__c, Quote_Date__c, Hazmat__c, rtms__Accepted__c, Load_Status__c, Ops_Comments__c, ' +
     'Contact_Email__c, Contact_Phone__c, Carrier_Risk__c, Nb_of_loads__c, Carrier_Att__c, ' +
     'CreatedDate FROM rtms__CarrierQuote__c';

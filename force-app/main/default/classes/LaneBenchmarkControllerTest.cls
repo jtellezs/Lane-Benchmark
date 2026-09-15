@@ -103,6 +103,35 @@ private class LaneBenchmarkControllerTest {
     return u;
   }
 
+  /** Mapbox Directions stand-in: one canned answer for every request; counts calls, keeps the last endpoint. */
+  private class DirectionsMock implements HttpCalloutMock {
+    Integer status;
+    String body;
+    Integer calls = 0;
+    String lastEndpoint;
+    DirectionsMock(Integer status, String body) {
+      this.status = status;
+      this.body = body;
+    }
+    public HttpResponse respond(HttpRequest req) {
+      calls++;
+      lastEndpoint = req.getEndpoint();
+      System.assert(
+        lastEndpoint.startsWith(
+          MapboxHttp.BASE + '/directions/v5/mapbox/driving/'
+        ),
+        'a Directions request'
+      );
+      HttpResponse r = new HttpResponse();
+      r.setStatusCode(status);
+      r.setBody(body);
+      return r;
+    }
+  }
+
+  /** Two routes: 540,000 m in 19,800 s (335.5 mi, 5.5 h), then 560,000 m in 21,000 s (348.0 mi, 5.8 h). */
+  private static final String FOUND = '{"code":"Ok","routes":[{"distance":540000,"duration":19800,"geometry":"_p~iF~ps|U_ulLnnqC_mqNvxq`@","legs":[{"notifications":[]}]},{"distance":560000,"duration":21000,"geometry":"_p~iF~ps|U_ulLnnqC","legs":[{"notifications":[]}]}],"waypoints":[]}';
+
   @IsTest
   static void searchPlacesMatchesNormalizedPrefixAndAliasesOrderedByLoads() {
     List<LaneBenchmarkController.PlaceOption> byPrefix = LaneBenchmarkController.searchPlaces(
@@ -352,6 +381,143 @@ private class LaneBenchmarkControllerTest {
       0,
       adminRows,
       'a project the caller can read keeps its exclusion'
+    );
+  }
+
+  // ---- phase 7: truckRoute ----
+
+  @IsTest
+  static void truckRouteRoutesTwoPlaceKeysStoresTheRouteAndReusesIt() {
+    MapboxHttp.tokenOverride = 'pk.test';
+    DirectionsMock mock = new DirectionsMock(200, FOUND);
+    Test.setMock(HttpCalloutMock.class, mock);
+    Test.startTest();
+    TripRouteView view = LaneBenchmarkController.truckRoute(
+      'montreal|qc|ca',
+      'toronto|on|ca',
+      false
+    );
+    TripRouteView again = LaneBenchmarkController.truckRoute(
+      'montreal|qc|ca',
+      'toronto|on|ca',
+      false
+    );
+    Test.stopTest();
+    System.assertEquals('Found', view.status, 'message: ' + view.message);
+    System.assertEquals('Truck', view.routeType);
+    System.assertEquals('Truck route', view.source);
+    System.assertEquals(335.5, view.miles);
+    System.assertEquals(5.5, view.hours);
+    System.assertEquals(2, view.routes.size());
+    System.assert(
+      view.mapUrl != null &&
+        view.mapUrl.contains('pin-s-a+0070d2') &&
+        view.mapUrl.contains('access_token=pk.test'),
+      'pins, route and token in the static map'
+    );
+    System.assertEquals(null, view.lane, 'Lane Benchmark writes no lane');
+    System.assertEquals(
+      1,
+      mock.calls,
+      'the second search is answered by the store'
+    );
+    System.assertEquals(335.5, again.miles);
+    Id mtlId = [SELECT Id FROM Pricing_Place__c WHERE Key__c = 'montreal|qc|ca']
+    .Id;
+    Id torId = [SELECT Id FROM Pricing_Place__c WHERE Key__c = 'toronto|on|ca']
+    .Id;
+    String key = TripMilesService.routeKey(
+      mtlId,
+      torId,
+      TruckRoute.defaultProfile()
+    );
+    Truck_Route__c row = [
+      SELECT Origin_Place__c, Destination_Place__c, Status__c, Miles__c
+      FROM Truck_Route__c
+      WHERE Route_Key__c = :key
+    ];
+    System.assertEquals(mtlId, row.Origin_Place__c);
+    System.assertEquals(torId, row.Destination_Place__c);
+    System.assertEquals('Found', row.Status__c);
+    System.assertEquals(335.5, row.Miles__c);
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Truck_Route__c WHERE Origin_Place__c = :torId],
+      'direction matters: nothing stored for Toronto to Montréal'
+    );
+  }
+
+  @IsTest
+  static void truckRouteWithAnUnknownOrUnlocatedPlaceIsUnavailable() {
+    insert place('Nowhere', 'QC', 'CA', null, null, 0, null);
+    MapboxHttp.tokenOverride = 'pk.test';
+    DirectionsMock mock = new DirectionsMock(200, FOUND);
+    Test.setMock(HttpCalloutMock.class, mock);
+    Test.startTest();
+    List<TripRouteView> views = new List<TripRouteView>{
+      LaneBenchmarkController.truckRoute(
+        'nowhere|zz|zz',
+        'toronto|on|ca',
+        false
+      ),
+      LaneBenchmarkController.truckRoute(
+        'montreal|qc|ca',
+        'nowhere|qc|ca',
+        true
+      ),
+      LaneBenchmarkController.truckRoute(null, 'toronto|on|ca', false)
+    };
+    Test.stopTest();
+    System.assertEquals(0, mock.calls, 'no coordinates, no request');
+    for (TripRouteView view : views) {
+      System.assertEquals('Unavailable', view.status);
+      System.assertEquals(TripRouteView.NO_COORDINATES, view.message);
+      System.assertEquals(null, view.mapUrl, 'the radius preview stays');
+    }
+    Id mtlId = [SELECT Id FROM Pricing_Place__c WHERE Key__c = 'montreal|qc|ca']
+    .Id;
+    System.assertEquals(
+      0,
+      [SELECT COUNT() FROM Truck_Route__c WHERE Origin_Place__c = :mtlId]
+    );
+  }
+
+  /**
+   * A Lane Benchmark user, who holds no RFP permission and only Read on Truck_Route__c, gets and
+   * stores a truck route (the save runs past CRUD in TripMilesService).
+   */
+  @IsTest
+  static void aLaneBenchmarkUserGetsATruckRoute() {
+    User viewer = restrictedUser('Lane_Benchmark_User');
+    if (viewer == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    MapboxHttp.tokenOverride = 'pk.test';
+    DirectionsMock mock = new DirectionsMock(200, FOUND);
+    Test.setMock(HttpCalloutMock.class, mock);
+    Test.startTest();
+    TripRouteView view;
+    System.runAs(viewer) {
+      view = LaneBenchmarkController.truckRoute(
+        'montreal|qc|ca',
+        'toronto|on|ca',
+        false
+      );
+    }
+    Test.stopTest();
+    System.assertEquals('Found', view.status, 'message: ' + view.message);
+    System.assertEquals(335.5, view.miles);
+    System.assertNotEquals(null, view.mapUrl);
+    System.assertEquals(1, mock.calls);
+    Id mtlId = [SELECT Id FROM Pricing_Place__c WHERE Key__c = 'montreal|qc|ca']
+    .Id;
+    System.assertEquals(
+      1,
+      [SELECT COUNT() FROM Truck_Route__c WHERE Origin_Place__c = :mtlId]
     );
   }
 }
