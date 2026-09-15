@@ -433,4 +433,118 @@ private class LaneQueriesTest {
       'the state-lane plan read with amounts ran'
     );
   }
+
+  @IsTest
+  static void legConditionsMatchTheLoadItselfAtEachEndsPrecision() {
+    Pricing_Place__c escobedo = new Pricing_Place__c(
+      Key__c = 'general escobedo|nl|mx',
+      City__c = 'General Escobedo',
+      Province__c = 'NL',
+      Country__c = 'MX',
+      Postal_Prefix__c = '660'
+    );
+    Pricing_Place__c laredo = new Pricing_Place__c(
+      Key__c = 'laredo|tx|us',
+      City__c = 'Laredo',
+      Province__c = 'TX',
+      Country__c = 'US',
+      Postal_Prefix__c = '780'
+    );
+    Map<String, Object> binds = new Map<String, Object>();
+    List<String> provinceToCity = LaneQueries.legConditions(
+      new LaneSearchRequest(),
+      escobedo,
+      LaneSearchRequest.Precision.PROVINCE,
+      null,
+      laredo,
+      LaneSearchRequest.Precision.CITY,
+      null,
+      binds
+    );
+    System.assertEquals(
+      new List<String>{
+        'rtms__State_Lane__c LIKE :oProv',
+        'rtms__City_Lane__c LIKE :dCity',
+        'rtms__Load_Status__c != \'Cancelled\''
+      },
+      provinceToCity
+    );
+    System.assertEquals('NL:%', binds.get('oProv'));
+    System.assertEquals(new List<String>{ '%:Laredo, TX' }, binds.get('dCity'));
+
+    LaneSearchRequest filtered = new LaneSearchRequest();
+    filtered.modes = new List<String>{ 'Truckload' };
+    filtered.equipmentCategories = new List<String>{ 'Van' };
+    filtered.hazmatOnly = true;
+    Map<String, Object> zipBinds = new Map<String, Object>();
+    List<String> zipToRadius = LaneQueries.legConditions(
+      filtered,
+      escobedo,
+      LaneSearchRequest.Precision.ZIP3,
+      '664',
+      laredo,
+      LaneSearchRequest.Precision.RADIUS,
+      null,
+      zipBinds
+    );
+    System.assertEquals(
+      new List<String>{
+        'rtms__Zip3_Lane__c LIKE :oZip3',
+        'rtms__City_Lane__c LIKE :dCity',
+        'rtms__Mode__r.Name IN :modes',
+        'rtms__Equipment_Type__r.rtms__Category__c IN :cats',
+        'rtms__Hazardous_Materials__c = true',
+        'rtms__Load_Status__c != \'Cancelled\''
+      },
+      zipToRadius,
+      'an explicit postal prefix wins; a radius end is matched by its city key; the filters sit on the load itself'
+    );
+    System.assertEquals('664:%', zipBinds.get('oZip3'));
+    System.assertEquals(filtered.modes, zipBinds.get('modes'));
+    System.assertEquals(filtered.equipmentCategories, zipBinds.get('cats'));
+
+    System.assertEquals(
+      null,
+      LaneQueries.legConditions(
+        new LaneSearchRequest(),
+        null,
+        LaneSearchRequest.Precision.CITY,
+        null,
+        laredo,
+        LaneSearchRequest.Precision.CITY,
+        null,
+        new Map<String, Object>()
+      ),
+      'a leg is never read without both ends'
+    );
+  }
+
+  @IsTest
+  static void legLoadSoqlReadsTheMostRecentMovedLoadsWithoutIntercompanyCarriers() {
+    // Any Account Id will do: the SOQL is only built, never run.
+    Id sisterOrg =
+      Account.SObjectType.getDescribe().getKeyPrefix() +
+      '00000000000' +
+      '1';
+    IntercompanyCarriers.idsOverride = new Set<Id>{ sisterOrg };
+    List<String> conditions = new List<String>{
+      'rtms__City_Lane__c LIKE :oCity',
+      'rtms__City_Lane__c LIKE :dCity'
+    };
+    Map<String, Object> binds = new Map<String, Object>();
+    String soql = LaneQueries.legLoadSoql(conditions, 365, 500, binds);
+    System.assertEquals(
+      'SELECT Id, CreatedDate, rtms__Carrier__c, rtms__Carrier__r.Name, rtms__Carrier__r.Black_List__c, rtms__Carrier_Quote_Total__c ' +
+        'FROM rtms__Load__c WHERE rtms__City_Lane__c LIKE :oCity AND rtms__City_Lane__c LIKE :dCity ' +
+        'AND CreatedDate = LAST_N_DAYS:365 AND rtms__Carrier__c != null AND rtms__Carrier_Quote_Total__c > 0 ' +
+        'AND rtms__Carrier__c NOT IN :intercompany ORDER BY CreatedDate DESC LIMIT 500',
+      soql
+    );
+    System.assertEquals(
+      2,
+      conditions.size(),
+      'the caller\'s list is not changed'
+    );
+    System.assertEquals(new Set<Id>{ sisterOrg }, binds.get('intercompany'));
+  }
 }

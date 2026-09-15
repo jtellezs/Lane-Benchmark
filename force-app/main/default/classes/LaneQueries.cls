@@ -199,4 +199,72 @@ public with sharing class LaneQueries {
   private static String countryName(Pricing_Place__c place) {
     return place == null ? null : COUNTRY_NAMES.get(place.Country__c);
   }
+
+  /**
+   * One leg lane on rtms__Load__c itself (no relationship path), for split estimates: the from end
+   * at its precision (bind prefix 'o') and the to end at its precision ('d'), matched by
+   * LaneKeyMatcher; the request's mode, equipment and hazmat filters; not cancelled. Null when an
+   * end cannot be matched (no place and no explicit postal prefix), so a leg is never read without
+   * both lane ends.
+   */
+  public static List<String> legConditions(
+    LaneSearchRequest req,
+    Pricing_Place__c fromPlace,
+    LaneSearchRequest.Precision fromPrecision,
+    String fromZip3,
+    Pricing_Place__c toPlace,
+    LaneSearchRequest.Precision toPrecision,
+    String toZip3,
+    Map<String, Object> binds
+  ) {
+    String fromEnd = LaneKeyMatcher.condition(
+      '',
+      true,
+      'o',
+      fromPrecision,
+      fromPlace,
+      fromZip3,
+      binds
+    );
+    String toEnd = LaneKeyMatcher.condition(
+      '',
+      false,
+      'd',
+      toPrecision,
+      toPlace,
+      toZip3,
+      binds
+    );
+    if (fromEnd == null || toEnd == null) {
+      return null;
+    }
+    List<String> conditions = new List<String>{ fromEnd, toEnd };
+    LaneLoadFilters.add(req, '', conditions, binds);
+    conditions.add('rtms__Load_Status__c != \'Cancelled\'');
+    return conditions;
+  }
+
+  /**
+   * The leg load read: loads a carrier moved with a positive CAD carrier total (a split customer
+   * load has none, so it never counts), created in the last days, without an intercompany carrier,
+   * most recent first, at most rowLimit rows. Puts the 'intercompany' bind; the conditions list is
+   * not changed.
+   */
+  public static String legLoadSoql(
+    List<String> conditions,
+    Integer days,
+    Integer rowLimit,
+    Map<String, Object> binds
+  ) {
+    List<String> clauses = new List<String>(conditions);
+    clauses.add('CreatedDate = LAST_N_DAYS:' + String.valueOf(days));
+    clauses.add('rtms__Carrier__c != null');
+    clauses.add('rtms__Carrier_Quote_Total__c > 0');
+    clauses.add('rtms__Carrier__c NOT IN :intercompany');
+    binds.put('intercompany', IntercompanyCarriers.ids());
+    return 'SELECT Id, CreatedDate, rtms__Carrier__c, rtms__Carrier__r.Name, rtms__Carrier__r.Black_List__c, rtms__Carrier_Quote_Total__c FROM rtms__Load__c WHERE ' +
+      String.join(clauses, ' AND ') +
+      ' ORDER BY CreatedDate DESC LIMIT ' +
+      String.valueOf(rowLimit);
+  }
 }

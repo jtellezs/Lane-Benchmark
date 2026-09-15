@@ -163,6 +163,10 @@
         <members>SplitLaneResult</members>
         <members>SplitLaneService</members>
         <members>SplitLaneServiceTest</members>
+        <members>SplitEstimates</members>
+        <members>SplitEstimatesTest</members>
+        <members>SplitLaneController</members>
+        <members>SplitLaneControllerTest</members>
         <name>ApexClass</name>
     </types>
     <types>

@@ -18,6 +18,7 @@
 // inherit Private load sharing, and a split benchmark reads every team's shipments. Access is gated
 // by the Lane Benchmark and RFP Tool permission sets through SplitLaneController (Task 9).
 public without sharing class SplitLaneService {
+  public static final String NO_OPTION_MESSAGE = 'No split shipment on this lane in the last 12 months, and no handoff point is close enough for an estimate.';
   private static final String USD = 'USD';
   private static final String CARRIER_ROW = 'Carrier';
   private static final String CANCELLED = 'Cancelled';
@@ -117,6 +118,19 @@ public without sharing class SplitLaneService {
       shipments.add(legRows(plan));
     }
     result.options = groupHistory(shipments, currencyCode, rates);
+    // Estimates only when history found no group (spec §4); they use the same places and rates.
+    if (result.options.isEmpty()) {
+      result.options = SplitEstimates.estimate(
+        req,
+        origin,
+        destination,
+        currencyCode,
+        rates
+      );
+      if (result.options.isEmpty()) {
+        result.message = NO_OPTION_MESSAGE;
+      }
+    }
     result.rateStartDate = rates?.latestStartUsed;
     return result;
   }

@@ -238,9 +238,9 @@ private class SplitLaneServiceTest {
       'a shipment with an intercompany leg carrier is left out'
     );
     System.assertEquals(
-      null,
+      SplitLaneService.NO_OPTION_MESSAGE,
       withIntercompanyLeg.message,
-      'Task 9 adds the no-option message'
+      'no history group and no handoff place in a test: the no-option message'
     );
   }
 
@@ -774,5 +774,179 @@ private class SplitLaneServiceTest {
       new SplitLaneService.CarrierTally().sorted().size(),
       'an empty tally'
     );
+  }
+
+  @IsTest
+  static void aLaneWithoutSplitHistoryGetsEstimates() {
+    Pricing_Place__c escobedo = RfpTestDataFactory.createPlace(
+      'General Escobedo',
+      'NL',
+      'MX',
+      25.8000,
+      -100.3167,
+      '660'
+    );
+    Pricing_Place__c laredo = RfpTestDataFactory.createPlace(
+      'Laredo',
+      'TX',
+      'US',
+      27.5306,
+      -99.4803,
+      '780'
+    );
+    Pricing_Place__c toronto = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    HandoffPoints.keysOverride = new List<String>{ laredo.Key__c };
+    IntercompanyCarriers.idsOverride = new Set<Id>();
+    LaneSearchRequest req = new LaneSearchRequest();
+    req.originKey = escobedo.Key__c;
+    req.destinationKey = toronto.Key__c;
+    Test.startTest();
+    SplitLaneResult result = SplitLaneService.options(req, 'CAD');
+    Test.stopTest();
+    System.assertEquals(null, result.message);
+    System.assertEquals(1, result.options.size(), 'one estimate, via Laredo');
+    System.assertEquals(SplitLaneResult.ESTIMATE, result.options[0].kind);
+    System.assertEquals('Laredo, TX', result.options[0].handoffLabel);
+    System.assertEquals(0, result.options[0].shipments);
+    System.assertEquals(
+      'General Escobedo, NL → Laredo, TX',
+      result.options[0].legs[0].laneLabel
+    );
+  }
+
+  @IsTest
+  static void aLaneWithSplitHistoryGetsNoEstimate() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Account escobedoDock = PricingTestDataFactory.createLocation(
+      'Escobedo Dock',
+      'General Escobedo',
+      'Nuevo León',
+      'Mexico',
+      '66050',
+      25.8000,
+      -100.3167
+    );
+    Account laredoYard = PricingTestDataFactory.createLocation(
+      'Laredo Yard',
+      'Laredo',
+      'Texas',
+      'United States',
+      '78045',
+      27.5306,
+      -99.4803
+    );
+    Pricing_Place__c escobedo = RfpTestDataFactory.createPlace(
+      'General Escobedo',
+      'NL',
+      'MX',
+      25.8000,
+      -100.3167,
+      '660'
+    );
+    Pricing_Place__c laredo = RfpTestDataFactory.createPlace(
+      'Laredo',
+      'TX',
+      'US',
+      27.5306,
+      -99.4803,
+      '780'
+    );
+    Pricing_Place__c toronto = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    HandoffPoints.keysOverride = new List<String>{ laredo.Key__c };
+    IntercompanyCarriers.idsOverride = new Set<Id>();
+    rtms__Load__c customerLoad = PricingTestDataFactory.createLoad(
+      g,
+      escobedoDock,
+      g.destinationLocation
+    );
+    Test.startTest();
+    rtms__Load__c legOne = SplitTestData.legLoad(
+      g,
+      escobedoDock,
+      laredoYard,
+      g.vendor,
+      1000,
+      'Delivered'
+    );
+    rtms__Load__c legTwo = SplitTestData.legLoad(
+      g,
+      laredoYard,
+      g.destinationLocation,
+      g.vendor,
+      3000,
+      'Delivered'
+    );
+    SplitTestData.plan(customerLoad, new List<rtms__Load__c>{ legOne, legTwo });
+    LaneSearchRequest req = new LaneSearchRequest();
+    req.originKey = escobedo.Key__c;
+    req.destinationKey = toronto.Key__c;
+    SplitLaneResult result = SplitLaneService.options(req, 'CAD');
+    Test.stopTest();
+    System.assertEquals(1, result.options.size(), 'the history group only');
+    System.assertEquals(
+      SplitLaneResult.HISTORY,
+      result.options[0].kind,
+      'estimates run only when history finds no group'
+    );
+    System.assertEquals(1, result.options[0].shipments);
+    System.assertEquals(null, result.message);
+  }
+
+  @IsTest
+  static void noHistoryAndNoCloseHandoffPointGiveTheNoOptionMessage() {
+    Pricing_Place__c escobedo = RfpTestDataFactory.createPlace(
+      'General Escobedo',
+      'NL',
+      'MX',
+      25.8000,
+      -100.3167,
+      '660'
+    );
+    Pricing_Place__c toronto = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    Pricing_Place__c sanDiego = RfpTestDataFactory.createPlace(
+      'San Diego',
+      'CA',
+      'US',
+      32.7157,
+      -117.1611,
+      '921'
+    );
+    IntercompanyCarriers.idsOverride = new Set<Id>();
+    LaneSearchRequest req = new LaneSearchRequest();
+    req.originKey = escobedo.Key__c;
+    req.destinationKey = toronto.Key__c;
+    Test.startTest();
+    HandoffPoints.keysOverride = new List<String>{ sanDiego.Key__c };
+    SplitLaneResult tooFar = SplitLaneService.options(req, 'CAD');
+    HandoffPoints.keysOverride = new List<String>();
+    SplitLaneResult noPoint = SplitLaneService.options(req, 'CAD');
+    Test.stopTest();
+    String expected = 'No split shipment on this lane in the last 12 months, and no handoff point is close enough for an estimate.';
+    System.assertEquals(expected, SplitLaneService.NO_OPTION_MESSAGE);
+    System.assertEquals(0, tooFar.options.size(), 'San Diego adds 92.8 %');
+    System.assertEquals(expected, tooFar.message);
+    System.assertEquals(0, noPoint.options.size());
+    System.assertEquals(expected, noPoint.message);
   }
 }

@@ -274,4 +274,140 @@ private class CarrierSplitSecurityTest {
       }
     }
   }
+
+  @IsTest
+  static void restrictedUsersGetSplitEstimatesFromLoadsTheyCannotOpen() {
+    User viewer = RfpTestDataFactory.restrictedUser('Lane_Benchmark_User');
+    User pricer = RfpTestDataFactory.restrictedUser('RFP_Tool_User');
+    if (viewer == null || pricer == null) {
+      System.assert(
+        true,
+        'no usable profile in this org; runAs coverage skipped (ledgered)'
+      );
+      return;
+    }
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Account escobedoDock = PricingTestDataFactory.createLocation(
+      'Escobedo Dock',
+      'General Escobedo',
+      'Nuevo León',
+      'Mexico',
+      '66050',
+      25.8000,
+      -100.3167
+    );
+    Account laredoYard = PricingTestDataFactory.createLocation(
+      'Laredo Yard',
+      'Laredo',
+      'Texas',
+      'United States',
+      '78045',
+      27.5306,
+      -99.4803
+    );
+    Pricing_Place__c escobedo = RfpTestDataFactory.createPlace(
+      'General Escobedo',
+      'NL',
+      'MX',
+      25.8000,
+      -100.3167,
+      '660'
+    );
+    Pricing_Place__c laredo = RfpTestDataFactory.createPlace(
+      'Laredo',
+      'TX',
+      'US',
+      27.5306,
+      -99.4803,
+      '780'
+    );
+    Pricing_Place__c toronto = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    HandoffPoints.keysOverride = new List<String>{ laredo.Key__c };
+    IntercompanyCarriers.idsOverride = new Set<Id>();
+    ExchangeRates.periodsOverride = new List<ExchangeRates.Period>{
+      new ExchangeRates.Period(
+        Date.today().addDays(-30),
+        Date.newInstance(9999, 12, 31),
+        0.72
+      )
+    };
+    Test.startTest();
+    SplitTestData.legLoad(
+      g,
+      escobedoDock,
+      laredoYard,
+      g.vendor,
+      1000,
+      'Delivered'
+    );
+    SplitTestData.legLoad(
+      g,
+      laredoYard,
+      g.destinationLocation,
+      g.vendor,
+      3000,
+      'Delivered'
+    );
+    String lane = JSON.serialize(
+      new Map<String, Object>{
+        'originKey' => escobedo.Key__c,
+        'destinationKey' => toronto.Key__c
+      }
+    );
+    SplitLaneResult seenByViewer;
+    SplitLaneResult seenByPricer;
+    System.runAs(viewer) {
+      seenByViewer = SplitLaneController.splitOptions(lane, 'CAD', 0);
+    }
+    System.runAs(pricer) {
+      seenByPricer = SplitLaneController.splitOptions(lane, 'USD', 0);
+    }
+    Test.stopTest();
+    System.assertEquals(1, seenByViewer.options.size());
+    SplitLaneResult.Option cad = seenByViewer.options[0];
+    System.assertEquals('Laredo, TX', cad.handoffLabel);
+    System.assertEquals('Test Carrier', cad.legs[0].carriers[0].name);
+    System.assertEquals(
+      4000.00,
+      cad.medianTotal,
+      'the admin\'s Private loads are read in system mode for a Lane Benchmark user'
+    );
+    System.assertEquals('USD', seenByPricer.currencyCode);
+    System.assertEquals(
+      2880.00,
+      seenByPricer.options[0].medianTotal,
+      'and for an RFP Tool user, in USD: 720 + 2160'
+    );
+    System.assertEquals(Date.today().addDays(-30), seenByPricer.rateStartDate);
+  }
+
+  @IsTest
+  static void bothPermissionSetsOpenTheSplitController() {
+    List<String> grantedTo = new List<String>();
+    for (SetupEntityAccess access : [
+      SELECT Parent.Name
+      FROM SetupEntityAccess
+      WHERE
+        SetupEntityId IN (
+          SELECT Id
+          FROM ApexClass
+          WHERE Name = 'SplitLaneController'
+        )
+        AND Parent.Name IN ('Lane_Benchmark_User', 'RFP_Tool_User')
+      ORDER BY Parent.Name
+    ]) {
+      grantedTo.add(access.Parent.Name);
+    }
+    System.assertEquals(
+      new List<String>{ 'Lane_Benchmark_User', 'RFP_Tool_User' },
+      grantedTo
+    );
+  }
 }
