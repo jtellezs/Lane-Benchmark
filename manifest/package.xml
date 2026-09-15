@@ -160,6 +160,9 @@
         <members>CarrierLeadController</members>
         <members>CarrierLeadControllerTest</members>
         <members>CarrierSplitSecurityTest</members>
+        <members>SplitLaneResult</members>
+        <members>SplitLaneService</members>
+        <members>SplitLaneServiceTest</members>
         <name>ApexClass</name>
     </types>
     <types>
