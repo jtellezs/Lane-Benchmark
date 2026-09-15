@@ -2759,7 +2759,7 @@ Expected: lint-staged runs Prettier on the staged Apex and XML and changes nothi
    | Class | Before | After |
    | --- | --- | --- |
    | `LaneSearchQueryBuilder` | 26 | 15 |
-   | `LaneSearchFilters` | 18 | 8 |
+   | `LaneSearchFilters` | 17 | 7 |
    | `LaneKeyMatcher` (new) | — | 13 |
    | `LaneLoadFilters` (new) | — | 11 |
 
