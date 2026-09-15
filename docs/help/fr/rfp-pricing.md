@@ -24,13 +24,15 @@ Saisissez un **Margin %** et le prix de vente suit (« Sell follows the margin �
 
 ## Milles du trajet et itinéraires de camion
 
-Sous le titre de la voie, le panneau affiche ses milles et leur source (voir **Charger l'historique**). À côté des prix, **Cost per mile** et **Sell per mile** divisent le coût et le prix de vente par ces milles et suivent ce que vous tapez.
+Sous le titre de la voie, le panneau affiche ses milles et leur source (voir **Charger l'historique**). À côté des prix, **Cost per mile** et **Sell per mile** divisent le coût et le prix de vente par ces milles et suivent ce que vous saisissez.
 
 Les boutons **mi** et **km** de la barre d'outils, à côté de **Include RFP bids**, font passer le tableau, le panneau et la légende de la carte des milles aux kilomètres; les valeurs par mille deviennent des valeurs par kilomètre. Le choix est retenu dans ce navigateur, et Lane Benchmark s'ouvre avec la même unité.
 
-À l'ouverture du panneau, l'itinéraire s'affiche sur la carte : l'épingle A au point de départ, l'épingle B à la destination, l'itinéraire principal en trait bleu épais et jusqu'à deux variantes en orange et en gris. La légende donne la distance et les heures de route de chaque itinéraire. Un **Truck route** respecte les limites du camion du Truck Routing Setting (par défaut 4,11 m de haut, 2,6 m de large, 36,29 t); quand Mapbox ne peut pas les respecter, le panneau affiche plutôt un itinéraire routier ordinaire, sous le titre « Regular route — truck limits could not be met ». Mapbox n'a pas d'option pour les matières dangereuses : une voie hazmat reçoit le même itinéraire que les autres.
+À l'ouverture du panneau, l'itinéraire s'affiche sur la carte : l'épingle A au point de départ, l'épingle B à la destination, l'itinéraire principal en trait bleu épais et jusqu'à deux variantes en orange et en gris. La légende donne la distance et les heures de route de chaque itinéraire. Un **Truck route** respecte les limites de camion définies dans Truck Routing Setting (par défaut 4,11 m de haut, 2,6 m de large, 36,29 t); quand Mapbox ne peut pas les respecter, le panneau affiche plutôt un itinéraire routier ordinaire, sous le titre « Regular route — truck limits could not be met ». Mapbox n'a pas d'option pour les matières dangereuses : une voie hazmat reçoit le même itinéraire que les autres.
 
 L'itinéraire est demandé une seule fois à Mapbox par paire de lieux, puis enregistré; rouvrir la voie le réutilise. **Refresh route** interroge Mapbox de nouveau et remplace l'itinéraire enregistré. Quand les milles de la voie ne viennent pas de History, les milles et les heures de l'itinéraire sont écrits sur la voie (Truck route ou Regular route); des milles History ne sont jamais remplacés. Si Mapbox ne répond pas, le panneau indique « The truck route is not available right now. » et la voie garde ses milles. Quand Mapbox ne trouve aucune route, même sans limites de camion (de l'autre côté d'un plan d'eau sans traversier, par exemple), la voie affiche **No route**.
+
+Pendant un **Load history** ou une action en lot, le panneau met sa demande d'itinéraire en attente : la carte affiche son indicateur de chargement, **Refresh route** attend, et l'itinéraire est demandé à la fin du traitement.
 
 L'export Excel contient, pour chaque voie, les colonnes Miles, Km, Miles source, Route hours, Cost per mile et Sell per mile.
 

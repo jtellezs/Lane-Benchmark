@@ -35,4 +35,4 @@ Load history also fills the **Miles** of every lane it runs, without asking Mapb
 2. **Truck route** or **Regular route**: the miles and drive hours of a route already stored for the lane's two places, from an earlier lane opening or Lane Benchmark search.
 3. **Approx**: the straight-line distance between the two places × 1.2, the ratio measured on a year of billed loads.
 
-A lane gets **No coordinates** when an end is not resolved to a place or has no position on the map, and **No route** when Mapbox found no road between the two places. Billed miles always win: opening a lane never replaces History miles with route miles. Direction matters: Montréal → Toronto and Toronto → Montréal are separate routes.
+A lane gets **No coordinates** when an end is not resolved to a place or has no position on the map, and **No route** when Mapbox found no road between the two places. A pair where Mapbox found no road keeps **No route** and no miles instead of an approximate distance. Billed miles always win: opening a lane never replaces History miles with route miles. Direction matters: Montréal → Toronto and Toronto → Montréal are separate routes.

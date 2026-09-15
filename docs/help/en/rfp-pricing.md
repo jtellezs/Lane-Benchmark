@@ -32,6 +32,8 @@ When the panel opens, it draws the route on the map: pin A at the origin, pin B 
 
 The route is asked from Mapbox once per pair of places and stored; reopening the lane reuses it. **Refresh route** asks Mapbox again and replaces the stored route. When the lane's miles do not come from History, the route's miles and hours are written to the lane (Truck route or Regular route); History miles are never replaced. If Mapbox cannot be reached, the panel says "The truck route is not available right now." and the lane keeps its miles. When Mapbox finds no road even without truck limits (across water without a ferry, for example), the lane shows **No route**.
 
+While **Load history** or a bulk action is running, the panel holds its route request: the map shows its spinner, **Refresh route** waits, and the route is asked for when the run ends.
+
 The Excel export carries Miles, Km, Miles source, Route hours, Cost per mile and Sell per mile for every lane.
 
 ## Results

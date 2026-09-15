@@ -666,11 +666,14 @@ Excel export) and Lane Benchmark (statistics, results, CSV, map). Design:
    to our Apex.
 2. **Truck route** or **Regular route** — the main route of the `Truck_Route__c` row
    stored for the lane's ordered place pair and the current truck profile.
-3. **Approx** — the great-circle distance between the two places' `Geolocation__c`
+3. **No route** — a stored route for the pair where Mapbox found no road, even without
+   truck limits: the miles and hours stay blank, and no Approx distance is drawn for a
+   trip no road makes.
+4. **Approx** — the great-circle distance between the two places' `Geolocation__c`
    (Earth radius 3,958.7613 mi) × `Approx_Factor__c`: 1.2, the median ratio of billed to
    straight-line miles measured on 10,939 PostProduc loads (D7).
-4. Otherwise **No route** (a stored route where Mapbox found no road) or
-   **No coordinates**.
+5. Otherwise **No coordinates**: an end is not resolved to a place, or a place has no
+   position.
 
 `RfpHistoryService.run` applies that order after its searches with no callout (R73),
 reading the chunk's stored routes in one query, and writes `RFP_Lane__c.Miles__c`,
@@ -713,7 +716,9 @@ A stored row answers without a callout. **Refresh route** (lane panel and Lane B
 map) skips the stored row: one new Directions request, two with the regular fallback;
 the `Truck_Route__c` row is replaced through the upsert on `Route_Key__c`; and in the
 workbench the lane's `Miles__c`, `Miles_Source__c` and `Route_Hours__c` are rewritten
-unless its miles come from History, which a route never replaces. `laneRoute` decides on
+unless its miles come from History, which a route never replaces. While Load history or a
+bulk action is running, the lane panel holds its route request (the map shows its spinner
+and Refresh route waits) and sends it when the run ends. `laneRoute` decides on
 the lane read again `FOR UPDATE` after its callouts, so History miles that a Load history
 saved while the route was on its way stay; a lane that already holds the route's values is
 not rewritten, and the panel gets the lane as stored. A store save that throws a
@@ -746,9 +751,12 @@ Directions API is free up to 100,000 requests a month, then $2.00 per 1,000 requ
 to 500,000 ($1.60 to 1,000,000, $1.20 above); the Static Images API is free up to 50,000
 requests a month, then $1.00 per 1,000 up to 500,000 ($0.80 to 1,000,000, $0.60 above).
 A new or refreshed route costs one Directions request, or two when the regular fallback
-runs; a stored route costs none, and Load history costs none. Every route map shown (a
-lane panel opening, a Lane Benchmark search) is one Static Images request, like the
-radius preview before it; a radius search keeps its radius preview too, one more request. The Directions API allows 300 requests per minute.
+runs; a stored route costs none, and Load history costs none. Every image shown is one
+Static Images request. A lane panel opening loads only the route image. A Lane Benchmark
+search asks for a preview only when an end uses Radius (`LaneBenchmarkPlaceService.previewUrl`
+returns none otherwise), so a search without a radius loads one image, the route, and a
+radius search loads two: its radius preview, usually while the route is still being found,
+and the route image above it. The Directions API allows 300 requests per minute.
 
 **Storing routes is the owner's decision** (D3, R77). Mapbox routing results are stored
 in `Truck_Route__c` because the owner decided so on 2026-09-14, after the Mapbox Product
@@ -800,6 +808,10 @@ No Apex is involved.
 
 - The excluded Contact Ids live in `Pricing_Department_Setting__mdt` (record `Default`, field `Excluded_Contact_Ids__c`) instead of being hardcoded, and `LaneSearchExclusions` reads them for every lane search. The repo is the source of truth for `Pricing_Department_Setting.Default`; every deploy overwrites the org value, so admins request changes by pull request.
 - Every filter is a `LIKE '%x%'` on formula fields, which cannot use indexes; dedupe happens in Apex after the 500-row limit is applied.
+- Trip miles (phase 7): the workbench table and the Excel export show a lane's route miles only after the next price save, history run or reload; the lane panel shows them at once.
+- Trip miles: a lane whose two ends are the same place shows 0.0 miles (Approx, or a zero-mile route); the right label is for the owner to decide.
+- Trip miles: every lane opening reads the lane again and, for a lane with no stored route, calls Mapbox, so clicking through new lanes spends Directions requests.
+- Trip miles: after a Province / state or postal prefix (ZIP3) search, Lane Benchmark still shows the city-to-city truck route between the two picked places, beside a trip median that covers the wider match.
 
 ## Continuous integration
 
