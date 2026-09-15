@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<LightningMessageChannel xmlns="http://soap.sforce.com/2006/04/metadata">
+  <masterLabel>Distance Unit</masterLabel>
+  <isExposed>true</isExposed>
+  <description
+  >The distance unit (mi or km) chosen on the page, shared by every component that shows trip miles.</description>
+  <lightningMessageFields>
+    <fieldName>unit</fieldName>
+    <description>mi or km</description>
+  </lightningMessageFields>
+</LightningMessageChannel>

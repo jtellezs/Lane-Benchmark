@@ -1,0 +1,51 @@
+<template>
+  <div class="route-map slds-is-relative">
+    <template lwc:if={loading}>
+      <lightning-spinner
+        data-id="spinner"
+        size="small"
+        alternative-text="Loading the truck route"
+      ></lightning-spinner>
+    </template>
+    <template lwc:if={hasImage}>
+      <img data-id="image" class="route-image" src={mapUrl} alt={imageAlt} />
+    </template>
+    <template lwc:if={message}>
+      <p data-id="message" class="slds-text-color_weak slds-m-vertical_x-small">
+        {message}
+      </p>
+    </template>
+    <template lwc:if={hasLegend}>
+      <div class="slds-m-top_x-small">
+        <p data-id="legend-title" class="slds-text-title_bold">{legendTitle}</p>
+        <ul class="slds-m-top_xx-small">
+          <template for:each={legend} for:item="line">
+            <li key={line.key} class="legend-row">
+              <span class={line.swatchClass} aria-hidden="true"></span>
+              <span data-id="legend-line">{line.text}</span>
+            </li>
+          </template>
+        </ul>
+        <template lwc:if={showHazmat}>
+          <p
+            data-id="hazmat"
+            class="slds-text-body_small slds-text-color_weak slds-m-top_xx-small"
+          >
+            Hazmat lane: Mapbox has no hazmat routing, so this is the route any
+            truck would get.
+          </p>
+        </template>
+      </div>
+    </template>
+    <template lwc:if={hasView}>
+      <lightning-button
+        data-id="refresh"
+        class="slds-m-top_x-small"
+        label="Refresh route"
+        icon-name="utility:refresh"
+        disabled={loading}
+        onclick={handleRefresh}
+      ></lightning-button>
+    </template>
+  </div>
+</template>

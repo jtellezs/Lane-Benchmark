@@ -53,12 +53,19 @@
         <members>rfpLaneFilter</members>
         <members>rfpBulk</members>
         <members>rfpBulkBar</members>
+        <members>distanceUnit</members>
+        <members>distanceUnitToggle</members>
+        <members>routeMap</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>
         <members>helpCenter</members>
         <members>sheetJs</members>
         <name>StaticResource</name>
+    </types>
+    <types>
+        <members>Distance_Unit</members>
+        <name>LightningMessageChannel</name>
     </types>
     <!-- Apex -->
     <types>

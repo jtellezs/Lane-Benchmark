@@ -1,0 +1,24 @@
+<template>
+  <div class="slds-button-group" role="group" aria-label="Distance unit">
+    <button
+      type="button"
+      data-id="unit-mi"
+      class={miClass}
+      aria-pressed={miPressed}
+      title="Miles"
+      onclick={handleMi}
+    >
+      mi
+    </button>
+    <button
+      type="button"
+      data-id="unit-km"
+      class={kmClass}
+      aria-pressed={kmPressed}
+      title="Kilometres"
+      onclick={handleKm}
+    >
+      km
+    </button>
+  </div>
+</template>
