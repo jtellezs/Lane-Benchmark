@@ -14,7 +14,7 @@
 
 Execution rules:
 
-- Work in `/Users/iulian/Documents/Personal/PricingDepartemnt-phase8` on branch `phase-8/carriers-and-split-lanes` (phase 7 is merged into it at `44081a7`). `node_modules` is a symlink: never run `npm install`.
+- Work in `/Users/iulian/Documents/Personal/PricingDepartemnt-phase8` on branch `phase-8/carriers-and-split-lanes` (phase 7 is merged into it, last at `b847aec`, which brought its Market Test exclusion). `node_modules` is a symlink: never run `npm install`.
 - Deploy only to the org alias `sandbox` (PostProduc); never `vscodeOrg`, `Full`, `devpro`, and never production (R108).
 - Start every deploy with `--async --json`, then poll `sf project deploy report -o sandbox --job-id <id> -w 2 --json` until the status is `Succeeded` or `Failed`. A watchdog stops an agent that is idle for 3 minutes, so never wait on a foreground deploy and never `sleep`. The sf CLI may print an update warning before its JSON: parse from the first `{`. Shell variables do not survive between tool calls: paste each job id literally.
 - Scoped deploys list each changed file with `--source-dir`. The org enforces 75 % code coverage per deployed Apex class, so every `RunSpecifiedTests` deploy names the tests that cover each class it carries. Metadata-only and LWC-only deploys use `NoTestRun`.
@@ -37,7 +37,8 @@ Binding values:
 - **Currency:** leg costs are stored in CAD; USD = CAD amount × the USD `DatedConversionRate` of the period holding the load's `CreatedDate` date (the last period's rate on or after its start, the first period's rate before it), unrounded until the median, which is `setScale(2)`. Only `CAD` and `USD` are accepted.
 - **Intercompany carriers:** the two account Ids (`0011N00001JcHnvQAF`, `0011N00001JbQ7EQAV`) appear only in the two `Intercompany_Carrier__mdt` records, never in Apex, tests or LWC.
 - **Names only:** Carriers to ask never selects or returns an amount (`LaneQueries.planSoql(..., false)` has no `Total` or `Cost` field, and `CarrierLeadResult` has no `Decimal`).
-- **Frozen classes:** `RfpLaneController` (complexity 39), `RfpSecurityTest` (39), `RfpBulkService` (39), `LaneBenchmarkController` (37), `RfpHistoryService` (37) and `LaneSearchRequest` (20 of 20 fields) are not modified, and `LaneSearchResult` and `LaneSearchResult.Row` (20 of 20 fields) gain no field.
+- **Frozen classes:** `RfpLaneController` (complexity 39), `RfpSecurityTest` (39), `RfpBulkService` (39), `LaneBenchmarkController` (37), `RfpHistoryService` (37) and `LaneSearchRequest` (19 of 20 fields since phase 7 removed `marketTestOnly`) are not modified, and `LaneSearchResult` and `LaneSearchResult.Row` (20 of 20 fields) gain no field.
+- **Market Test quotes:** every carrier quote query leaves them out with `(NOT Customer_Name__c LIKE :marketTest)` and the bind `%Market Test%`, as phase 7's lane search does (`LaneSearchFilters.addMarketTestExclusion`); `LaneSearchRequest` has no `marketTestOnly` field.
 - **`rfpTool.js` stays untouched** at 554 of its 560-line ceiling, and `rfpTool.html` too.
 - **Apex roster** grows from 26 to 40 test classes, appended after `RfpBulkControllerTest` in this order: `SplitTestDataTest` (Task 1), `LaneSearchQueryBuilderTest`, `LaneKeyMatcherTest` (Task 2), `IntercompanyCarriersTest`, `HandoffPointsTest`, `ExchangeRatesTest` (Task 3), `CarrierWarningTest` (Task 4), `LaneQueriesTest`, `CarrierLeadServiceTest` (Task 5), `CarrierLeadControllerTest`, `CarrierSplitSecurityTest` (Task 6), `SplitLaneServiceTest` (Task 8), `SplitEstimatesTest`, `SplitLaneControllerTest` (Task 9). The roster sites (README inventory row "Apex tests", the README `sf apex run test -n …` line and the `-t` list under "Working with the org", the README production command, `.github/workflows/ci.yml` `--tests`) are found by content, never by line number; Task 11 updates them all. Apex tests start at 219 in 26 classes; Jest at 39 suites / 363 tests and ends at 42 / 408.
 - **Deploys go to `sandbox` only**; the final pair (Task 11) is a full-manifest `NoTestRun` deploy, then the full manifest with `RunSpecifiedTests` over the 40 classes.
@@ -115,6 +116,8 @@ Where a task's code or tests differ from the contract the tasks were drafted aga
 13. **Split card and Split cost** (Task 10): `requestJson` is a getter/setter that closes the card and forgets kept answers for a new request; `splitCost` resets in `syncPricing`; any `startCurrency` but `USD` opens in CAD; a leg with no carrier reads "no carrier found" (text not in the spec or contract); `use-as-cost-off` is one note per card and `direct-median` shows in each option; the `leg-blacklisted` badge uses Task 7's classes (R94); `rfpWorkbook`'s `cell()` only blanks null values (it is not a formula guard; the new cell holds picklist values only).
 14. **Docs and final deploy** (Task 11): the roster has five sites (the README `sf apex run test -n …` line too); the guide keeps English UI names in French headings; the results warning is documented in the README only (no guide page mentions it); the README tells admins to edit both lists in Setup and in the repo, because full-manifest deploys overwrite the records; the Outcome records as difference 6 that intercompany carriers are removed in SOQL from quote counts and estimate leg reads but from freight-plan legs in Apex (§3 says "by the queries themselves"; R87 needs the whole shipment skipped).
 
+15. **Market Test exclusion (phase 7 change, owner 2026-09-15).** Phase 7 dropped Lane Benchmark's "Market test only" filter and removed `LaneSearchRequest.marketTestOnly`; every lane search now adds `(NOT Customer_Name__c LIKE :marketTest)` between hazmat and the accepted filter. Task 2's characterization test therefore expects that condition and the `marketTest` bind on every case (its drafting note about replaying the old builder predates this), and `LaneSearchFilters` measures 17 before the extraction and 7 after. `LaneQueries.quoteCountSoql` (Task 5) adds the same condition, because the owner asked for Market Test quotes to be left out of Carriers to ask as well (spec R110); split history and estimates read loads, and Market Test loads carry no lane keys, so they need nothing. Task 11's scope checks compare against `b847aec` (phase 7 merged with this change) instead of `44081a7`.
+
 ---
 
 <!-- prettier-ignore-start -->
@@ -137,7 +140,7 @@ Where a task's code or tests differ from the contract the tasks were drafted aga
 **Interfaces:**
 
 - Consumes:
-  - `PricingTestDataFactory.Graph` (`customer`, `vendor`, `originLocation` Montreal QC, `destinationLocation` Toronto ON, `mode`, `equipment`), `PricingTestDataFactory.createGraph()`, `createLoad(Graph, Account, Account)` (lane keys `Montreal, QC:Toronto, ON`, `QC:ON`, `A1A:A1A`), `createLocation(name, city, province, country, postalCode, lat, lng)` and the class doc's governor budget (one `createLoad` fits before `Test.startTest()` after `createGraph`, two fit inside it; `LaneSearchServiceTest.hazmatMarketTestAcceptedAndExcludedContactFilters` records that three inside one block overflow).
+  - `PricingTestDataFactory.Graph` (`customer`, `vendor`, `originLocation` Montreal QC, `destinationLocation` Toronto ON, `mode`, `equipment`), `PricingTestDataFactory.createGraph()`, `createLoad(Graph, Account, Account)` (lane keys `Montreal, QC:Toronto, ON`, `QC:ON`, `A1A:A1A`), `createLocation(name, city, province, country, postalCode, lat, lng)` and the class doc's governor budget (one `createLoad` fits before `Test.startTest()` after `createGraph`, two fit inside it; `LaneSearchServiceTest.hazmatAcceptedAndExcludedContactFiltersNeverReturnMarketTestQuotes` records that three inside one block overflow).
   - Revenova objects, verified in PostProduc 2026-09-15: `rtms__FreightPlan__c` (no required custom field, `Name` auto number, `Freight_Plan_Cost__c` roll-up; managed trigger `rtms.FreightPlan` active), `rtms__FreightPlanLoad__c` (`rtms__Freight_Plan__c` and `rtms__Load__c` Master-Detail, `rtms__Number__c` Number(3,0), `rtms__Type__c` picklist `Customer`/`Carrier`; the org trigger `FreightPlanLoadTrigger` is Inactive), `rtms__Load__c.rtms__Carrier__c` Lookup(Account), `rtms__Carrier_Quote_Total__c` Currency(16,2), `rtms__Load_Status__c` picklist (none a formula; `rtms__In_Freight_Plan__c` is a formula), `Account.Black_List__c` Checkbox.
   - The child relationship `rtms__Freight_Plan_Loads__r` and the verified parent-child plan query (contract "VERIFIED IN POSTPRODUC").
 - Produces (every later task relies on these exact names):
@@ -529,7 +532,7 @@ What the three tests prove:
 - `oneSplitShipmentLeavesQueryRoomForTheCodeUnderTest` measures `Limits.getQueries()` and `Limits.getDmlStatements()` before `Test.startTest()`, per `legLoad` and per `plan`. It writes them in one `System.debug` line, keeps 20 queries of room for the service a later test calls, and ends on a deliberate `System.assert(false, budget)` probe. The org has no active trace flag, so a debug line cannot be read back from a deploy; the probe's failure message carries the same line, and a deploy with a failing test saves nothing. Step 9 deletes the probe.
 - `readReturnsTheOverrideWithoutAQueryAndResetClearsIt` covers `FreightPlanReader`'s override path (without it, branch A would leave the class at 2 of 3 lines) and `resetPlans`.
 
-The customer load is created before `Test.startTest()` and both legs and the plan inside it, following `PricingTestDataFactory`'s class doc: after `createGraph()`, one `createLoad` fits the un-reset budget and two more fit the fresh one (`LaneSearchServiceTest.hazmatMarketTestAcceptedAndExcludedContactFilters` records three in one block hitting 101 queries).
+The customer load is created before `Test.startTest()` and both legs and the plan inside it, following `PricingTestDataFactory`'s class doc: after `createGraph()`, one `createLoad` fits the un-reset budget and two more fit the fresh one (`LaneSearchServiceTest.hazmatAcceptedAndExcludedContactFiltersNeverReturnMarketTestQuotes` records three in one block hitting 101 queries).
 
 - [ ] **Step 3: Deploy the test alone to see it fail to compile**
 
@@ -1390,7 +1393,7 @@ Expected: `pmd exit 0`; `20` staged files, or `19` on the update variant, where 
 - Create: `force-app/main/default/classes/LaneKeyMatcher.cls`, `force-app/main/default/classes/LaneKeyMatcher.cls-meta.xml`
 - Create: `force-app/main/default/classes/LaneLoadFilters.cls`, `force-app/main/default/classes/LaneLoadFilters.cls-meta.xml`
 - Modify: `force-app/main/default/classes/LaneSearchQueryBuilder.cls` (whole file, Step 8: `addCity`, `addProvince`, `addZip3`, `requirePostalPrefix` and `laneLikePattern` leave; `addEnd` calls `LaneKeyMatcher.condition`; `LaneEnd` loses `likePrefix`, `likeSuffix`, `zip3FieldName` and gains `isOrigin`; `SELECT_CLAUSE`, `buildSoql`, `addRadius` and `escapeLike` are unchanged)
-- Modify: `force-app/main/default/classes/LaneSearchFilters.cls` (whole file, Step 9: `addModeFilter`, `addEquipmentFilter` and `addHazmatFilter` leave; `addFilters` calls `LaneLoadFilters.add` between currency and Market Test)
+- Modify: `force-app/main/default/classes/LaneSearchFilters.cls` (whole file, Step 9: `addModeFilter`, `addEquipmentFilter` and `addHazmatFilter` leave; `addFilters` calls `LaneLoadFilters.add` between currency and the Market Test exclusion)
 - Modify: `manifest/package.xml` (ApexClass members `LaneSearchQueryBuilderTest`, `LaneKeyMatcher`, `LaneKeyMatcherTest`, `LaneLoadFilters`, at the end of the ApexClass block, after the members Task 1 added and before `<name>ApexClass</name>`)
 
 Not changed: `LaneSearchService`, `LaneSearchServiceTest`, `BidSearchQueryBuilder`, `BidSearchService`, `BidSearchServiceTest`, `PlaceNormalizer`, `LaneSearchRequest`.
@@ -1400,7 +1403,7 @@ Not changed: `LaneSearchService`, `LaneSearchServiceTest`, `BidSearchQueryBuilde
 - Consumes:
   - `LaneSearchQueryBuilder.buildSoql(LaneSearchRequest req, Map<String, Object> binds, Map<String, Pricing_Place__c> places)` and `public static String escapeLike(String s)` (exist; `escapeLike` stays public and in place: `BidSearchQueryBuilder`, `RfpProjectController` and `LaneBenchmarkController` call it).
   - `PlaceNormalizer.cityLaneVariants(Pricing_Place__c place)` returning `Set<String>` of `"<spelling>, <Province__c>"` (exists).
-  - `LaneSearchRequest.Precision` (`RADIUS`, `CITY`, `PROVINCE`, `ZIP3`), `LaneSearchRequest.Unit`, `LaneSearchRequest.Accepted`, and the request fields `originKey`, `destinationKey`, `originPrecision`, `destinationPrecision`, `originRadius`, `destinationRadius`, `radiusUnit`, `originZip3`, `destinationZip3`, `lookbackDays`, `currencyIsoCode`, `modes`, `equipmentCategories`, `equipmentTypes`, `hazmatOnly`, `marketTestOnly`, `acceptedFilter`, `rowLimit`, `includeStopGeolocation` (exist).
+  - `LaneSearchRequest.Precision` (`RADIUS`, `CITY`, `PROVINCE`, `ZIP3`), `LaneSearchRequest.Unit`, `LaneSearchRequest.Accepted`, and the request fields `originKey`, `destinationKey`, `originPrecision`, `destinationPrecision`, `originRadius`, `destinationRadius`, `radiusUnit`, `originZip3`, `destinationZip3`, `lookbackDays`, `currencyIsoCode`, `modes`, `equipmentCategories`, `equipmentTypes`, `hazmatOnly`, `acceptedFilter`, `rowLimit`, `includeStopGeolocation` (exist).
   - `LaneSearchExclusions.excludedContactIdsOverride` (`@TestVisible private static Set<String>`, exists) and `LaneSearchException` (exists).
   - `Pricing_Place__c.Key__c`, `City__c`, `Province__c`, `Country__c`, `Postal_Prefix__c`, `Spellings__c`, `Geolocation__Latitude__s`, `Geolocation__Longitude__s` (exist).
   - From Task 1: only the manifest position (its ApexClass members come first). No Task 1 class is used.
@@ -1437,23 +1440,23 @@ XML
 /private/tmp/pmd_install/pmd-bin-7.15.0/bin/pmd check --dir force-app/main/default/classes/LaneSearchQueryBuilder.cls --dir force-app/main/default/classes/LaneSearchFilters.cls --rulesets /private/tmp/pmd_install/phase8-complexity.xml --format text --no-cache 2>/dev/null | grep "The class"
 ```
 
-Expected (measured on `44081a7`):
+Expected (measured on `b847aec`, after phase 7's Market Test change):
 
 ```
-…LaneSearchFilters.cls:10:	CyclomaticComplexity:	The class 'LaneSearchFilters' has a total cyclomatic complexity of 18 (highest 5).
+…LaneSearchFilters.cls:10:	CyclomaticComplexity:	The class 'LaneSearchFilters' has a total cyclomatic complexity of 17 (highest 5).
 …LaneSearchQueryBuilder.cls:12:	CyclomaticComplexity:	The class 'LaneSearchQueryBuilder' has a total cyclomatic complexity of 26 (highest 7).
 ```
 
 - [ ] **Step 2: Write the characterization test**
 
-This test pins what the lane search builds today: the exact SOQL string and the bind names for city, province, explicit ZIP3, ZIP3 from the place, a ZIP3 place without a prefix, an end without a place, radius on both ends with and without the stop geolocation, and every filter in its order. Every expected string below was copied from `LaneSearchQueryBuilder.cls`, `LaneSearchFilters.cls` and `PlaceNormalizer.cityLaneVariants` as they stand at `44081a7`. `buildSoql` is pure, so the test inserts nothing.
+This test pins what the lane search builds today: the exact SOQL string and the bind names for city, province, explicit ZIP3, ZIP3 from the place, a ZIP3 place without a prefix, an end without a place, radius on both ends with and without the stop geolocation, and every filter in its order, with the Market Test exclusion every lane search has carried since phase 7. Every expected string below was copied from `LaneSearchQueryBuilder.cls`, `LaneSearchFilters.cls` and `PlaceNormalizer.cityLaneVariants` as they stand at `b847aec`. `buildSoql` is pure, so the test inserts nothing.
 
 Create `force-app/main/default/classes/LaneSearchQueryBuilderTest.cls`:
 
 ```apex
 /**
  * Characterization of LaneSearchQueryBuilder.buildSoql: the exact SOQL string and bind names for
- * every lane precision and every filter. Phase 8 wrote it before moving the lane-key conditions
+ * every lane precision and every filter, including the Market Test exclusion phase 7 added to every search. Phase 8 wrote it before moving the lane-key conditions
  * into LaneKeyMatcher and the mode, equipment and hazmat conditions into LaneLoadFilters, and ran it
  * green on the code as it was then, so the move is proved not to change the lane search by one
  * character (spec D10, R103). buildSoql is pure: the places live only in memory, no record is
@@ -1472,6 +1475,8 @@ private class LaneSearchQueryBuilderTest {
   private static final String WINDOW_90 = ' WHERE CreatedDate = LAST_N_DAYS:90 AND Contact_ID__c NOT IN :excluded';
   private static final String ORDER_AND_LIMIT = ' ORDER BY CreatedDate DESC LIMIT :rowLimitPlusOne';
   private static final String CITY_BOTH_ENDS = ' AND rtms__Load__r.rtms__City_Lane__c LIKE :oCity AND rtms__Load__r.rtms__City_Lane__c LIKE :dCity';
+  // Every lane search leaves out Market Test quotes (phase 7); the condition sits between hazmat and accepted.
+  private static final String NO_MARKET_TEST = ' AND (NOT Customer_Name__c LIKE :marketTest)';
 
   private static Map<String, Pricing_Place__c> places() {
     return new Map<String, Pricing_Place__c>{
@@ -1520,11 +1525,11 @@ private class LaneSearchQueryBuilderTest {
     Map<String, Object> binds = new Map<String, Object>();
     String soql = build(req(), binds);
     System.assertEquals(
-      SELECT_CLAUSE + WINDOW_90 + CITY_BOTH_ENDS + ORDER_AND_LIMIT,
+      SELECT_CLAUSE + WINDOW_90 + CITY_BOTH_ENDS + NO_MARKET_TEST + ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{ 'excluded', 'oCity', 'dCity', 'rowLimitPlusOne' },
+      new Set<String>{ 'excluded', 'oCity', 'dCity', 'marketTest', 'rowLimitPlusOne' },
       binds.keySet()
     );
     System.assertEquals(
@@ -1538,6 +1543,7 @@ private class LaneSearchQueryBuilderTest {
     );
     System.assertEquals(new Set<String>(), binds.get('excluded'));
     System.assertEquals(2001, binds.get('rowLimitPlusOne'));
+    System.assertEquals('%Market Test%', binds.get('marketTest'));
   }
 
   @IsTest
@@ -1553,11 +1559,12 @@ private class LaneSearchQueryBuilderTest {
       SELECT_CLAUSE +
         ' WHERE CreatedDate = LAST_N_DAYS:30 AND Contact_ID__c NOT IN :excluded' +
         ' AND rtms__Load__r.rtms__State_Lane__c LIKE :oProv AND rtms__Load__r.rtms__State_Lane__c LIKE :dProv' +
+        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{ 'excluded', 'oProv', 'dProv', 'rowLimitPlusOne' },
+      new Set<String>{ 'excluded', 'oProv', 'dProv', 'marketTest', 'rowLimitPlusOne' },
       binds.keySet()
     );
     System.assertEquals('QC:%', binds.get('oProv'));
@@ -1578,11 +1585,12 @@ private class LaneSearchQueryBuilderTest {
       SELECT_CLAUSE +
         WINDOW_90 +
         ' AND rtms__Load__r.rtms__Zip3_Lane__c LIKE :oZip3 AND rtms__Load__r.rtms__Zip3_Lane__c LIKE :dZip3' +
+        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{ 'excluded', 'oZip3', 'dZip3', 'rowLimitPlusOne' },
+      new Set<String>{ 'excluded', 'oZip3', 'dZip3', 'marketTest', 'rowLimitPlusOne' },
       binds.keySet()
     );
     System.assertEquals('H2X:%', binds.get('oZip3'));
@@ -1633,11 +1641,12 @@ private class LaneSearchQueryBuilderTest {
       SELECT_CLAUSE +
         WINDOW_90 +
         ' AND rtms__Load__r.rtms__City_Lane__c LIKE :dCity' +
+        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{ 'excluded', 'dCity', 'rowLimitPlusOne' },
+      new Set<String>{ 'excluded', 'dCity', 'marketTest', 'rowLimitPlusOne' },
       binds.keySet()
     );
 
@@ -1649,11 +1658,12 @@ private class LaneSearchQueryBuilderTest {
       SELECT_CLAUSE +
         WINDOW_90 +
         ' AND rtms__Load__r.rtms__City_Lane__c LIKE :oCity' +
+        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{ 'excluded', 'oCity', 'rowLimitPlusOne' },
+      new Set<String>{ 'excluded', 'oCity', 'marketTest', 'rowLimitPlusOne' },
       binds.keySet()
     );
   }
@@ -1674,6 +1684,7 @@ private class LaneSearchQueryBuilderTest {
         ' OR DISTANCE(rtms__Load__r.rtms__First_Stop__r.rtms__Geolocation__c, GEOLOCATION(:oLat, :oLng), \'mi\') < :oRadius)' +
         ' AND (DISTANCE(rtms__Load__r.rtms__Last_Stop__r.rtms__Location2__r.ShippingAddress, GEOLOCATION(:dLat, :dLng), \'mi\') < :dRadius' +
         ' OR DISTANCE(rtms__Load__r.rtms__Last_Stop__r.rtms__Geolocation__c, GEOLOCATION(:dLat, :dLng), \'mi\') < :dRadius)' +
+        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
@@ -1686,6 +1697,7 @@ private class LaneSearchQueryBuilderTest {
         'dLat',
         'dLng',
         'dRadius',
+        'marketTest',
         'rowLimitPlusOne'
       },
       binds.keySet()
@@ -1714,6 +1726,7 @@ private class LaneSearchQueryBuilderTest {
         WINDOW_90 +
         ' AND DISTANCE(rtms__Load__r.rtms__First_Stop__r.rtms__Location2__r.ShippingAddress, GEOLOCATION(:oLat, :oLng), \'km\') < :oRadius' +
         ' AND DISTANCE(rtms__Load__r.rtms__Last_Stop__r.rtms__Location2__r.ShippingAddress, GEOLOCATION(:dLat, :dLng), \'km\') < :dRadius' +
+        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
@@ -1726,6 +1739,7 @@ private class LaneSearchQueryBuilderTest {
         'dLat',
         'dLng',
         'dRadius',
+        'marketTest',
         'rowLimitPlusOne'
       },
       binds.keySet()
@@ -1740,7 +1754,6 @@ private class LaneSearchQueryBuilderTest {
     r.equipmentCategories = new List<String>{ 'Van' };
     r.equipmentTypes = new List<String>{ 'Dry Van 53\'' };
     r.hazmatOnly = true;
-    r.marketTestOnly = true;
     r.acceptedFilter = LaneSearchRequest.Accepted.ACCEPTED;
     Map<String, Object> binds = new Map<String, Object>();
     String soql = build(r, binds);
@@ -1752,7 +1765,7 @@ private class LaneSearchQueryBuilderTest {
         ' AND rtms__Load__r.rtms__Mode__r.Name IN :modes' +
         ' AND (rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c IN :cats OR rtms__Load__r.rtms__Equipment_Type__r.Name IN :types)' +
         ' AND rtms__Load__r.rtms__Hazardous_Materials__c = true' +
-        ' AND Customer_Name__c LIKE :marketTest' +
+        NO_MARKET_TEST +
         ' AND rtms__Accepted__c = true' +
         ORDER_AND_LIMIT,
       soql
@@ -1790,6 +1803,7 @@ private class LaneSearchQueryBuilderTest {
         WINDOW_90 +
         CITY_BOTH_ENDS +
         ' AND rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c IN :cats' +
+        NO_MARKET_TEST +
         ' AND rtms__Accepted__c = false' +
         ORDER_AND_LIMIT,
       soql
@@ -1800,6 +1814,7 @@ private class LaneSearchQueryBuilderTest {
         'oCity',
         'dCity',
         'cats',
+        'marketTest',
         'rowLimitPlusOne'
       },
       binds.keySet()
@@ -1814,6 +1829,7 @@ private class LaneSearchQueryBuilderTest {
         WINDOW_90 +
         CITY_BOTH_ENDS +
         ' AND rtms__Load__r.rtms__Equipment_Type__r.Name IN :types' +
+        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
@@ -1823,6 +1839,7 @@ private class LaneSearchQueryBuilderTest {
         'oCity',
         'dCity',
         'types',
+        'marketTest',
         'rowLimitPlusOne'
       },
       binds.keySet()
@@ -2108,7 +2125,6 @@ private class LaneKeyMatcherTest {
     r.equipmentTypes = new List<String>{ 'Dry Van 53\'' };
     r.hazmatOnly = true;
     r.currencyIsoCode = 'CAD';
-    r.marketTestOnly = true;
     r.acceptedFilter = LaneSearchRequest.Accepted.ACCEPTED;
     List<String> conditions = new List<String>();
     Map<String, Object> binds = new Map<String, Object>();
@@ -2120,7 +2136,7 @@ private class LaneKeyMatcherTest {
         'rtms__Hazardous_Materials__c = true'
       },
       conditions,
-      'currency, Market Test and accepted are quote filters, never load filters'
+      'currency and accepted are quote filters, and the Market Test exclusion a quote condition: never load filters'
     );
     System.assertEquals(
       new Set<String>{ 'modes', 'cats', 'types' },
@@ -2315,8 +2331,8 @@ Create `force-app/main/default/classes/LaneLoadFilters.cls`:
  *
  * loadPath is the relationship path from the queried row to its load: 'rtms__Load__r.' on
  * rtms__CarrierQuote__c and rtms__FreightPlanLoad__c rows, '' on rtms__Load__c rows. The bind names
- * (modes, cats, types) are the same whatever the path. Currency, Market Test and accepted stay in
- * LaneSearchFilters: they are quote fields, not load fields.
+ * (modes, cats, types) are the same whatever the path. Currency, accepted and the Market Test
+ * exclusion stay in LaneSearchFilters: they read quote fields, not load fields.
  */
 public with sharing class LaneLoadFilters {
   public static void add(
@@ -2587,13 +2603,13 @@ public with sharing class LaneSearchQueryBuilder {
 
 - [ ] **Step 9: Switch `LaneSearchFilters` to `LaneLoadFilters`**
 
-`addFilters` calls `LaneLoadFilters.add(req, 'rtms__Load__r.', conditions, binds)` where the three removed helpers were called. The order is still currency, mode, equipment, hazmat, Market Test, accepted.
+`addFilters` calls `LaneLoadFilters.add(req, 'rtms__Load__r.', conditions, binds)` where the three removed helpers were called. The order is still currency, mode, equipment, hazmat, the Market Test exclusion, accepted.
 
 Replace the whole of `force-app/main/default/classes/LaneSearchFilters.cls` with:
 
 ```apex
 /**
- * Task 7's currency/mode/equipment/hazmat/market-test/accepted filters. Pure: no SOQL, no DML -
+ * Task 7's currency/mode/equipment/hazmat/accepted filters, plus the Market Test exclusion. Pure: no SOQL, no DML -
  * just condition/bind assembly from a LaneSearchRequest, appended to the conditions/binds
  * LaneSearchQueryBuilder.buildSoql() is assembling. Split out of LaneSearchQueryBuilder per the
  * Task 7 review ruling ("split the filters out"): LaneSearchQueryBuilder alone (lane-precision
@@ -2605,7 +2621,7 @@ Replace the whole of `force-app/main/default/classes/LaneSearchFilters.cls` with
  */
 public with sharing class LaneSearchFilters {
   // addFilters itself stays a small dispatcher; one helper per filter so no single method carries
-  // every branch. The order (currency, mode, equipment, hazmat, market test, accepted) is pinned
+  // every branch. The order (currency, mode, equipment, hazmat, Market Test exclusion, accepted) is pinned
   // by LaneSearchQueryBuilderTest.
   public static void addFilters(
     LaneSearchRequest req,
@@ -2614,7 +2630,7 @@ public with sharing class LaneSearchFilters {
   ) {
     addCurrencyFilter(req, conditions, binds);
     LaneLoadFilters.add(req, 'rtms__Load__r.', conditions, binds);
-    addMarketTestFilter(req, conditions, binds);
+    addMarketTestExclusion(conditions, binds);
     addAcceptedFilter(req, conditions);
   }
 
@@ -2629,15 +2645,17 @@ public with sharing class LaneSearchFilters {
     }
   }
 
-  private static void addMarketTestFilter(
-    LaneSearchRequest req,
+  /**
+   * Quotes whose customer is a Market Test account are left out of every lane search (owner,
+   * 2026-09-15): pricing reads carrier bids instead. A customer name is always set on quotes, so
+   * NOT LIKE drops only the Market Test quotes (PostProduc, 90 days: 10,642 = 218 + 10,424).
+   */
+  private static void addMarketTestExclusion(
     List<String> conditions,
     Map<String, Object> binds
   ) {
-    if (req.marketTestOnly == true) {
-      binds.put('marketTest', '%Market Test%');
-      conditions.add('Customer_Name__c LIKE :marketTest');
-    }
+    binds.put('marketTest', '%Market Test%');
+    conditions.add('(NOT Customer_Name__c LIKE :marketTest)');
   }
 
   private static void addAcceptedFilter(
@@ -2681,11 +2699,11 @@ Expected: four lines with these totals. They were measured with PMD 7.15.0 on a 
 ```
 …LaneKeyMatcher.cls:13:	CyclomaticComplexity:	The class 'LaneKeyMatcher' has a total cyclomatic complexity of 13 (highest 6).
 …LaneLoadFilters.cls:13:	CyclomaticComplexity:	The class 'LaneLoadFilters' has a total cyclomatic complexity of 11 (highest 5).
-…LaneSearchFilters.cls:12:	CyclomaticComplexity:	The class 'LaneSearchFilters' has a total cyclomatic complexity of 8 (highest 3).
+…LaneSearchFilters.cls:12:	CyclomaticComplexity:	The class 'LaneSearchFilters' has a total cyclomatic complexity of 7 (highest 3).
 …LaneSearchQueryBuilder.cls:15:	CyclomaticComplexity:	The class 'LaneSearchQueryBuilder' has a total cyclomatic complexity of 15 (highest 6).
 ```
 
-`LaneSearchQueryBuilder` must be below the Step 1 figure (26) and `LaneSearchFilters` below 18. If either is not, a helper was left behind: remove it rather than add a suppression.
+`LaneSearchQueryBuilder` must be below the Step 1 figure (26) and `LaneSearchFilters` below 17. If either is not, a helper was left behind: remove it rather than add a suppression.
 
 - [ ] **Step 12: Deploy the six classes and run the four tests**
 
@@ -4247,7 +4265,7 @@ Expected: lint-staged runs Prettier on the staged Apex, and the commit lands on 
   - Existing: `LaneSearchExclusions.excludedContactIdSet()` and `excludedContactIdsOverride` (15-character Contact Ids, as `Contact_ID__c` holds them); `LaneSearchRequest.applyDefaults()`, `Precision`, `Accepted`, `RowSource`; `PricingTestDataFactory.createGraph()`, `createLoad(Graph, Account, Account)`, `buildQuote(Graph, rtms__Load__c, Decimal)`; `RfpTestDataFactory.createPlace(city, prov, country, lat, lng, prefix)`.
 - Produces:
   - `CarrierLeadResult` (plain `public class`): constants `SAME_LANE = 'Same lane'`, `STATE_LANE = 'State lane'`, `NONE = 'None'`, `SOURCE_QUOTE = 'Quote'`, `SOURCE_SPLIT_LEG = 'Split leg'`; `public class Lead { @AuraEnabled Id carrierId; String name; Integer loadsMoved = 0; Integer loadsQuoted = 0; Date lastSeen; List<String> sources = new List<String>(); Boolean blacklisted = false; Boolean canOpen = false; }` (every member `public` and `@AuraEnabled`); `@AuraEnabled public List<Lead> leads = new List<Lead>()`, `String stage = 'None'`, `String stateLaneLabel`, `Boolean truncated = false`. No amount field.
-  - `LaneQueries` (`public with sharing`, no query): `public static final Map<String, String> COUNTRY_NAMES` (CA → Canada, US → United States, MX → Mexico); `public static final Integer GROUP_LIMIT = 50`; `public static LaneSearchRequest.Precision deepPrecision(LaneSearchRequest.Precision p)`; `public static List<String> laneConditions(LaneSearchRequest req, Pricing_Place__c origin, Pricing_Place__c destination, String loadPath, Map<String, Object> binds)`; `public static List<String> stateLaneConditions(LaneSearchRequest req, Pricing_Place__c origin, Pricing_Place__c destination, String loadPath, Map<String, Object> binds)` (binds `stateLane`, `oCountry`, `dCountry`; `null` with nothing bound when a `Province__c` is blank or a `Country__c` is not in `COUNTRY_NAMES`); `public static String quoteCountSoql(List<String> onLane, Integer days, Boolean movedOnly, Map<String, Object> binds)` (binds `excluded`, `intercompany`; copies `onLane`); `public static String planSoql(List<String> customerConditions, Integer days, Integer planLimit, Boolean withAmounts)` (copies `customerConditions`). Task 9 adds `legConditions` and `legLoadSoql`.
+  - `LaneQueries` (`public with sharing`, no query): `public static final Map<String, String> COUNTRY_NAMES` (CA → Canada, US → United States, MX → Mexico); `public static final Integer GROUP_LIMIT = 50`; `public static LaneSearchRequest.Precision deepPrecision(LaneSearchRequest.Precision p)`; `public static List<String> laneConditions(LaneSearchRequest req, Pricing_Place__c origin, Pricing_Place__c destination, String loadPath, Map<String, Object> binds)`; `public static List<String> stateLaneConditions(LaneSearchRequest req, Pricing_Place__c origin, Pricing_Place__c destination, String loadPath, Map<String, Object> binds)` (binds `stateLane`, `oCountry`, `dCountry`; `null` with nothing bound when a `Province__c` is blank or a `Country__c` is not in `COUNTRY_NAMES`); `public static String quoteCountSoql(List<String> onLane, Integer days, Boolean movedOnly, Map<String, Object> binds)` (binds `excluded`, `marketTest`, `intercompany`; leaves out Market Test quotes; copies `onLane`); `public static String planSoql(List<String> customerConditions, Integer days, Integer planLimit, Boolean withAmounts)` (copies `customerConditions`). Task 9 adds `legConditions` and `legLoadSoql`.
   - `CarrierLeadService` (`public without sharing`): `public static CarrierLeadResult find(LaneSearchRequest req)` — stage 1 only; stage `None` when it finds no carrier. For Task 6, which adds stage 2 inside `find` and reuses them: `@TestVisible private static Integer rowReserve = 5000`; `@TestVisible private static List<CarrierLeadResult.Lead> ranked(List<CarrierLeadResult.Lead> leads, Boolean byQuoted)` (`true`: loads moved, loads quoted, last seen newest first with none last, name ignoring case; `false`: loads quoted skipped); `private static void countQuotes(List<String> onLane, Integer days, Map<String, Object> binds, Tally tally, CarrierLeadResult result)`; `private static void readLegs(List<String> onLane, Integer days, Map<String, Object> binds, Tally tally, CarrierLeadResult result)`; `private static Boolean stopEarly(CarrierLeadResult result)`; `private static void markReadable(CarrierLeadResult result)`; inner `private class Tally` (`isEmpty()`, `addQuoteGroups(List<AggregateResult>, Boolean moved)`, `addPlans(List<rtms__FreightPlan__c>, Set<Id> intercompany)`, `leads()`). PMD class complexity after this task: `CarrierLeadService` 24 of 40 (`Tally` 23 and `LeadOrder` 13 count on their own).
 
 **Before you start:** Tasks 1 to 4 are committed and deployed to `sandbox`. The plan read, the lane matcher and the intercompany list come from them, and `CarrierLeadServiceTest` builds its plans only through `SplitTestData`, so it passes on whichever branch Task 1 proved.
@@ -4311,7 +4329,6 @@ private class LaneQueriesTest {
     req.currencyIsoCode = 'USD';
     req.lookbackDays = 30;
     req.acceptedFilter = LaneSearchRequest.Accepted.ACCEPTED;
-    req.marketTestOnly = true;
     return req;
   }
 
@@ -4335,12 +4352,12 @@ private class LaneQueriesTest {
         NOT_CANCELLED
       },
       conditions,
-      'both ends, the mode, equipment and hazmat filters and a load that is not cancelled; no currency, market test or accepted condition'
+      'both ends, the mode, equipment and hazmat filters and a load that is not cancelled; no currency or accepted condition (quoteCountSoql adds the Market Test exclusion)'
     );
     System.assertEquals(
       new Set<String>{ 'oCity', 'dCity', 'modes', 'cats', 'types' },
       binds.keySet(),
-      'no currency or market test bind'
+      'no currency bind'
     );
     System.assertEquals(
       new List<String>{ 'Montreal, QC:%' },
@@ -4560,7 +4577,7 @@ private class LaneQueriesTest {
       'SELECT rtms__Vendor__c, rtms__Vendor__r.Name vname, rtms__Vendor__r.Black_List__c bl, ' +
         'COUNT_DISTINCT(rtms__Load__c) loads, MAX(CreatedDate) lastSeen FROM rtms__CarrierQuote__c ' +
         'WHERE rtms__Load__r.rtms__City_Lane__c LIKE :oCity AND CreatedDate = LAST_N_DAYS:1095 ' +
-        'AND Contact_ID__c NOT IN :excluded AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany ' +
+        'AND Contact_ID__c NOT IN :excluded AND (NOT Customer_Name__c LIKE :marketTest) AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany ' +
         'GROUP BY rtms__Vendor__c, rtms__Vendor__r.Name, rtms__Vendor__r.Black_List__c ' +
         'ORDER BY COUNT_DISTINCT(rtms__Load__c) DESC LIMIT 51',
       quoted
@@ -4569,7 +4586,7 @@ private class LaneQueriesTest {
       'SELECT rtms__Vendor__c, rtms__Vendor__r.Name vname, rtms__Vendor__r.Black_List__c bl, ' +
         'COUNT_DISTINCT(rtms__Load__c) loads, MAX(CreatedDate) lastSeen FROM rtms__CarrierQuote__c ' +
         'WHERE rtms__Load__r.rtms__City_Lane__c LIKE :oCity AND CreatedDate = LAST_N_DAYS:365 ' +
-        'AND Contact_ID__c NOT IN :excluded AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany ' +
+        'AND Contact_ID__c NOT IN :excluded AND (NOT Customer_Name__c LIKE :marketTest) AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany ' +
         'AND rtms__Accepted__c = true ' +
         'GROUP BY rtms__Vendor__c, rtms__Vendor__r.Name, rtms__Vendor__r.Black_List__c ' +
         'ORDER BY COUNT_DISTINCT(rtms__Load__c) DESC LIMIT 51',
@@ -4581,7 +4598,7 @@ private class LaneQueriesTest {
       'the lane conditions are copied, so both counts share them'
     );
     System.assertEquals(
-      new Set<String>{ 'oCity', 'excluded', 'intercompany' },
+      new Set<String>{ 'oCity', 'excluded', 'marketTest', 'intercompany' },
       binds.keySet()
     );
     System.assertEquals(
@@ -4589,6 +4606,7 @@ private class LaneQueriesTest {
       binds.get('excluded')
     );
     System.assertEquals(IntercompanyCarriers.ids(), binds.get('intercompany'));
+    System.assertEquals('%Market Test%', binds.get('marketTest'));
     System.assert(
       ((Set<Id>) binds.get('intercompany')).contains(intercompanyCarrier),
       'the intercompany list is bound as it is'
@@ -4747,8 +4765,9 @@ Create `force-app/main/default/classes/LaneQueries.cls`:
  * conditions with both stop countries (R102), the grouped carrier quote count and the freight-plan
  * read with its carrier legs (R104). Pure: no query, no DML - strings and binds only, like
  * LaneSearchQueryBuilder. Only the request's place keys, precisions, postal prefixes and mode,
- * equipment and hazmat filters reach a condition; its lookback, currency, accepted, source and
- * Market Test filters are ignored on purpose (R101). loadPath is 'rtms__Load__r.' on
+ * equipment and hazmat filters reach a condition; its lookback, currency, accepted and source
+ * filters are ignored on purpose (R101), and quote counts leave out Market Test quotes as every
+ * lane search does (phase 7, R110). loadPath is 'rtms__Load__r.' on
  * rtms__CarrierQuote__c and rtms__FreightPlanLoad__c rows and '' on rtms__Load__c rows.
  */
 public with sharing class LaneQueries {
@@ -4872,8 +4891,9 @@ public with sharing class LaneQueries {
    * Carrier quotes on the lane grouped by vendor, with the vendor's name and blacklist flag, the
    * distinct loads quoted (or moved, when movedOnly adds rtms__Accepted__c = true) and the latest
    * quote date, most loads first, GROUP_LIMIT + 1 groups at most. Adds the window, the excluded
-   * contacts (quotes only, R89) and the intercompany carriers (D6); binds 'excluded' and
-   * 'intercompany'. onLane is copied, so both counts can share it.
+   * contacts (quotes only, R89), the Market Test exclusion every lane search carries (phase 7, R110)
+   * and the intercompany carriers (D6); binds 'excluded', 'marketTest' and 'intercompany'. onLane is
+   * copied, so both counts can share it.
    */
   public static String quoteCountSoql(
     List<String> onLane,
@@ -4885,6 +4905,8 @@ public with sharing class LaneQueries {
     conditions.add('CreatedDate = LAST_N_DAYS:' + String.valueOf(days)); // the caller's constant, never user text
     binds.put('excluded', LaneSearchExclusions.excludedContactIdSet());
     conditions.add('Contact_ID__c NOT IN :excluded');
+    binds.put('marketTest', '%Market Test%');
+    conditions.add('(NOT Customer_Name__c LIKE :marketTest)');
     conditions.add('rtms__Vendor__c != null');
     binds.put('intercompany', IntercompanyCarriers.ids());
     conditions.add('rtms__Vendor__c NOT IN :intercompany');
@@ -5408,7 +5430,7 @@ private class CarrierLeadServiceTest {
   }
 
   @IsTest
-  static void modeEquipmentAndHazmatApplyButCurrencyLookbackAcceptedAndMarketTestDoNot() {
+  static void modeEquipmentAndHazmatApplyButCurrencyLookbackAcceptedAndSourceDoNot() {
     Fx f = fx();
     rtms__Load__c load = laneLoad(f); // Truckload, Dry Van 53' (Van), not hazmat
     rtms__CarrierQuote__c acceptedQuote = quote(f, load, null, true); // CAD
@@ -5418,7 +5440,6 @@ private class CarrierLeadServiceTest {
     ignored.currencyIsoCode = 'USD';
     ignored.lookbackDays = 1;
     ignored.acceptedFilter = LaneSearchRequest.Accepted.DECLINED;
-    ignored.marketTestOnly = true;
     ignored.sourceFilter = LaneSearchRequest.RowSource.BIDS;
     LaneSearchRequest matching = montrealToToronto();
     matching.modes = new List<String>{ 'Truckload' };
@@ -5440,7 +5461,7 @@ private class CarrierLeadServiceTest {
     System.assertEquals(
       1,
       rIgnored.leads.size(),
-      'a CAD accepted quote from 30 days ago still counts for a USD, 1-day, declined-only, Market Test, bids-only request (R101)'
+      'a CAD accepted quote from 30 days ago still counts for a USD, 1-day, declined-only, bids-only request (R101)'
     );
     System.assertEquals(1, rIgnored.leads[0].loadsMoved);
     System.assertEquals(1, rIgnored.leads[0].loadsQuoted);
@@ -9509,7 +9530,7 @@ Expected: the commit lists the 19 files above (8 created, 11 modified); `rfpTool
     - `public class CarrierTally { public void add(Id carrierId, String name, Boolean blacklisted); public List<SplitLaneResult.LegCarrier> sorted(); }` — a null carrier is ignored; blacklisted when any added leg says so; sorted by `legsMoved` descending, then name ascending (case-insensitive). Task 9's `SplitEstimates` uses it.
     - Beyond the contract (see Contract notes 1 and 2): `public class LegRow` (`created`, `carrierId`, `carrierName`, `blacklisted`, `cityLane`, `status`, `cadTotal`, `stopName`; built from a leg load by the private outer `toLegRow(rtms__Load__c load)`, because Apex inner classes hold no static members), `@TestVisible private static List<SplitLaneResult.Option> groupHistory(List<List<LegRow>> shipments, String currencyCode, ExchangeRates rates)` and `@TestVisible private static String historySoql(LaneSearchRequest req, Pricing_Place__c origin, Pricing_Place__c destination, Map<String, Object> binds)`.
 
-Test data budget. A split shipment is three loads, and `PricingTestDataFactory`'s class doc says the load automation is not bulkified: three `createLoad()` calls in one governor window reached 101 SOQL queries in `LaneSearchServiceTest.hazmatMarketTestAcceptedAndExcludedContactFilters`. So each end-to-end test here builds one shipment. It creates one load before `Test.startTest()` and two inside it, the shape that test and `bidsMergeIntoRowsAndObeyTheSourceFilter` already pass with. Grouping, ordering, the R85 total and the exclusions run on shipments built in memory as `LegRow` lists through `groupHistory`, which inserts nothing and holds no plan fixture. The end-to-end tests prove that the plan rows `SplitTestData.plan` builds reach those `LegRow`s: dates, carriers, lanes, stop names and totals.
+Test data budget. A split shipment is three loads, and `PricingTestDataFactory`'s class doc says the load automation is not bulkified: three `createLoad()` calls in one governor window reached 101 SOQL queries in `LaneSearchServiceTest.hazmatAcceptedAndExcludedContactFiltersNeverReturnMarketTestQuotes`. So each end-to-end test here builds one shipment. It creates one load before `Test.startTest()` and two inside it, the shape that test and `bidsMergeIntoRowsAndObeyTheSourceFilter` already pass with. Grouping, ordering, the R85 total and the exclusions run on shipments built in memory as `LegRow` lists through `groupHistory`, which inserts nothing and holds no plan fixture. The end-to-end tests prove that the plan rows `SplitTestData.plan` builds reach those `LegRow`s: dates, carriers, lanes, stop names and totals.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -10488,7 +10509,7 @@ public without sharing class SplitLaneService {
    * The split-lane card's history for a lane, in CAD or USD (SplitLaneController refuses other
    * codes, Task 9). The request's place keys, precisions, postal prefixes and mode, equipment and
    * hazmat filters decide the lane (LaneQueries.laneConditions; a radius end uses its place's city
-   * key); its lookback, currency, accepted, source and Market Test filters are ignored (R101). A
+   * key); its lookback, currency, accepted and source filters are ignored (R101). A
    * blank key reads nothing; an unknown place reads only the places; USD without a dated rate reads
    * no plan.
    */
@@ -11012,7 +11033,7 @@ Every anchor below is found by its text, never by a line number.
   - Class access `SplitLaneController` in `Lane_Benchmark_User` and `RFP_Tool_User`.
   - Test classes `SplitEstimatesTest` (6 tests) and `SplitLaneControllerTest` (5 tests); `LaneQueriesTest` +2, `SplitLaneServiceTest` +3, `CarrierSplitSecurityTest` +2. The Apex roster reaches its phase 8 total of 40 classes here (Task 11 writes the roster sites).
 
-Fixture budget (from `PricingTestDataFactory`'s class doc, `LaneSearchServiceTest.hazmatMarketTestAcceptedAndExcludedContactFilters` and Tasks 1 and 8): the load automation is not bulkified, and three loads in one governor window reach 101 SOQL queries. Every test here builds at most one load before `Test.startTest()` and at most two inside it, and uses the graph's vendor ("Test Carrier") as a carrier wherever a second carrier account is not needed. Point selection, rounding and the SOQL shape run on places alone, without a load.
+Fixture budget (from `PricingTestDataFactory`'s class doc, `LaneSearchServiceTest.hazmatAcceptedAndExcludedContactFiltersNeverReturnMarketTestQuotes` and Tasks 1 and 8): the load automation is not bulkified, and three loads in one governor window reach 101 SOQL queries. Every test here builds at most one load before `Test.startTest()` and at most two inside it, and uses the graph's vendor ("Test Carrier") as a carrier wherever a second carrier account is not needed. Point selection, rounding and the SOQL shape run on places alone, without a load.
 
 Distances used by the tests (great circle on a 3,958.7613 mi sphere × 1.2, each distance `setScale(1)`, computed for this plan):
 
@@ -14907,7 +14928,7 @@ The heading reads "No carrier rate on this lane in CAD. These carriers quoted or
 - where it was found: **Quote**, **Split leg** or both;
 - a **Blacklisted** badge when the carrier's account is blacklisted. Blacklisted carriers stay in the list so you recognise them; do not ask them for a price.
 
-The card first looks at the same lane over the last 3 years, with your search's precision on each end (a radius end uses its city) and its mode, equipment and hazmat filters; the lookback, currency, quote status, source and market test filters do not apply. When that finds nobody, it shows the top 10 carriers on the state or province lane over the last year, ranked by loads moved: "No carrier on this exact lane. Top carriers on QC to ON over the last year." That second step is skipped when both ends were searched by province or state. When neither step finds anyone, the card says "No carrier found on this lane or on its state or province lane." Trans-Pro's own intercompany carrier accounts are never listed.
+The card first looks at the same lane over the last 3 years, with your search's precision on each end (a radius end uses its city) and its mode, equipment and hazmat filters; the lookback, currency, quote status and source filters do not apply, and Market Test quotes never count. When that finds nobody, it shows the top 10 carriers on the state or province lane over the last year, ranked by loads moved: "No carrier on this exact lane. Top carriers on QC to ON over the last year." That second step is skipped when both ends were searched by province or state. When neither step finds anyone, the card says "No carrier found on this lane or on its state or province lane." Trans-Pro's own intercompany carrier accounts are never listed.
 
 "The list may be incomplete." means the card stopped early to stay within Salesforce limits. If the card cannot load, click **Retry**.
 
@@ -14935,7 +14956,7 @@ L'en-tête se lit « No carrier rate on this lane in CAD. These carriers quoted 
 - où il a été trouvé : **Quote**, **Split leg** ou les deux;
 - le badge **Blacklisted** quand le compte du transporteur est sur la liste noire. Ces transporteurs restent dans la liste pour que vous les reconnaissiez; ne leur demandez pas de prix.
 
-L'encadré cherche d'abord sur la même voie, sur les 3 dernières années, avec la précision de votre recherche à chaque extrémité (une extrémité par rayon utilise sa ville) et ses filtres de mode, d'équipement et de matières dangereuses; la période, la devise, le statut des cotations, la source et le filtre market test ne s'appliquent pas. Si personne n'est trouvé, il affiche les 10 principaux transporteurs de la voie de province à province (ou d'État à État) sur la dernière année, classés selon les chargements transportés : « No carrier on this exact lane. Top carriers on QC to ON over the last year. » Cette deuxième étape est sautée quand les deux extrémités ont été cherchées par province ou par État. Si aucune étape ne trouve de transporteur, l'encadré indique « No carrier found on this lane or on its state or province lane. » Les comptes de transporteurs intersociétés de Trans-Pro ne sont jamais listés.
+L'encadré cherche d'abord sur la même voie, sur les 3 dernières années, avec la précision de votre recherche à chaque extrémité (une extrémité par rayon utilise sa ville) et ses filtres de mode, d'équipement et de matières dangereuses; la période, la devise, le statut des cotations et la source ne s'appliquent pas, et les cotations Market Test ne comptent jamais. Si personne n'est trouvé, il affiche les 10 principaux transporteurs de la voie de province à province (ou d'État à État) sur la dernière année, classés selon les chargements transportés : « No carrier on this exact lane. Top carriers on QC to ON over the last year. » Cette deuxième étape est sautée quand les deux extrémités ont été cherchées par province ou par État. Si aucune étape ne trouve de transporteur, l'encadré indique « No carrier found on this lane or on its state or province lane. » Les comptes de transporteurs intersociétés de Trans-Pro ne sont jamais listés.
 
 « The list may be incomplete. » signifie que l'encadré s'est arrêté plus tôt pour rester dans les limites de Salesforce. Si l'encadré ne se charge pas, cliquez sur **Retry**.
 
@@ -15334,7 +15355,7 @@ Run: `npm run lint && npm run prettier:verify && npm run help:check && npm run t
 
 Expected: ESLint silent (it covers every `lwc/**/*.js`, including `carrierLeadRules`, `carrierLeads`, `splitLaneOptions`, `laneBenchmark`, `rfpLanePanel`, `rfpLaneTable`, `rfpPricing` and `rfpWorkbook`); Prettier `All matched files use Prettier code style!` (never format or stage `.vscode/settings.json`, any `* 2.*` file, `.ai-handover` or the `node_modules` symlink); `helpCenter is up to date`; Jest `Test Suites: 42 passed, 42 total` (39 at the end of phase 7 plus the `carrierLeadRules`, `carrierLeads` and `splitLaneOptions` suites) and `Tests: 408 passed, 408 total` (363 + 22 from Task 7 + 23 from Task 10; when a fix round changed a suite, carry your own printed number) — record it for the Outcome; `pmd exit 0`.
 
-Run the Apex method count over the 40-class roster; it also compares the 24 classes this phase does not extend with their count at `44081a7` (phase 7 merged into this branch, 219 methods in 26 classes):
+Run the Apex method count over the 40-class roster; it also compares the 24 classes this phase does not extend with their count at `b847aec` (phase 7 merged into this branch, 219 methods in 26 classes):
 
 ```bash
 python3 - <<'PY'
@@ -15358,7 +15379,7 @@ base_total = total = 0
 for name in OLD:
     path = "force-app/main/default/classes/%s.cls" % name
     now = count(open(path, encoding="utf-8").read())
-    base = count(subprocess.run(["git", "show", "44081a7:" + path], capture_output=True, text=True, check=True).stdout)
+    base = count(subprocess.run(["git", "show", "b847aec:" + path], capture_output=True, text=True, check=True).stdout)
     base_total += base
     total += now
     flag = "extended" if name in EXTENDED else ("unchanged" if now == base else "CHANGED")
@@ -15376,7 +15397,7 @@ Expected: 40 class lines, then `classes 40 base 219 total T`. No line says `CHAN
 Run the phase's budget and scope checks:
 
 ```bash
-git diff --stat 44081a7 -- force-app/main/default/classes/RfpLaneController.cls force-app/main/default/classes/RfpSecurityTest.cls force-app/main/default/classes/RfpBulkService.cls force-app/main/default/classes/LaneBenchmarkController.cls force-app/main/default/classes/RfpHistoryService.cls force-app/main/default/classes/LaneSearchRequest.cls force-app/main/default/classes/LaneSearchResult.cls force-app/main/default/lwc/rfpTool/rfpTool.js force-app/main/default/lwc/rfpTool/rfpTool.html; echo "frozen diff exit $?"; wc -l < force-app/main/default/lwc/rfpTool/rfpTool.js
+git diff --stat b847aec -- force-app/main/default/classes/RfpLaneController.cls force-app/main/default/classes/RfpSecurityTest.cls force-app/main/default/classes/RfpBulkService.cls force-app/main/default/classes/LaneBenchmarkController.cls force-app/main/default/classes/RfpHistoryService.cls force-app/main/default/classes/LaneSearchRequest.cls force-app/main/default/classes/LaneSearchResult.cls force-app/main/default/lwc/rfpTool/rfpTool.js force-app/main/default/lwc/rfpTool/rfpTool.html; echo "frozen diff exit $?"; wc -l < force-app/main/default/lwc/rfpTool/rfpTool.js
 ```
 
 Expected: no diff line, then `frozen diff exit 0`, then `554`.
@@ -15490,7 +15511,7 @@ Append to `docs/superpowers/specs/2026-09-14-phase-8-carriers-and-split-lanes-de
 ```markdown
 ## 11. Outcome — phase 8 ((fill: date of the final deploy))
 
-Branch `phase-8/carriers-and-split-lanes` from `main` at (fill: the main SHA the branch started from), with phase 7 merged in at `44081a7`; spec (fill: SHA of the spec commit); plan (fill: SHA and message of the plan commit).
+Branch `phase-8/carriers-and-split-lanes` from `main` at (fill: the main SHA the branch started from), with phase 7 merged in at `44081a7` and again at `b847aec` (its Market Test exclusion); spec (fill: SHA of the spec commit); plan (fill: SHA and message of the plan commit).
 
 Commits: (fill: every commit on the branch after the plan, in order, as `` `sha` `` message (Task N), with a clause for any fix round); and this documentation commit, Document carriers to ask and split-lane options (phase 8) and record the outcome (Task 11: the guide's sections in English and French, the README section, inventory rows and 40-class roster, the CI roster, roadmap row 8, this Outcome).
 
@@ -15579,7 +15600,7 @@ git commit -m "Record the phase 8 browser check"
 8. **Outcome heading** is `## 11. Outcome — phase 8`, following the phase 8 spec's numbered sections (phase 7's spec has an unnumbered `## Outcome — phase 7`). The query-count and browser-check lines say "pending (controller)" without a fill marker, because Step 10 runs after the commit and the Step 8 grep must reach 0.
 9. **README admin guidance vs. deploys.** The spec calls both lists admin-editable; the manifest carries the five records, so every full-manifest deploy overwrites them. The README says both: edit in Setup, and make the same change in the repo by pull request (the rule phase 7 set for `Truck_Routing_Setting.Default`). The weekly USD rates in production are stated as "to be confirmed", as in spec §2.
 10. **Untracked files in this tree.** `node_modules` is an untracked symlink here (the tree's `git status` shows it); Steps 6 and 9 name it with `.vscode/settings.json`, `* 2.*` and `.ai-handover` as never staged.
-11. **Scope checks added to the gate** (Step 6): the six frozen Apex classes plus `LaneSearchResult`, `rfpTool.js` and `rfpTool.html` show no diff against `44081a7`; no Mapbox class, HTTP, `TPRO_KPI__c` or `getChars` in the phase's classes; no amount field in Carriers to ask's classes; the two account Ids appear in `force-app` only in their custom metadata records; the Mapbox token grep stays empty.
+11. **Scope checks added to the gate** (Step 6): the six frozen Apex classes plus `LaneSearchResult`, `rfpTool.js` and `rfpTool.html` show no diff against `b847aec`; no Mapbox class, HTTP, `TPRO_KPI__c` or `getChars` in the phase's classes; no amount field in Carriers to ask's classes; the two account Ids appear in `force-app` only in their custom metadata records; the Mapbox token grep stays empty.
 12. **Dry run on a copy.** Steps 1–5 and the Step 8 append were run on a scratch copy of this branch's README, CI workflow, guide, roadmap, spec and help build (2026-09-15): every Python anchor assertion held, the roster check printed the five `40 True` lines at README 28, 107, 114, 393 and `ci.yml` 59, the README headings came out Trip miles → phase 8 → Help center, roadmap row 8 was added, the Outcome carried 21 fill markers, Prettier changed only the README and roadmap tables and left every guide file and the spec unchanged, and `help:build` reported 15 sections with exactly the eight expected HTML files changed and `index.json` untouched. The Step 2 grep counts were taken from that run.
 
 <!-- prettier-ignore-end -->
