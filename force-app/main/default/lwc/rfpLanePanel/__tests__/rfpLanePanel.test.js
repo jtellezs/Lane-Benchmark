@@ -6,6 +6,7 @@ import getBids from "@salesforce/apex/RfpBidController.getBids";
 import saveBid from "@salesforce/apex/RfpBidController.saveBid";
 import search from "@salesforce/apex/LaneBenchmarkController.search";
 import laneRoute from "@salesforce/apex/RfpLaneController.laneRoute";
+import findCarrierLeads from "@salesforce/apex/CarrierLeadController.findCarrierLeads";
 import { writeUnit } from "c/distanceUnit";
 
 jest.mock(
@@ -25,6 +26,11 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/RfpLaneController.laneRoute",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/CarrierLeadController.findCarrierLeads",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -147,6 +153,12 @@ describe("c-rfp-lane-panel", () => {
     search.mockResolvedValue(HISTORY);
     // No stored route unless a test says so: the earlier tests are about pricing.
     laneRoute.mockResolvedValue(null);
+    findCarrierLeads.mockResolvedValue({
+      leads: [],
+      stage: "None",
+      stateLaneLabel: null,
+      truncated: false
+    });
   });
   afterEach(() => {
     while (document.body.firstChild) {
@@ -817,6 +829,76 @@ describe("c-rfp-lane-panel", () => {
       });
       expect(map(el).loading).toBe(false);
       expect(textOf(el, "lane-miles")).toBe("1,198 mi · from history");
+    });
+  });
+
+  describe("carriers to ask", () => {
+    it("shows Carriers to ask under the history once it loads with no rate in the lane's currency", async () => {
+      // HISTORY has no statistics bucket at all
+      const el = await mount();
+      const leads = field(el, "carrier-leads");
+      expect(leads).not.toBeNull();
+      const sent = search.mock.calls[0][0].requestJson;
+      expect(leads.requestJson).toBe(sent);
+      expect(leads.currencyCode).toBe("CAD");
+      expect(findCarrierLeads).toHaveBeenCalledWith({
+        requestJson: sent,
+        attempt: 0
+      });
+      expect(
+        field(el, "history-scroll").nextElementSibling.contains(leads)
+      ).toBe(true);
+    });
+
+    it("judges the rate in the lane's own currency", async () => {
+      search.mockResolvedValue({
+        ...HISTORY,
+        statsByCurrency: { CAD: { count: 1, countNonZero: 1, median: 1950 } }
+      });
+      const el = await mount();
+      expect(field(el, "carrier-leads")).toBeNull();
+      expect(findCarrierLeads).not.toHaveBeenCalled();
+
+      el.lane = { ...LANE, Id: "a0L00000002", CurrencyIsoCode: "USD" };
+      await flush();
+      await flush();
+      const leads = field(el, "carrier-leads");
+      expect(leads).not.toBeNull();
+      expect(leads.currencyCode).toBe("USD");
+    });
+
+    it("hides Carriers to ask while the history loads, after it fails and without both place keys", async () => {
+      let releaseSearch;
+      search.mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseSearch = resolve;
+        })
+      );
+      const el = await mount();
+      expect(field(el, "carrier-leads")).toBeNull();
+      releaseSearch(HISTORY);
+      await flush();
+      await flush();
+      expect(field(el, "carrier-leads")).not.toBeNull();
+
+      // the previous lane's answer does not count for a lane still loading
+      search.mockReturnValueOnce(new Promise(() => {}));
+      el.lane = { ...LANE, Id: "a0L00000002" };
+      await flush();
+      expect(field(el, "carrier-leads")).toBeNull();
+
+      search.mockRejectedValueOnce({ body: { message: "Search failed" } });
+      el.lane = { ...LANE, Id: "a0L00000003" };
+      await flush();
+      await flush();
+      expect(textOf(el, "panel-error")).toBe("Search failed");
+      expect(field(el, "carrier-leads")).toBeNull();
+
+      el.lane = { ...LANE, Id: "a0L00000004", Destination_Place__r: undefined };
+      await flush();
+      await flush();
+      expect(field(el, "carrier-leads")).toBeNull();
+      expect(findCarrierLeads).toHaveBeenCalledTimes(1);
     });
   });
 });

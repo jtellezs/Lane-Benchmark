@@ -24,6 +24,7 @@ import {
   historyKey,
   historyRequest
 } from "c/rfpPricing";
+import { hasBothKeys, noRate } from "c/carrierLeadRules";
 import { marginFor } from "c/marginMath";
 import { readUnit, formatDistance, perDistance } from "c/distanceUnit";
 
@@ -131,6 +132,10 @@ export default class RfpLanePanel extends LightningElement {
   truncated = false;
   error = null;
   loadingHistory = false;
+  /** The history search's statsByCurrency; Carriers to ask reads "no rate" from it (spec D2). */
+  historyStats = null;
+  /** True only once the history search answered for the current historySeq. */
+  historyLoaded = false;
   bidSeq = 0;
   historySeq = 0;
   /** The TripRouteView c-route-map draws; null until laneRoute answers. */
@@ -244,6 +249,22 @@ export default class RfpLanePanel extends LightningElement {
   get laneHazmat() {
     return !!(this._lane && this._lane.Hazmat__c);
   }
+  /** The request the history search sends, while both ends have a place key; else null. */
+  get historyRequestJson() {
+    return historyKey(this._lane) ? historyRequest(this._lane) : null;
+  }
+  /**
+   * Carriers to ask shows once the history search has answered with no priced rate in the lane's
+   * currency (spec D2, D3), never while a newer search is loading or after one failed.
+   */
+  get showCarrierLeads() {
+    return (
+      this.historyLoaded &&
+      !this.loadingHistory &&
+      noRate(this.historyStats, this.currency) &&
+      hasBothKeys(this.historyRequestJson)
+    );
+  }
 
   syncFromLane() {
     const l = this._lane || {};
@@ -252,6 +273,7 @@ export default class RfpLanePanel extends LightningElement {
     // Nothing from the lane we were showing may survive into the new one.
     this.bids = [];
     this.historyRows = [];
+    this.historyStats = null;
     this.routeView = null;
     this.routeLane = null;
     this.truncated = false;
@@ -306,8 +328,10 @@ export default class RfpLanePanel extends LightningElement {
    */
   async loadHistory() {
     const seq = ++this.historySeq;
+    this.historyLoaded = false;
     if (!historyKey(this._lane)) {
       this.historyRows = [];
+      this.historyStats = null;
       this.truncated = false;
       this.loadingHistory = false;
       return;
@@ -321,10 +345,13 @@ export default class RfpLanePanel extends LightningElement {
         return; // a newer lane already landed; drop this stale response
       }
       this.historyRows = (result && result.rows) || [];
+      this.historyStats = (result && result.statsByCurrency) || null;
       this.truncated = !!(result && result.truncated);
+      this.historyLoaded = true;
     } catch (e) {
       if (seq === this.historySeq) {
         this.historyRows = [];
+        this.historyStats = null;
         this.error = apexMessage(e, "The lane history could not be loaded.");
       }
     } finally {

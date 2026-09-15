@@ -109,6 +109,16 @@ function milesOf(row) {
   };
 }
 
+/** The History cell's text without its no rate tag, and the tag's text (null without one). */
+function histOf(row) {
+  const cell = row.querySelector('[data-id="hist"]');
+  const tag = cell.querySelector('[data-id="no-rate-tag"]');
+  return {
+    text: cell.textContent.replace(tag ? tag.textContent : "", "").trim(),
+    tag: tag ? tag.textContent.trim() : null
+  };
+}
+
 const headerTexts = (el) =>
   [...el.shadowRoot.querySelectorAll("thead th")].map((th) =>
     th.textContent.trim()
@@ -200,9 +210,10 @@ describe("c-rfp-lane-table", () => {
     );
     // One of each reads in the singular, and a Done lane with no median in its
     // own currency still says where the rows came from.
-    expect(rows[1].querySelector('[data-id="hist"]').textContent.trim()).toBe(
-      "1 load + 1 bid · no median"
-    );
+    expect(histOf(rows[1])).toEqual({
+      text: "1 load + 1 bid · no median",
+      tag: "no rate"
+    });
   });
 
   it("keeps the bare count when the run found no bids", async () => {
@@ -256,9 +267,44 @@ describe("c-rfp-lane-table", () => {
         }
       ]
     });
-    expect(
-      rowsOf(el)[0].querySelector('[data-id="hist"]').textContent.trim()
-    ).toBe("3 · no median");
+    expect(histOf(rowsOf(el)[0])).toEqual({
+      text: "3 · no median",
+      tag: "no rate"
+    });
+  });
+
+  it("tags a lane with no rate when its history found no match or no priced median", async () => {
+    const el = await mount({
+      lanes: [
+        {
+          ...RESOLVED_LANE,
+          Id: "a0L00000011",
+          Hist_Status__c: "No match",
+          Hist_Count__c: 0,
+          Hist_Median__c: null
+        },
+        { ...RESOLVED_LANE, Id: "a0L00000012", Hist_Median__c: null },
+        { ...RESOLVED_LANE, Id: "a0L00000013", Hist_Median__c: "" },
+        { ...RESOLVED_LANE, Id: "a0L00000014" },
+        {
+          ...RESOLVED_LANE,
+          Id: "a0L00000015",
+          Hist_Status__c: "Pending",
+          Hist_Median__c: null
+        }
+      ]
+    });
+    const rows = [...rowsOf(el)];
+    expect(rows.map((row) => histOf(row).tag)).toEqual([
+      "no rate",
+      "no rate",
+      "no rate",
+      null,
+      null
+    ]);
+    expect(histOf(rows[0]).text).toBe("No match");
+    expect(histOf(rows[3]).text).toBe("2 · median 2000.00");
+    expect(histOf(rows[4]).text).toBe("Pending");
   });
 
   describe("trip miles", () => {

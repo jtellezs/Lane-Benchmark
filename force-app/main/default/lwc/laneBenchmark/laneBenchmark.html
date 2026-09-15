@@ -103,6 +103,15 @@
           unit={unit}
           onmarginchange={handleMargin}
         ></c-lane-benchmark-stats>
+        <template lwc:if={showCarrierLeads}>
+          <div class="slds-m-bottom_small">
+            <c-carrier-leads
+              data-id="carrier-leads"
+              request-json={lastRequestJson}
+              currency-code={lastCurrency}
+            ></c-carrier-leads>
+          </div>
+        </template>
         <template lwc:if={hasRouteMap}>
           <div class="slds-m-bottom_small">
             <c-route-map

@@ -213,6 +213,15 @@
           ></c-lane-benchmark-results>
         </div>
       </div>
+      <template lwc:if={showCarrierLeads}>
+        <div class="slds-m-top_x-small">
+          <c-carrier-leads
+            data-id="carrier-leads"
+            request-json={historyRequestJson}
+            currency-code={currency}
+          ></c-carrier-leads>
+        </div>
+      </template>
     </div>
   </template>
   <template lwc:else>

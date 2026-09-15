@@ -1,0 +1,4 @@
+/* Room for the small spinner while the card has nothing else to show. */
+.leads-loading {
+  min-height: 3rem;
+}

@@ -101,6 +101,13 @@
             <td>{r.equipment}</td>
             <td data-id="hist" class="slds-cell-wrap" title={r.histTitle}>
               {r.histText}
+              <template lwc:if={r.noRate}>
+                <span
+                  data-id="no-rate-tag"
+                  class="slds-badge slds-m-left_xx-small"
+                  >no rate</span
+                >
+              </template>
             </td>
             <td data-id="miles" class="slds-cell-wrap" title={r.milesTitle}>
               {r.milesText}

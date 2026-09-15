@@ -131,6 +131,11 @@ jest.mock(
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
+jest.mock(
+  "@salesforce/apex/CarrierLeadController.findCarrierLeads",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
 
 jest.mock("@salesforce/resourceUrl/sheetJs", () => "/sheetjs", {
   virtual: true
