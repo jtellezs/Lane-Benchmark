@@ -761,5 +761,62 @@ describe("c-rfp-lane-panel", () => {
       // same place pair: no second route request
       expect(laneRoute).toHaveBeenCalledTimes(1);
     });
+
+    it("asks for no route while the container is mid-run, and asks for the lane on screen once it ends", async () => {
+      laneRoute.mockResolvedValue(ROUTE_VIEW);
+      // rfpTool.html sets lane before busy, so a panel rendered mid-run gets its
+      // lane while busy still reads false.
+      const el = await mount({ busy: true });
+      expect(laneRoute).not.toHaveBeenCalled();
+      expect(map(el).loading).toBe(true);
+      // laneRoute writes the lane's miles: during a history run it could land
+      // on top of the History miles the lane's chunk just wrote (R75).
+      el.lane = { ...LANE, Id: "a0L00000002" };
+      await flush();
+      await flush();
+      expect(laneRoute).not.toHaveBeenCalled();
+      el.busy = false;
+      await flush();
+      await flush();
+      expect(laneRoute.mock.calls.map((c) => c[0])).toEqual([
+        { laneId: "a0L00000002", refresh: false }
+      ]);
+      expect(map(el).loading).toBe(false);
+      expect(textOf(el, "lane-miles")).toBe("1,234 mi · truck route · 21.5 h");
+    });
+
+    it("holds a Refresh route clicked mid-run until the run ends", async () => {
+      laneRoute.mockResolvedValue(ROUTE_VIEW);
+      const el = await mount();
+      await flush();
+      expect(laneRoute).toHaveBeenCalledTimes(1);
+      el.busy = true;
+      await flush();
+      map(el).dispatchEvent(new CustomEvent("refreshroute"));
+      await flush();
+      await flush();
+      expect(laneRoute).toHaveBeenCalledTimes(1);
+      expect(map(el).loading).toBe(true);
+      // The run wrote History miles for this lane and the container merged them
+      // (same places) in the render that ends the run; laneRoute then reads
+      // History and writes nothing, so its view comes back without a lane.
+      laneRoute.mockResolvedValue({ ...ROUTE_VIEW, lane: null });
+      el.lane = {
+        ...LANE,
+        Miles__c: 1198,
+        Miles_Source__c: "History",
+        Route_Hours__c: null
+      };
+      el.busy = false;
+      await flush();
+      await flush();
+      expect(laneRoute).toHaveBeenCalledTimes(2);
+      expect(laneRoute.mock.calls[1][0]).toEqual({
+        laneId: "a0L00000001",
+        refresh: true
+      });
+      expect(map(el).loading).toBe(false);
+      expect(textOf(el, "lane-miles")).toBe("1,198 mi · from history");
+    });
   });
 });

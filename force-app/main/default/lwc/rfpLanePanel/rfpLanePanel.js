@@ -59,10 +59,23 @@ const ROUTE_UNAVAILABLE = "The truck route is not available right now.";
 
 export default class RfpLanePanel extends LightningElement {
   @api project;
-  /** A chunked run is going in the container: the panel must not add a save to it. */
-  @api busy = false;
 
+  _busy = false;
   _lane = null;
+
+  /**
+   * A chunked run is going in the container: the panel must not add a save to it.
+   * laneRoute is one (it writes the lane's miles), so a route asked for during
+   * the run waits for it to end; see loadRoute.
+   */
+  @api
+  get busy() {
+    return this._busy;
+  }
+  set busy(value) {
+    this._busy = !!value;
+    this.runDeferredRoute();
+  }
 
   @api
   get lane() {
@@ -126,6 +139,10 @@ export default class RfpLanePanel extends LightningElement {
   routeLane = null;
   loadingRoute = false;
   routeSeq = 0;
+  /** The refresh flag of a route loadRoute held back (see there), or null. */
+  routeDeferred = null;
+  /** Between connectedCallback and disconnectedCallback. */
+  connected = false;
   /** "mi" or "km"; every distance on the page follows Distance_Unit__c. */
   unit = readUnit();
   @wire(MessageContext) messageContext;
@@ -142,6 +159,8 @@ export default class RfpLanePanel extends LightningElement {
         { scope: APPLICATION_SCOPE }
       );
     }
+    this.connected = true;
+    this.runDeferredRoute();
   }
 
   /** The workbench drops the panel when it leaves the lanes view. */
@@ -150,6 +169,7 @@ export default class RfpLanePanel extends LightningElement {
       unsubscribe(this.unitSubscription);
     }
     this.unitSubscription = null;
+    this.connected = false;
   }
 
   handleUnit(message) {
@@ -317,16 +337,29 @@ export default class RfpLanePanel extends LightningElement {
    * unless they come from History and returns the lane re-read. A failure is
    * shown in the route map, not in the panel's error line, so it never hides
    * a bid or history error.
+   *
+   * laneRoute checks for History miles on the lane it read before its Mapbox
+   * calls, which can take seconds. During a history run the lane's chunk could
+   * commit History miles in between and the route would overwrite them (R75),
+   * so while the container is busy the request waits, with the map loading,
+   * and runDeferredRoute sends it when the run ends. It also waits until the
+   * panel is connected: rfpTool.html sets lane before busy, so a panel rendered
+   * mid-run gets its lane while busy still reads false.
    */
   async loadRoute(refresh) {
     const seq = ++this.routeSeq;
     const laneId = this.laneId;
+    this.routeDeferred = null;
     if (!laneId || !placePair(this._lane)) {
       this.routeView = null;
       this.loadingRoute = false;
       return;
     }
     this.loadingRoute = true;
+    if (this._busy || !this.connected) {
+      this.routeDeferred = !!refresh;
+      return;
+    }
     try {
       const view = await laneRoute({ laneId, refresh: !!refresh });
       if (seq !== this.routeSeq) {
@@ -351,6 +384,14 @@ export default class RfpLanePanel extends LightningElement {
         this.loadingRoute = false;
       }
     }
+  }
+
+  /** Sends the route loadRoute held back, once the panel is connected and the run is over. */
+  runDeferredRoute() {
+    if (this.routeDeferred === null || this._busy || !this.connected) {
+      return;
+    }
+    this.loadRoute(this.routeDeferred);
   }
 
   get isBidSource() {
