@@ -150,6 +150,11 @@
         <members>ExchangeRatesTest</members>
         <members>CarrierWarning</members>
         <members>CarrierWarningTest</members>
+        <members>CarrierLeadResult</members>
+        <members>LaneQueries</members>
+        <members>LaneQueriesTest</members>
+        <members>CarrierLeadService</members>
+        <members>CarrierLeadServiceTest</members>
         <name>ApexClass</name>
     </types>
     <types>
