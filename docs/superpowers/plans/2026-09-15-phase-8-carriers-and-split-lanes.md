@@ -118,6 +118,8 @@ Where a task's code or tests differ from the contract the tasks were drafted aga
 
 15. **Market Test exclusion (phase 7 change, owner 2026-09-15).** Phase 7 dropped Lane Benchmark's "Market test only" filter and removed `LaneSearchRequest.marketTestOnly`; every lane search now adds `(NOT Customer_Name__c LIKE :marketTest)` between hazmat and the accepted filter. Task 2's characterization test therefore expects that condition and the `marketTest` bind on every case (its drafting note about replaying the old builder predates this), and `LaneSearchFilters` measures 17 before the extraction and 7 after. `LaneQueries.quoteCountSoql` (Task 5) adds the same condition, because the owner asked for Market Test quotes to be left out of Carriers to ask as well (spec R110); split history and estimates read loads, and Market Test loads carry no lane keys, so they need nothing. Task 11's scope checks compare against `b847aec` (phase 7 merged with this change) instead of `44081a7`.
 
+16. **Loads quoted never below quote loads moved (Task 5 review, controller ruling 2026-09-15).** The loads-quoted and loads-moved counts are each cut at 50 groups, so on a busy lane a carrier found only by the moved count showed 0 loads quoted. Task 6's whole-file `CarrierLeadService` sets `loadsQuoted` to at least the quote loads moved in `Tally.addGroups` (no branch added); the fix lives in Task 6 because Task 6 replaces the file Task 5 committed.
+
 ---
 
 <!-- prettier-ignore-start -->
@@ -7714,11 +7716,13 @@ public without sharing class CarrierLeadService {
           (Boolean) g.get('bl')
         );
         Integer loads = (Integer) g.get('loads');
+        // Every moved load is also a quoted load. The two counts are cut at 50 groups separately,
+        // so a carrier the moved count found but the quoted count cut still shows at least as many
+        // loads quoted as quote loads moved (Task 5 review ruling).
         if (moved) {
           entry.loadsMoved = loads;
-        } else {
-          entry.loadsQuoted = loads;
         }
+        entry.loadsQuoted = Math.max(entry.loadsQuoted, loads);
         quoteCarriers.add(entry.carrierId);
         Datetime seen = (Datetime) g.get('lastSeen');
         see(entry, seen?.date());
