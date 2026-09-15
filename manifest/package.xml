@@ -125,6 +125,8 @@
         <members>RfpBulkServiceTest</members>
         <members>RfpBulkController</members>
         <members>RfpBulkControllerTest</members>
+        <members>TripMilesService</members>
+        <members>TripMilesServiceTest</members>
         <name>ApexClass</name>
     </types>
     <types>

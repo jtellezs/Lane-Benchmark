@@ -168,7 +168,7 @@ public without sharing class LaneSearchService {
     LaneSearchResult.Row r = new LaneSearchResult.Row();
     r.quoteId = q.Id;
     r.quoteName = q.Name;
-    r.loadId = q.rtms__Load__c;
+    r.load.loadId = q.rtms__Load__c;
     r.origin = q.Origin__c;
     r.destination = q.Destination__c;
     r.mode = q.Mode__c;
