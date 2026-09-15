@@ -50,7 +50,6 @@ public class LaneSearchRequest {
   public List<String> equipmentCategories = new List<String>();
   public List<String> equipmentTypes = new List<String>();
   public Boolean hazmatOnly = false;
-  public Boolean marketTestOnly = false;
   // Brief named this field "accepted", but Apex is case-insensitive and that collides with the
   // enum type "Accepted" declared above (compiler: "Illegal forward reference: accepted");
   // renamed the field to acceptedFilter, matching the originPrecision/radiusUnit naming pattern.
@@ -123,7 +122,6 @@ public class LaneSearchRequest {
     rowLimit = rowLimit ?? 2000;
     includeStopGeolocation = includeStopGeolocation ?? true;
     hazmatOnly = hazmatOnly ?? false;
-    marketTestOnly = marketTestOnly ?? false;
     modes = modes ?? new List<String>();
     equipmentCategories = equipmentCategories ?? new List<String>();
     equipmentTypes = equipmentTypes ?? new List<String>();

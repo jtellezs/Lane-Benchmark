@@ -589,7 +589,7 @@ private class LaneSearchServiceTest {
   }
 
   @IsTest
-  static void hazmatMarketTestAcceptedAndExcludedContactFilters() {
+  static void hazmatAcceptedAndExcludedContactFiltersNeverReturnMarketTestQuotes() {
     Fixture f = fixture();
     Account marketTest = f.g.customer.clone(false, true, false, false);
     marketTest.Name = 'Market Test';
@@ -630,14 +630,12 @@ private class LaneSearchServiceTest {
     };
     LaneSearchRequest h = req(null, null);
     h.hazmatOnly = true;
-    LaneSearchRequest m = req(null, null);
-    m.marketTestOnly = true;
     LaneSearchRequest a = req(null, null);
     a.acceptedFilter = LaneSearchRequest.Accepted.ACCEPTED;
     LaneSearchRequest d = req(null, null);
     d.acceptedFilter = LaneSearchRequest.Accepted.DECLINED;
+    LaneSearchResult all = LaneSearchService.search(req(null, null));
     LaneSearchResult rh = LaneSearchService.search(h);
-    LaneSearchResult rm = LaneSearchService.search(m);
     LaneSearchResult ra = LaneSearchService.search(a);
     LaneSearchResult rd = LaneSearchService.search(d);
     LaneSearchExclusions.excludedContactIdsOverride = new Set<String>{
@@ -645,13 +643,26 @@ private class LaneSearchServiceTest {
     };
     LaneSearchResult none = LaneSearchService.search(req(null, null));
     Test.stopTest();
+    List<Integer> totals = new List<Integer>();
+    for (LaneSearchResult.Row r : all.rows) {
+      totals.add(r.carrierTotal.intValue());
+    }
+    totals.sort();
+    System.assertEquals(
+      new List<Integer>{ 1000, 2000 },
+      totals,
+      'a quote whose customer is a Market Test account never shows in a lane search'
+    );
     System.assertEquals(2000, rh.rows[0].carrierTotal);
     System.assertEquals(1, rh.rows.size());
-    System.assertEquals(3000, rm.rows[0].carrierTotal);
-    System.assertEquals(1, rm.rows.size());
     System.assertEquals(1, ra.rows.size());
     System.assertEquals(1000, ra.rows[0].carrierTotal);
-    System.assertEquals(2, rd.rows.size());
+    System.assertEquals(
+      1,
+      rd.rows.size(),
+      'the declined Market Test quote is left out as well'
+    );
+    System.assertEquals(2000, rd.rows[0].carrierTotal);
     System.assertEquals(
       0,
       none.rows.size(),
