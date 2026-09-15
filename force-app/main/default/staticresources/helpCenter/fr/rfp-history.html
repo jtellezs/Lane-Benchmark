@@ -14,3 +14,11 @@
 <li><strong>Pending</strong> : pas encore lancé.</li>
 </ul>
 <p>Les statistiques n&#39;utilisent que les cotations dans la devise de la voie.</p>
+<h3>Milles du trajet et itinéraires de camion</h3>
+<p><strong>Load history</strong> remplit aussi la colonne <strong>Miles</strong> de chaque voie traitée, sans interroger Mapbox. Il prend la première source disponible :</p>
+<ol>
+<li><strong>History</strong> : la médiane des milles facturés (le champ Distance (Miles) de Revenova, rempli par PC*Miler) sur les chargements trouvés par la recherche, à la précision utilisée par l&#39;historique. Les soumissions n&#39;ont pas de milles et ne comptent pas.</li>
+<li><strong>Truck route</strong> ou <strong>Regular route</strong> : les milles et les heures de route d&#39;un itinéraire déjà enregistré pour les deux lieux de la voie, lors de l&#39;ouverture d&#39;une voie ou d&#39;une recherche Lane Benchmark.</li>
+<li><strong>Approx</strong> : la distance à vol d&#39;oiseau entre les deux lieux × 1,2, le rapport mesuré sur un an de chargements facturés.</li>
+</ol>
+<p>Une voie reçoit <strong>No coordinates</strong> quand une extrémité n&#39;est pas associée à un lieu ou n&#39;a pas de position sur la carte, et <strong>No route</strong> quand Mapbox n&#39;a trouvé aucune route entre les deux lieux. Les milles facturés ont toujours priorité : ouvrir une voie ne remplace jamais des milles History par ceux d&#39;un itinéraire. Le sens compte : Montréal → Toronto et Toronto → Montréal sont deux itinéraires distincts.</p>

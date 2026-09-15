@@ -14,3 +14,11 @@
 <li><strong>Pending</strong>: not run yet.</li>
 </ul>
 <p>Statistics use only quotes in the lane&#39;s own currency.</p>
+<h3>Trip miles and truck routes</h3>
+<p>Load history also fills the <strong>Miles</strong> of every lane it runs, without asking Mapbox. It takes the first of these that exists:</p>
+<ol>
+<li><strong>History</strong>: the median of the billed miles (Revenova&#39;s Distance (Miles), filled by PC*Miler) on the loads the search matched, at the precision the history used. Bids have no miles and do not count.</li>
+<li><strong>Truck route</strong> or <strong>Regular route</strong>: the miles and drive hours of a route already stored for the lane&#39;s two places, from an earlier lane opening or Lane Benchmark search.</li>
+<li><strong>Approx</strong>: the straight-line distance between the two places × 1.2, the ratio measured on a year of billed loads.</li>
+</ol>
+<p>A lane gets <strong>No coordinates</strong> when an end is not resolved to a place or has no position on the map, and <strong>No route</strong> when Mapbox found no road between the two places. Billed miles always win: opening a lane never replaces History miles with route miles. Direction matters: Montréal → Toronto and Toronto → Montréal are separate routes.</p>

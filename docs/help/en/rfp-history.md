@@ -26,3 +26,13 @@ When on (the default), carrier bids recorded on **other** RFP projects count alo
 - **Pending**: not run yet.
 
 Statistics use only quotes in the lane's own currency.
+
+## Trip miles and truck routes
+
+Load history also fills the **Miles** of every lane it runs, without asking Mapbox. It takes the first of these that exists:
+
+1. **History**: the median of the billed miles (Revenova's Distance (Miles), filled by PC\*Miler) on the loads the search matched, at the precision the history used. Bids have no miles and do not count.
+2. **Truck route** or **Regular route**: the miles and drive hours of a route already stored for the lane's two places, from an earlier lane opening or Lane Benchmark search.
+3. **Approx**: the straight-line distance between the two places × 1.2, the ratio measured on a year of billed loads.
+
+A lane gets **No coordinates** when an end is not resolved to a place or has no position on the map, and **No route** when Mapbox found no road between the two places. Billed miles always win: opening a lane never replaces History miles with route miles. Direction matters: Montréal → Toronto and Toronto → Montréal are separate routes.
