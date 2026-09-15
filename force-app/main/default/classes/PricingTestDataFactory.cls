@@ -232,7 +232,21 @@ public class PricingTestDataFactory {
     Account destination,
     Boolean hazmat
   ) {
-    return createLoad(g, origin, destination, hazmat, g.customer, g.mode);
+    return createLoad(g, origin, destination, hazmat, g.customer, g.mode, null);
+  }
+
+  /**
+   * Phase 7: sets Revenova's billed miles (rtms__Distance_Miles__c) at insert, so the load's quote
+   * rows carry load.miles in a lane search without a second Load DML (the extra DML would trip the
+   * governor budget described in the class doc).
+   */
+  public static rtms__Load__c createLoad(
+    Graph g,
+    Account origin,
+    Account destination,
+    Decimal miles
+  ) {
+    return createLoad(g, origin, destination, false, g.customer, g.mode, miles);
   }
 
   /** Sets a customer other than the graph's at insert, for the market-test filter scenario. */
@@ -242,7 +256,7 @@ public class PricingTestDataFactory {
     Account destination,
     Account customer
   ) {
-    return createLoad(g, origin, destination, false, customer, g.mode);
+    return createLoad(g, origin, destination, false, customer, g.mode, null);
   }
 
   /** Points the load at a different rtms__Mode__c record, the only way a mode change sticks. */
@@ -252,7 +266,7 @@ public class PricingTestDataFactory {
     Account destination,
     rtms__Mode__c mode
   ) {
-    return createLoad(g, origin, destination, false, g.customer, mode);
+    return createLoad(g, origin, destination, false, g.customer, mode, null);
   }
 
   /**
@@ -285,9 +299,11 @@ public class PricingTestDataFactory {
     Account destination,
     Boolean hazmat,
     Account customer,
-    rtms__Mode__c mode
+    rtms__Mode__c mode,
+    Decimal miles
   ) {
     rtms__Load__c load = newLoad(g, customer, mode, hazmat);
+    load.rtms__Distance_Miles__c = miles;
     applyLaneKeys(load, origin, destination);
     String expectedCityLane = load.rtms__City_Lane__c;
     String expectedStateLane = load.rtms__State_Lane__c;
