@@ -21,18 +21,24 @@ public with sharing class TripMilesService {
   }
 
   /**
-   * Median of row.load.miles over the rows above zero, one decimal: odd count the middle value,
-   * even count the mean of the two middle values (LaneSearchService's rule). A row without a load
-   * group (JSON.deserialize skips field initializers) is skipped. Null when no row has miles.
+   * Median of the billed miles of the loads behind the rows, one decimal. Each load counts once
+   * (spec D1: the loads the search matched), however many quote rows it has, so a load quoted by
+   * several carriers weighs no more than a load quoted once. A row counts when row.load has a
+   * loadId and miles above zero: bid rows (no load Id), a row without a load group
+   * (JSON.deserialize skips field initializers) and blank, zero or negative miles are skipped. Odd
+   * count the middle value, even count the mean of the two middle values (LaneSearchService's
+   * rule). Null when no load has miles.
    */
   public static Decimal medianMiles(List<LaneSearchResult.Row> rows) {
     if (rows == null) {
       return null;
     }
+    Set<Id> seen = new Set<Id>();
     List<Decimal> miles = new List<Decimal>();
     for (LaneSearchResult.Row row : rows) {
+      Id loadId = row?.load?.loadId;
       Decimal m = row?.load?.miles;
-      if (m != null && m > 0) {
+      if (loadId != null && m != null && m > 0 && seen.add(loadId)) {
         miles.add(m);
       }
     }

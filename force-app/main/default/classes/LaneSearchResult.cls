@@ -126,7 +126,8 @@ public class LaneSearchResult {
   public Integer elapsedMs = 0;
   @AuraEnabled
   public Integer dedupedCount = 0;
-  // Phase 7: TripMilesService.medianMiles over rows (load miles above zero), scale 1; null when none.
+  // Phase 7: TripMilesService.medianMiles over rows, one value per load with miles above zero,
+  // scale 1; null when none.
   @AuraEnabled
   public Decimal medianMiles;
 }

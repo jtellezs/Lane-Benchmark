@@ -70,10 +70,28 @@ private class TripMilesServiceTest {
     return p;
   }
 
+  private static Integer fakeLoads = 0;
+
+  /** A quote row on a load of its own (a fresh fake rtms__Load__c Id). */
   private static LaneSearchResult.Row row(Decimal miles) {
+    return row(fakeLoadId(), miles);
+  }
+
+  /** A quote row on the given load: pass the same Id twice for a load with two quotes. */
+  private static LaneSearchResult.Row row(Id loadId, Decimal miles) {
     LaneSearchResult.Row r = new LaneSearchResult.Row();
+    r.load.loadId = loadId;
     r.load.miles = miles;
     return r;
+  }
+
+  /** A well-formed, never inserted rtms__Load__c Id: medianMiles only compares load Ids. */
+  private static Id fakeLoadId() {
+    fakeLoads++;
+    return Id.valueOf(
+      rtms__Load__c.SObjectType.getDescribe().getKeyPrefix() +
+      String.valueOf(fakeLoads).leftPad(12, '0')
+    );
   }
 
   /** A route row for Montréal -> Toronto with the fixture's profile, not inserted. */
@@ -147,6 +165,49 @@ private class TripMilesServiceTest {
       TripMilesService.medianMiles(new List<LaneSearchResult.Row>())
     );
     System.assertEquals(null, TripMilesService.medianMiles(null));
+  }
+
+  // Spec D1: the median is over the loads the search matched, so a load quoted by several carriers
+  // counts once. Over rows, the first list would give 250 and the second 375.
+  @IsTest
+  static void medianMilesCountsEachLoadOnce() {
+    Id quotedThrice = fakeLoadId();
+    LaneSearchResult.Row withoutLoadGroup = new LaneSearchResult.Row();
+    withoutLoadGroup.load = null;
+    System.assertEquals(
+      375.0,
+      TripMilesService.medianMiles(
+        new List<LaneSearchResult.Row>{
+          row(quotedThrice, 250.0),
+          row(quotedThrice, 250.0),
+          row(quotedThrice, 250.0),
+          row(500.0),
+          row(null, 900.0),
+          withoutLoadGroup
+        }
+      ),
+      'two loads, 250 and 500: the load on three rows counts once; no load Id or load group, no count'
+    );
+    Id quotedTwice = fakeLoadId();
+    System.assertEquals(
+      500.0,
+      TripMilesService.medianMiles(
+        new List<LaneSearchResult.Row>{
+          row(quotedTwice, 250.0),
+          row(500.0),
+          row(quotedTwice, 250.0),
+          row(600.0)
+        }
+      ),
+      'odd count of loads: the middle of 250, 500 and 600, not the mean of the two middle rows'
+    );
+    System.assertEquals(
+      null,
+      TripMilesService.medianMiles(
+        new List<LaneSearchResult.Row>{ row(null, 300.0), row(null, 400.0) }
+      ),
+      'rows without a load Id give no median'
+    );
   }
 
   @IsTest

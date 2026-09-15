@@ -64,7 +64,8 @@ public without sharing class LaneSearchService {
    * rows never collapse - see BidSearchService.fingerprint) into result.rows/dedupedCount, and
    * rolls the surviving totals up into result.statsByCurrency. Phase 7: each currency's
    * ratePerMileMedian comes from the same surviving rows (Bucket.add), and result.medianMiles is
-   * TripMilesService.medianMiles over result.rows, so a deduped quote never counts twice.
+   * TripMilesService.medianMiles over result.rows, which counts each load once however many
+   * surviving quotes it has.
    */
   private static void collectRows(
     List<LaneSearchResult.Row> rows,

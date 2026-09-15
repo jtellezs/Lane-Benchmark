@@ -874,7 +874,7 @@ private class LaneSearchServiceTest {
     System.assertEquals(
       375,
       r.medianMiles,
-      'even count of rows with miles: the mean of 250 and 500; the bid is left out'
+      'two loads with miles: the mean of 250 and 500; the bid is left out'
     );
     LaneSearchResult.Stats cad = r.statsByCurrency.get('CAD');
     System.assertEquals(
@@ -891,8 +891,8 @@ private class LaneSearchServiceTest {
   }
 
   /**
-   * Phase 7: medianMiles takes the middle row (odd count), a zero total keeps its row in the miles
-   * median but not in the rate per mile, and each currency gets its own rate per mile.
+   * Phase 7: medianMiles counts each load once however many quotes it has (spec D1), a zero total
+   * stays out of the rate per mile, and each currency gets its own rate per mile.
    */
   @IsTest
   static void medianMilesAndRatePerMileSkipZeroTotalsAndSplitByCurrency() {
@@ -934,9 +934,9 @@ private class LaneSearchServiceTest {
 
     System.assertEquals(5, r.rows.size(), 'no two quotes share a fingerprint');
     System.assertEquals(
-      250,
+      375.0,
       r.medianMiles,
-      'odd count: the middle of 250, 250, 250, 500, 500 (the zero total still has miles)'
+      'five quotes on two loads: each load counts once, so the mean of 250 and 500, not the middle row'
     );
     LaneSearchResult.Stats cad = r.statsByCurrency.get('CAD');
     System.assertEquals(3, cad.count);
