@@ -10,3 +10,12 @@
 <p>Une valeur qui ne peut pas être enregistrée (zéro, négatif, marge au-dessus de 100) affiche un message rouge sous la cellule, qui reste ouverte jusqu&#39;à ce que vous corrigiez ou appuyiez sur Échap.</p>
 <h3>Voies identiques</h3>
 <p>Quand vous tarifez une voie qui a des jumelles dans le même projet (mêmes extrémités, mode et équipement), une barre propose de copier le coût et le prix de vente. <strong>Apply</strong> copie; <strong>Not now</strong> refuse.</p>
+<h3>La colonne Miles</h3>
+<p>La colonne <strong>Miles</strong>, après <strong>History</strong>, n&#39;est pas modifiable : elle affiche la longueur du trajet de la voie en milles, ou en kilomètres quand <strong>km</strong> est choisi dans la barre d&#39;outils. Une petite étiquette indique la provenance de la valeur :</p>
+<ul>
+<li>Sans étiquette : <strong>History</strong>, la médiane des milles facturés sur les chargements trouvés.</li>
+<li><code>truck</code> : un itinéraire de camion Mapbox.</li>
+<li><code>route</code> : un itinéraire routier ordinaire, utilisé quand les limites du camion n&#39;ont pas pu être respectées.</li>
+<li><code>approx.</code> : la distance à vol d&#39;oiseau entre les deux lieux × 1,2.</li>
+</ul>
+<p>« — » signifie que la voie n&#39;a pas de distance : survolez-le pour voir la raison (historique pas encore chargé, aucune route trouvée ou pas de coordonnées). <strong>Load history</strong> remplit la colonne. Ouvrir une voie enregistre son itinéraire et remplace une valeur <code>approx.</code> par les milles de l&#39;itinéraire quand Mapbox en trouve un; la colonne affiche la nouvelle valeur après le prochain enregistrement de prix, chargement d&#39;historique ou rechargement de la page.</p>

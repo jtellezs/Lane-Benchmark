@@ -62,14 +62,17 @@ public without sharing class LaneSearchService {
    * and total, on rtms__Carrier_Total__c rather than the CAD-converted total so USD quotes
    * dedupe too; bid
    * rows never collapse - see BidSearchService.fingerprint) into result.rows/dedupedCount, and
-   * rolls the surviving totals up into result.statsByCurrency.
+   * rolls the surviving totals up into result.statsByCurrency. Phase 7: each currency's
+   * ratePerMileMedian comes from the same surviving rows (Bucket.add), and result.medianMiles is
+   * TripMilesService.medianMiles over result.rows, which counts each load once however many
+   * surviving quotes it has.
    */
   private static void collectRows(
     List<LaneSearchResult.Row> rows,
     LaneSearchResult result
   ) {
     Set<String> seen = new Set<String>();
-    Map<String, List<Decimal>> totalsByCurrency = new Map<String, List<Decimal>>();
+    Map<String, Bucket> byCurrency = new Map<String, Bucket>();
     for (LaneSearchResult.Row r : rows) {
       String fingerprint = BidSearchService.fingerprint(r);
       if (seen.contains(fingerprint)) {
@@ -79,15 +82,59 @@ public without sharing class LaneSearchService {
       seen.add(fingerprint);
       result.rows.add(r);
       String cur = r.currencyIsoCode == null ? 'CAD' : r.currencyIsoCode;
-      if (!totalsByCurrency.containsKey(cur)) {
-        totalsByCurrency.put(cur, new List<Decimal>());
+      if (!byCurrency.containsKey(cur)) {
+        byCurrency.put(cur, new Bucket());
       }
-      totalsByCurrency.get(cur)
-        .add(r.carrierTotal == null ? 0 : r.carrierTotal);
+      byCurrency.get(cur).add(r);
     }
-    for (String cur : totalsByCurrency.keySet()) {
-      result.statsByCurrency.put(cur, stats(totalsByCurrency.get(cur)));
+    for (String cur : byCurrency.keySet()) {
+      Bucket b = byCurrency.get(cur);
+      LaneSearchResult.Stats s = stats(b.totals);
+      s.ratePerMileMedian = ratePerMileMedian(b.rates);
+      result.statsByCurrency.put(cur, s);
     }
+    result.medianMiles = TripMilesService.medianMiles(result.rows);
+  }
+
+  /**
+   * Phase 7: one currency's surviving rows. totals feeds stats() exactly as before (a blank total
+   * counts as zero); rates holds carrierTotal / load.miles for the rows where both are above zero,
+   * so bids (no miles) and zero totals never pull the rate per mile down. An inner class, so its
+   * branches stay out of LaneSearchService's PMD class complexity total.
+   */
+  private class Bucket {
+    List<Decimal> totals = new List<Decimal>();
+    List<Decimal> rates = new List<Decimal>();
+
+    void add(LaneSearchResult.Row r) {
+      totals.add(r.carrierTotal == null ? 0 : r.carrierTotal);
+      Decimal miles = r.load?.miles;
+      if (
+        r.carrierTotal != null &&
+        r.carrierTotal > 0 &&
+        miles != null &&
+        miles > 0
+      ) {
+        rates.add(r.carrierTotal / miles);
+      }
+    }
+  }
+
+  /**
+   * Phase 7: the median rate per mile at scale 2 whatever the count (odd: the middle rate; even:
+   * the mean of the two middle rates); null when no row had both a total and miles above zero.
+   */
+  @TestVisible
+  private static Decimal ratePerMileMedian(List<Decimal> rates) {
+    if (rates.isEmpty()) {
+      return null;
+    }
+    rates.sort();
+    Integer n = rates.size();
+    Decimal middle = Math.mod(n, 2) == 1
+      ? rates[n / 2]
+      : (rates[n / 2 - 1] + rates[n / 2]) / 2;
+    return middle.setScale(2);
   }
 
   /**
@@ -168,7 +215,8 @@ public without sharing class LaneSearchService {
     LaneSearchResult.Row r = new LaneSearchResult.Row();
     r.quoteId = q.Id;
     r.quoteName = q.Name;
-    r.loadId = q.rtms__Load__c;
+    r.load.loadId = q.rtms__Load__c;
+    r.load.miles = q.rtms__Load__r?.rtms__Distance_Miles__c;
     r.origin = q.Origin__c;
     r.destination = q.Destination__c;
     r.mode = q.Mode__c;

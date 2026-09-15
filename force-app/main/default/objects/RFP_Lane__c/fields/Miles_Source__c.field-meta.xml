@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Miles_Source__c</fullName>
+    <label>Miles source</label>
+    <type>Picklist</type>
+    <required>false</required>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>History</fullName><default>false</default><label
+        >History</label></value>
+            <value><fullName>Truck route</fullName><default
+        >false</default><label>Truck route</label></value>
+            <value><fullName>Regular route</fullName><default
+        >false</default><label>Regular route</label></value>
+            <value><fullName>Approx</fullName><default>false</default><label
+        >Approx</label></value>
+            <value><fullName>No route</fullName><default>false</default><label
+        >No route</label></value>
+            <value><fullName>No coordinates</fullName><default
+        >false</default><label>No coordinates</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

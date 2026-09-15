@@ -10,3 +10,12 @@
 <p>A value that cannot be saved (zero, negative, a margin over 100) shows a red message under the cell and the cell stays open until you fix it or press Escape.</p>
 <h3>Identical lanes</h3>
 <p>When you price a lane that has twins in the same project (same ends, mode and equipment), a bar offers to copy the cost and sell to them. <strong>Apply</strong> copies; <strong>Not now</strong> dismisses.</p>
+<h3>The Miles column</h3>
+<p><strong>Miles</strong>, after <strong>History</strong>, is read-only: it shows the lane&#39;s trip length in miles, or in kilometres when <strong>km</strong> is selected in the toolbar. A small tag says where the value comes from:</p>
+<ul>
+<li>No tag: <strong>History</strong>, the median of the billed miles on the matched loads.</li>
+<li><code>truck</code>: a Mapbox truck route.</li>
+<li><code>route</code>: a regular driving route, used when the truck limits could not be met.</li>
+<li><code>approx.</code>: the straight-line distance between the two places × 1.2.</li>
+</ul>
+<p>&quot;—&quot; means the lane has no distance: hover it for the reason (history not loaded yet, no route found, or no coordinates). Load history fills the column. Opening a lane stores its route and replaces an <code>approx.</code> value with the route&#39;s miles when Mapbox finds one; the column shows the new value after your next price save, history run or page reload.</p>

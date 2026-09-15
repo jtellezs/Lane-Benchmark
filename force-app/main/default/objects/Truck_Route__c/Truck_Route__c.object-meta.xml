@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <label>Truck Route</label>
+    <pluralLabel>Truck Routes</pluralLabel>
+    <nameField>
+        <label>Route number</label>
+        <type>AutoNumber</type>
+        <displayFormat>TR-{000000}</displayFormat>
+    </nameField>
+    <deploymentStatus>Deployed</deploymentStatus>
+    <sharingModel>Read</sharingModel>
+    <enableActivities>false</enableActivities>
+    <enableHistory>false</enableHistory>
+    <enableReports>false</enableReports>
+    <enableSearch>false</enableSearch>
+    <description
+  >One Mapbox route per ordered place pair and truck profile (Route_Key__c), stored when a pricer opens a lane or runs a Lane Benchmark search and reused until refreshed. Written only by TripMilesService.</description>
+</CustomObject>

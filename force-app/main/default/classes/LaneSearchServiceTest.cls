@@ -810,4 +810,169 @@ private class LaneSearchServiceTest {
     );
     System.assertEquals(1100, all.statsByCurrency.get('CAD').avg);
   }
+
+  /**
+   * Phase 7: a load row carries its load's billed miles and a bid row carries none, so the bid
+   * never enters medianMiles or the rate per mile. Same shape as
+   * bidsMergeIntoRowsAndObeyTheSourceFilter: the lane and its bid are saved before Test.startTest,
+   * the two loads inside it.
+   */
+  @IsTest
+  static void loadRowsCarryTheirMilesAndBidRowsDoNot() {
+    Fixture f = fixture();
+    Pricing_Place__c mtl = [
+      SELECT Id, City__c, Province__c, Country__c, Postal_Prefix__c
+      FROM Pricing_Place__c
+      WHERE Key__c = 'montreal|qc|ca'
+    ];
+    Pricing_Place__c tor = [
+      SELECT Id, City__c, Province__c, Country__c, Postal_Prefix__c
+      FROM Pricing_Place__c
+      WHERE Key__c = 'toronto|on|ca'
+    ];
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      RfpTestDataFactory.createProject(f.g.customer),
+      mtl,
+      tor
+    );
+    BenchmarkRateService.save(RfpTestDataFactory.buildBid(lane, 1200));
+
+    Test.startTest();
+    f.mtlTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation,
+      250.0
+    );
+    f.lavalTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.laval,
+      f.g.destinationLocation,
+      500.0
+    );
+    insert new List<rtms__CarrierQuote__c>{
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 1000),
+      PricingTestDataFactory.buildQuote(f.g, f.lavalTor, 3000)
+    };
+    LaneSearchResult r = LaneSearchService.search(req(null, null));
+    Test.stopTest();
+
+    System.assertEquals(3, r.rows.size(), 'two quotes and the active bid');
+    Map<Integer, LaneSearchResult.Row> byTotal = new Map<Integer, LaneSearchResult.Row>();
+    for (LaneSearchResult.Row row : r.rows) {
+      byTotal.put(row.carrierTotal.intValue(), row);
+    }
+    LaneSearchResult.Row bidRow = byTotal.get(1200);
+    System.assertNotEquals(null, bidRow.bid, 'the 1200 row is the bid');
+    System.assertNotEquals(null, bidRow.load, 'every row has a load group');
+    System.assertEquals(null, bidRow.load.miles, 'a bid has no load miles');
+    System.assertEquals(null, bidRow.load.loadId);
+    System.assertEquals(250, byTotal.get(1000).load.miles);
+    System.assertEquals(f.mtlTor.Id, byTotal.get(1000).load.loadId);
+    System.assertEquals(500, byTotal.get(3000).load.miles);
+    System.assertEquals(f.lavalTor.Id, byTotal.get(3000).load.loadId);
+    System.assertEquals(
+      375,
+      r.medianMiles,
+      'two loads with miles: the mean of 250 and 500; the bid is left out'
+    );
+    LaneSearchResult.Stats cad = r.statsByCurrency.get('CAD');
+    System.assertEquals(
+      3,
+      cad.count,
+      'the bid still counts in the price stats'
+    );
+    System.assertEquals(
+      5,
+      cad.ratePerMileMedian,
+      '1000/250 = 4.00 and 3000/500 = 6.00; the bid has no miles'
+    );
+    System.assertEquals(2, cad.ratePerMileMedian.scale());
+  }
+
+  /**
+   * Phase 7: medianMiles counts each load once however many quotes it has (spec D1), a zero total
+   * stays out of the rate per mile, and each currency gets its own rate per mile.
+   */
+  @IsTest
+  static void medianMilesAndRatePerMileSkipZeroTotalsAndSplitByCurrency() {
+    Fixture f = fixture();
+    Test.startTest();
+    f.mtlTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation,
+      250.0
+    );
+    f.lavalTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.laval,
+      f.g.destinationLocation,
+      500.0
+    );
+    List<rtms__Load__c> stored = [
+      SELECT rtms__Distance_Miles__c
+      FROM rtms__Load__c
+      WHERE Id IN :new List<Id>{ f.mtlTor.Id, f.lavalTor.Id }
+      ORDER BY rtms__Distance_Miles__c
+    ];
+    System.assertEquals(
+      250,
+      stored[0].rtms__Distance_Miles__c,
+      'the miles set at insert survive the load and stop automation'
+    );
+    System.assertEquals(500, stored[1].rtms__Distance_Miles__c);
+    insert new List<rtms__CarrierQuote__c>{
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 1000, 'CAD'),
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 0, 'CAD'),
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 500, 'USD'),
+      PricingTestDataFactory.buildQuote(f.g, f.lavalTor, 3000, 'CAD'),
+      PricingTestDataFactory.buildQuote(f.g, f.lavalTor, 1500, 'USD')
+    };
+    LaneSearchResult r = LaneSearchService.search(req(null, null));
+    Test.stopTest();
+
+    System.assertEquals(5, r.rows.size(), 'no two quotes share a fingerprint');
+    System.assertEquals(
+      375.0,
+      r.medianMiles,
+      'five quotes on two loads: each load counts once, so the mean of 250 and 500, not the middle row'
+    );
+    LaneSearchResult.Stats cad = r.statsByCurrency.get('CAD');
+    System.assertEquals(3, cad.count);
+    System.assertEquals(2, cad.countNonZero);
+    System.assertEquals(
+      5,
+      cad.ratePerMileMedian,
+      '4.00 and 6.00; with the zero total it would be the middle of 0, 4 and 6'
+    );
+    System.assertEquals(
+      2.5,
+      r.statsByCurrency.get('USD').ratePerMileMedian,
+      '500/250 = 2.00 and 1500/500 = 3.00, apart from the CAD rows'
+    );
+  }
+
+  @IsTest
+  static void ratePerMileMedianIsScaleTwoAndNullWhenEmpty() {
+    Decimal odd = LaneSearchService.ratePerMileMedian(
+      new List<Decimal>{ 3.5, 1.25, 2 }
+    );
+    System.assertEquals(2, odd, 'odd count: the middle rate');
+    System.assertEquals(
+      2,
+      odd.scale(),
+      'scale 2 even for a whole middle value'
+    );
+    System.assertEquals(
+      5,
+      LaneSearchService.ratePerMileMedian(new List<Decimal>{ 6, 4 }),
+      'even count: the mean of the two middle rates'
+    );
+    System.assertEquals(
+      null,
+      LaneSearchService.ratePerMileMedian(new List<Decimal>()),
+      'no rate, no median'
+    );
+  }
 }

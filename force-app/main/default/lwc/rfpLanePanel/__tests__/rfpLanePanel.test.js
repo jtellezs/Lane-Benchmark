@@ -1,8 +1,12 @@
 import { createElement } from "lwc";
+import { subscribe, unsubscribe } from "lightning/messageService";
+import DISTANCE_UNIT from "@salesforce/messageChannel/Distance_Unit__c";
 import RfpLanePanel from "c/rfpLanePanel";
 import getBids from "@salesforce/apex/RfpBidController.getBids";
 import saveBid from "@salesforce/apex/RfpBidController.saveBid";
 import search from "@salesforce/apex/LaneBenchmarkController.search";
+import laneRoute from "@salesforce/apex/RfpLaneController.laneRoute";
+import { writeUnit } from "c/distanceUnit";
 
 jest.mock(
   "@salesforce/apex/RfpBidController.getBids",
@@ -16,6 +20,11 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/LaneBenchmarkController.search",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/RfpLaneController.laneRoute",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -81,7 +90,38 @@ const CHEAP_BID = {
   Expires_On__c: "2026-12-31"
 };
 
+/** LANE as laneRoute re-reads it after writing the truck route's miles. */
+const ROUTED_LANE = {
+  ...LANE,
+  Miles__c: 1234,
+  Miles_Source__c: "Truck route",
+  Route_Hours__c: 21.5
+};
+
+/** A TripRouteView as RfpLaneController.laneRoute returns it (polyline5 is not @AuraEnabled). */
+const ROUTE_VIEW = {
+  status: "Found",
+  routeType: "Truck",
+  miles: 1234,
+  hours: 21.5,
+  routes: [
+    { miles: 1234, hours: 21.5 },
+    { miles: 1260.2, hours: 22.1 }
+  ],
+  mapUrl:
+    "https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-a+0070d2(-73.5674,45.5019)/auto/600x300@2x?padding=40&access_token=pk.test",
+  message: null,
+  lane: ROUTED_LANE
+};
+
+/** What Lightning Message Service does on a publish: every subscriber hears it. */
+const publishUnit = (unit) =>
+  subscribe.mock.calls
+    .filter((call) => call[1] === DISTANCE_UNIT)
+    .forEach((call) => call[2]({ unit }));
+
 const field = (el, id) => el.shadowRoot.querySelector(`[data-id="${id}"]`);
+const textOf = (el, id) => field(el, id).textContent.trim();
 
 function change(el, id, detail) {
   const node = field(el, id);
@@ -105,11 +145,15 @@ describe("c-rfp-lane-panel", () => {
     getBids.mockResolvedValue([]);
     saveBid.mockResolvedValue({ Id: "a0B00000009" });
     search.mockResolvedValue(HISTORY);
+    // No stored route unless a test says so: the earlier tests are about pricing.
+    laneRoute.mockResolvedValue(null);
   });
   afterEach(() => {
     while (document.body.firstChild) {
       document.body.removeChild(document.body.firstChild);
     }
+    // readUnit() reads the real jsdom localStorage: a km test must not leak.
+    window.localStorage.clear();
     jest.clearAllMocks();
   });
 
@@ -508,6 +552,271 @@ describe("c-rfp-lane-panel", () => {
       expect(field(el, "cost").value).toBe("1700");
       expect(field(el, "margin").value).toBe("10");
       expect(field(el, "sell").value).toBe(1870);
+    });
+  });
+
+  describe("trip miles and route", () => {
+    const map = (el) => el.shadowRoot.querySelector("c-route-map");
+
+    it("asks for the stored route on open and hands it to the route map", async () => {
+      laneRoute.mockResolvedValue(ROUTE_VIEW);
+      const el = await mount();
+      await flush();
+      expect(laneRoute).toHaveBeenCalledTimes(1);
+      expect(laneRoute).toHaveBeenCalledWith({
+        laneId: "a0L00000001",
+        refresh: false
+      });
+      expect(map(el).view).toEqual(ROUTE_VIEW);
+      expect(map(el).loading).toBe(false);
+      expect(map(el).unit).toBe("mi");
+      // The lane on screen had no miles; the copy laneRoute wrote and re-read has.
+      expect(textOf(el, "lane-miles")).toBe("1,234 mi · truck route · 21.5 h");
+      // The miles line sits under the heading, never inside its name.
+      expect(el.shadowRoot.querySelector("h2").textContent.trim()).toBe(
+        "Montreal, QC → Toronto, ON"
+      );
+    });
+
+    it("shows the route map loading until the route arrives", async () => {
+      let release;
+      laneRoute.mockReturnValue(
+        new Promise((resolve) => {
+          release = resolve;
+        })
+      );
+      const el = await mount();
+      expect(map(el).loading).toBe(true);
+      expect(map(el).view).toBeNull();
+      release(ROUTE_VIEW);
+      await flush();
+      await flush();
+      expect(map(el).loading).toBe(false);
+      expect(map(el).view.routes.length).toBe(2);
+    });
+
+    it("asks Mapbox again when the route map asks for a refresh", async () => {
+      laneRoute.mockResolvedValue(ROUTE_VIEW);
+      const el = await mount();
+      await flush();
+      const regular = {
+        ...ROUTE_VIEW,
+        routeType: "Regular",
+        miles: 1302,
+        hours: 22,
+        routes: [{ miles: 1302, hours: 22 }],
+        lane: {
+          ...ROUTED_LANE,
+          Miles__c: 1302,
+          Miles_Source__c: "Regular route",
+          Route_Hours__c: 22
+        }
+      };
+      laneRoute.mockResolvedValue(regular);
+      map(el).dispatchEvent(new CustomEvent("refreshroute"));
+      await flush();
+      await flush();
+      expect(laneRoute).toHaveBeenCalledTimes(2);
+      expect(laneRoute.mock.calls[1][0]).toEqual({
+        laneId: "a0L00000001",
+        refresh: true
+      });
+      expect(map(el).view.routeType).toBe("Regular");
+      expect(textOf(el, "lane-miles")).toBe(
+        "1,302 mi · regular route · 22.0 h"
+      );
+    });
+
+    it("asks for no route while an end is unresolved", async () => {
+      const el = await mount({
+        lane: { ...LANE, Destination_Place__r: undefined }
+      });
+      expect(laneRoute).not.toHaveBeenCalled();
+      expect(map(el)).toBeNull();
+      expect(field(el, "lane-miles")).toBeNull();
+      expect(field(el, "cost-per-distance")).toBeNull();
+    });
+
+    it("drops a route that lands after the panel moved to another lane", async () => {
+      let release;
+      laneRoute.mockReturnValueOnce(
+        new Promise((resolve) => {
+          release = resolve;
+        })
+      );
+      const el = await mount();
+      laneRoute.mockResolvedValue({
+        status: "No route",
+        routeType: null,
+        miles: null,
+        hours: null,
+        routes: [],
+        mapUrl: null,
+        message: null,
+        lane: {
+          ...LANE,
+          Id: "a0L00000002",
+          Miles__c: null,
+          Miles_Source__c: "No route",
+          Route_Hours__c: null
+        }
+      });
+      el.lane = { ...LANE, Id: "a0L00000002" };
+      await flush();
+      await flush();
+      release(ROUTE_VIEW);
+      await flush();
+      await flush();
+      expect(laneRoute.mock.calls.map((c) => c[0])).toEqual([
+        { laneId: "a0L00000001", refresh: false },
+        { laneId: "a0L00000002", refresh: false }
+      ]);
+      expect(map(el).view.status).toBe("No route");
+      expect(textOf(el, "lane-miles")).toBe(
+        "No route found between the two places"
+      );
+    });
+
+    it("shows an Apex failure as an unavailable route, not as a panel error", async () => {
+      laneRoute.mockRejectedValue({
+        body: { message: "This lane is not available." }
+      });
+      const el = await mount();
+      await flush();
+      expect(map(el).view).toMatchObject({
+        status: "Unavailable",
+        routes: [],
+        message: "This lane is not available."
+      });
+      expect(map(el).loading).toBe(false);
+      expect(field(el, "panel-error")).toBeNull();
+    });
+
+    it("tells the route map when the lane is hazmat", async () => {
+      laneRoute.mockResolvedValue(ROUTE_VIEW);
+      const plain = await mount();
+      expect(map(plain).hazmat).toBe(false);
+      const hazmat = await mount({
+        lane: { ...LANE, Id: "a0L00000003", Hazmat__c: true }
+      });
+      expect(map(hazmat).hazmat).toBe(true);
+    });
+
+    it("prices per mile as the pricer types, and per km once the unit changes", async () => {
+      const el = await mount({
+        lane: { ...LANE, Miles__c: 1234, Miles_Source__c: "History" }
+      });
+      expect(textOf(el, "lane-miles")).toBe("1,234 mi · from history");
+      // 1500 / 1234; the lane has no margin yet, so there is no sell to divide
+      expect(textOf(el, "cost-per-distance")).toBe("Cost per mile: 1.22 CAD");
+      expect(textOf(el, "sell-per-distance")).toBe("Sell per mile: —");
+
+      change(el, "margin", { value: "20" });
+      await flush();
+      // sell 1800 / 1234
+      expect(textOf(el, "sell-per-distance")).toBe("Sell per mile: 1.46 CAD");
+
+      change(el, "sell", { value: "2250" });
+      await flush();
+      expect(textOf(el, "sell-per-distance")).toBe("Sell per mile: 1.82 CAD");
+
+      publishUnit("km");
+      await flush();
+      // 1234 mi = 1,985.93 km
+      expect(textOf(el, "lane-miles")).toBe("1,986 km · from history");
+      expect(textOf(el, "cost-per-distance")).toBe("Cost per km: 0.76 CAD");
+      expect(textOf(el, "sell-per-distance")).toBe("Sell per km: 1.13 CAD");
+      expect(map(el).unit).toBe("km");
+    });
+
+    it("starts from the stored unit and lets go of the channel when removed", async () => {
+      writeUnit("km");
+      subscribe.mockReturnValueOnce({ id: "unit-sub" });
+      const el = await mount({
+        lane: { ...LANE, Miles__c: 1234, Miles_Source__c: "Approx" }
+      });
+      expect(textOf(el, "lane-miles")).toBe("1,986 km · approx.");
+      expect(textOf(el, "cost-per-distance")).toBe("Cost per km: 0.76 CAD");
+      expect(subscribe.mock.calls.some((c) => c[1] === DISTANCE_UNIT)).toBe(
+        true
+      );
+      document.body.removeChild(el);
+      expect(unsubscribe).toHaveBeenCalledWith({ id: "unit-sub" });
+    });
+
+    it("lets newer miles from the container replace the route's copy", async () => {
+      laneRoute.mockResolvedValue(ROUTE_VIEW);
+      const el = await mount();
+      await flush();
+      expect(textOf(el, "lane-miles")).toBe("1,234 mi · truck route · 21.5 h");
+      // a history run found billed miles for the same lane and the same places
+      el.lane = {
+        ...LANE,
+        Miles__c: 1198,
+        Miles_Source__c: "History",
+        Route_Hours__c: null
+      };
+      await flush();
+      expect(textOf(el, "lane-miles")).toBe("1,198 mi · from history");
+      // same place pair: no second route request
+      expect(laneRoute).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks for no route while the container is mid-run, and asks for the lane on screen once it ends", async () => {
+      laneRoute.mockResolvedValue(ROUTE_VIEW);
+      // rfpTool.html sets lane before busy, so a panel rendered mid-run gets its
+      // lane while busy still reads false.
+      const el = await mount({ busy: true });
+      expect(laneRoute).not.toHaveBeenCalled();
+      expect(map(el).loading).toBe(true);
+      // laneRoute writes the lane's miles: during a history run it could land
+      // on top of the History miles the lane's chunk just wrote (R75).
+      el.lane = { ...LANE, Id: "a0L00000002" };
+      await flush();
+      await flush();
+      expect(laneRoute).not.toHaveBeenCalled();
+      el.busy = false;
+      await flush();
+      await flush();
+      expect(laneRoute.mock.calls.map((c) => c[0])).toEqual([
+        { laneId: "a0L00000002", refresh: false }
+      ]);
+      expect(map(el).loading).toBe(false);
+      expect(textOf(el, "lane-miles")).toBe("1,234 mi · truck route · 21.5 h");
+    });
+
+    it("holds a Refresh route clicked mid-run until the run ends", async () => {
+      laneRoute.mockResolvedValue(ROUTE_VIEW);
+      const el = await mount();
+      await flush();
+      expect(laneRoute).toHaveBeenCalledTimes(1);
+      el.busy = true;
+      await flush();
+      map(el).dispatchEvent(new CustomEvent("refreshroute"));
+      await flush();
+      await flush();
+      expect(laneRoute).toHaveBeenCalledTimes(1);
+      expect(map(el).loading).toBe(true);
+      // The run wrote History miles for this lane and the container merged them
+      // (same places) in the render that ends the run; laneRoute then reads
+      // History and writes nothing, so its view comes back without a lane.
+      laneRoute.mockResolvedValue({ ...ROUTE_VIEW, lane: null });
+      el.lane = {
+        ...LANE,
+        Miles__c: 1198,
+        Miles_Source__c: "History",
+        Route_Hours__c: null
+      };
+      el.busy = false;
+      await flush();
+      await flush();
+      expect(laneRoute).toHaveBeenCalledTimes(2);
+      expect(laneRoute.mock.calls[1][0]).toEqual({
+        laneId: "a0L00000001",
+        refresh: true
+      });
+      expect(map(el).loading).toBe(false);
+      expect(textOf(el, "lane-miles")).toBe("1,198 mi · from history");
     });
   });
 });

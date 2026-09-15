@@ -7,7 +7,9 @@ public with sharing class RfpLaneController {
     'Mode__c, Equipment_Category__c, Equipment_Type__c, Commodity__c, Quantity__c, Quantity_Unit__c, Shipments_Per_Year__c, ' +
     'Hazmat__c, Customer_Fuel_Surcharge__c, Customer_FSC_Included__c, Hist_Count__c, Hist_Bid_Count__c, Hist_Min__c, Hist_Median__c, ' +
     'Hist_Average__c, Hist_Max__c, Hist_Precision__c, Hist_Lookback_Days__c, Hist_As_Of__c, Hist_Status__c, Cost__c, ' +
-    'Cost_Source__c, Selected_Bid__c, Selected_Bid__r.Carrier_Display__c, Margin__c, Sell__c, Sell_Source__c, Notes__c, CurrencyIsoCode';
+    'Cost_Source__c, Selected_Bid__c, Selected_Bid__r.Carrier_Display__c, Margin__c, Sell__c, Sell_Source__c, Notes__c, CurrencyIsoCode, ' +
+    'Miles__c, Miles_Source__c, Route_Hours__c, Origin_Place__r.Geolocation__Latitude__s, Origin_Place__r.Geolocation__Longitude__s, ' +
+    'Destination_Place__r.Geolocation__Latitude__s, Destination_Place__r.Geolocation__Longitude__s';
 
   @AuraEnabled
   public static RfpImportService.Summary importLanes(
@@ -125,9 +127,15 @@ public with sharing class RfpLaneController {
         WITH USER_MODE
         LIMIT 1
       ];
+      // The trip fields belong to the old place pair, or to none: a history run writes 'No
+      // coordinates' on a lane with an unresolved end. They are cleared, and the lane panel's route
+      // or the next history run fills them for the resolved lane (controller ruling).
       RFP_Lane__c lane = new RFP_Lane__c(
         Id = laneId,
-        Hist_Status__c = nextHistStatus(laneId, side)
+        Hist_Status__c = nextHistStatus(laneId, side),
+        Miles__c = null,
+        Miles_Source__c = null,
+        Route_Hours__c = null
       );
       if (side == 'origin') {
         lane.Origin_City__c = place.City__c;
@@ -160,6 +168,86 @@ public with sharing class RfpLaneController {
         'The place could not be applied. ' + RfpUserError.safe(e)
       );
     }
+  }
+
+  /**
+   * The truck route of one lane (phase 7), for the lane panel; not cacheable, it calls out and
+   * saves. The lane is read in user mode, so a lane the caller cannot read is "This lane is not
+   * available." TripRouteView.routeBetween makes the callouts and then saves the store row; the
+   * lane's miles are written last, by writeLaneMiles, which decides on the lane as it is at that
+   * moment; the read before the Mapbox call gives only the places. view.lane is the lane as stored
+   * after that write step (written, already holding the route, or kept for its History miles), so
+   * the panel's miles line always matches the database; it stays null only for an Unavailable
+   * route (no coordinates included), which never reaches the write step (controller ruling). The
+   * lane read and its refusal sit before the try so that no AuraHandledException needs
+   * re-throwing: each catch and throw counts toward PMD's class complexity budget, which this
+   * class is close to.
+   */
+  @AuraEnabled
+  public static TripRouteView laneRoute(Id laneId, Boolean refresh) {
+    List<RFP_Lane__c> lanes = lanesByIds(new List<Id>{ laneId });
+    if (lanes.isEmpty()) {
+      throw RfpUserError.of(RfpBidAccess.LANE_UNAVAILABLE);
+    }
+    try {
+      RFP_Lane__c stored = lanes[0];
+      TripRouteView view = TripRouteView.routeBetween(
+        TripRouteView.laneEnd(stored.Origin_Place__c, stored.Origin_Place__r),
+        TripRouteView.laneEnd(
+          stored.Destination_Place__c,
+          stored.Destination_Place__r
+        ),
+        refresh
+      );
+      view.lane = writeLaneMiles(laneId, view);
+      return view;
+    } catch (Exception e) {
+      throw RfpUserError.of(
+        'The truck route could not be loaded. ' + RfpUserError.safe(e)
+      );
+    }
+  }
+
+  /**
+   * laneRoute's write step, after every callout. An Unavailable route (no source, no coordinates
+   * included) changes nothing and never reaches the step: null. The lane's miles fields are read
+   * again FOR UPDATE right before the update, not taken from laneRoute's read before the Mapbox
+   * call: History miles that a history run saved while the route was on its way stay (R75), and
+   * the lock keeps a run from saving between this read and the update (controller ruling).
+   * TripRouteView.laneUpdate decides on that fresh copy, so a lane that already holds the route's
+   * miles, source and hours is not rewritten either: the lane panel opens the route on every row
+   * click (controller ruling). Written in user mode after the FLS strip like every lane save here.
+   * Returns the lane as stored after the step, re-read with LANE_FIELDS, whether it was written,
+   * already held the route or kept its History miles: the panel shows these miles beside the
+   * route, so they must match the database (controller ruling). @TestVisible: a history run cannot
+   * overlap a route call inside one test transaction, so the test replays that order on this step.
+   */
+  @TestVisible
+  private static RFP_Lane__c writeLaneMiles(Id laneId, TripRouteView view) {
+    if (view.source == null) {
+      return null;
+    }
+    RFP_Lane__c miles = TripRouteView.laneUpdate(
+      [
+        SELECT Id, Miles__c, Miles_Source__c, Route_Hours__c
+        FROM RFP_Lane__c
+        WHERE Id = :laneId
+        WITH USER_MODE
+        FOR UPDATE
+      ],
+      view
+    );
+    if (miles != null) {
+      Database.update(
+        Security.stripInaccessible(
+            AccessType.UPDATABLE,
+            new List<RFP_Lane__c>{ miles }
+          )
+          .getRecords()[0],
+        AccessLevel.USER_MODE
+      );
+    }
+    return one(laneId);
   }
 
   /**

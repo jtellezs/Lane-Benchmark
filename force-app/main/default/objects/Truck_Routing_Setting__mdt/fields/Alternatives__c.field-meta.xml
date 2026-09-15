@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Alternatives__c</fullName>
+    <defaultValue>true</defaultValue>
+    <externalId>false</externalId>
+    <fieldManageability>DeveloperControlled</fieldManageability>
+    <inlineHelpText
+  >Ask Mapbox for up to two alternative routes, drawn on the map beside the main route.</inlineHelpText>
+    <label>Alternatives</label>
+    <type>Checkbox</type>
+</CustomField>

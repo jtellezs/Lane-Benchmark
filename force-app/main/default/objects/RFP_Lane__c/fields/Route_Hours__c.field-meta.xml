@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Route_Hours__c</fullName>
+    <label>Route hours</label>
+    <type>Number</type>
+    <precision>7</precision>
+    <scale>1</scale>
+    <required>false</required>
+    <unique>false</unique>
+    <inlineHelpText
+  >Drive hours of the stored route. Blank when the miles come from history or are approximate.</inlineHelpText>
+</CustomField>

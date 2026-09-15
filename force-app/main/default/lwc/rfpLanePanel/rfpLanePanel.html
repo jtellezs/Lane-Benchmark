@@ -10,6 +10,14 @@
           label="Help: pricing a lane"
         ></c-help-hint>
       </div>
+      <template lwc:if={milesLine}>
+        <p
+          data-id="lane-miles"
+          class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small"
+        >
+          {milesLine}
+        </p>
+      </template>
 
       <div class="slds-grid slds-wrap slds-gutters_x-small">
         <div class="slds-col slds-size_1-of-1">
@@ -72,6 +80,16 @@
             {sellMode}
           </p>
         </div>
+        <template lwc:if={hasPerDistance}>
+          <div class="slds-col slds-size_1-of-1">
+            <p class="slds-text-body_small">
+              <span data-id="cost-per-distance">{costPerDistanceText}</span>
+              <span data-id="sell-per-distance" class="slds-m-left_small"
+                >{sellPerDistanceText}</span
+              >
+            </p>
+          </div>
+        </template>
       </div>
 
       <template lwc:if={bestBidHint}>
@@ -156,6 +174,18 @@
             </li>
           </template>
         </ul>
+      </template>
+
+      <template lwc:if={hasRoutePlaces}>
+        <div data-id="route" class="slds-m-top_x-small">
+          <c-route-map
+            view={routeView}
+            loading={loadingRoute}
+            unit={unit}
+            hazmat={laneHazmat}
+            onrefreshroute={handleRefreshRoute}
+          ></c-route-map>
+        </div>
       </template>
 
       <template lwc:if={loadingHistory}>

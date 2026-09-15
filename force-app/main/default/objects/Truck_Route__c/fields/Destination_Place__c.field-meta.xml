@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Destination_Place__c</fullName>
+    <label>Destination place</label>
+    <type>Lookup</type>
+    <referenceTo>Pricing_Place__c</referenceTo>
+    <relationshipName>Truck_Routes_To</relationshipName>
+    <relationshipLabel>Truck Routes (To)</relationshipLabel>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <required>false</required>
+</CustomField>

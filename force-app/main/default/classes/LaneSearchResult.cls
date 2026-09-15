@@ -9,8 +9,10 @@ public class LaneSearchResult {
     public Id quoteId;
     @AuraEnabled
     public String quoteName;
+    // Phase 7: the quote's load (its Id and billed miles), initialized like carrier so bid rows
+    // carry load.miles = null. loadId moved in here to keep Row at PMD's TooManyFields cap of 20.
     @AuraEnabled
-    public Id loadId;
+    public LoadDetail load = new LoadDetail();
     @AuraEnabled
     public String origin;
     @AuraEnabled
@@ -83,6 +85,16 @@ public class LaneSearchResult {
     public Boolean fscIncluded;
   }
 
+  // Phase 7: the quote's load. Grouped, like CarrierDetail, so Row stays at PMD's TooManyFields
+  // cap; bid rows keep both fields null.
+  public class LoadDetail {
+    @AuraEnabled
+    public Id loadId;
+    // rtms__Load__c.rtms__Distance_Miles__c: Revenova's billed miles (PC*Miler); null when blank.
+    @AuraEnabled
+    public Decimal miles;
+  }
+
   public class Stats {
     @AuraEnabled
     public Integer count = 0;
@@ -96,6 +108,10 @@ public class LaneSearchResult {
     public Decimal avg;
     @AuraEnabled
     public Decimal median;
+    // Phase 7: median of carrierTotal / load.miles over this currency's rows with both above zero,
+    // scale 2; null when no row has both (bids have no miles).
+    @AuraEnabled
+    public Decimal ratePerMileMedian;
   }
 
   @AuraEnabled
@@ -110,4 +126,8 @@ public class LaneSearchResult {
   public Integer elapsedMs = 0;
   @AuraEnabled
   public Integer dedupedCount = 0;
+  // Phase 7: TripMilesService.medianMiles over rows, one value per load with miles above zero,
+  // scale 1; null when none.
+  @AuraEnabled
+  public Decimal medianMiles;
 }

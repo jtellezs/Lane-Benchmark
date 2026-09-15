@@ -21,6 +21,7 @@ const ROWS = [
     },
     currencyIsoCode: "CAD",
     carrierTotal: 1000,
+    load: { loadId: "a0L000000000001", miles: 337.2 },
     quoteDate: "2026-09-01",
     createdDate: "2026-09-01T10:00:00.000Z",
     hazmat: false,
@@ -46,6 +47,7 @@ const ROWS = [
     },
     currencyIsoCode: "USD",
     carrierTotal: 800,
+    load: { loadId: "a0L000000000002", miles: null },
     quoteDate: "2026-08-30",
     createdDate: "2026-08-30T10:00:00.000Z",
     hazmat: true,
@@ -71,6 +73,7 @@ const ROWS = [
     },
     currencyIsoCode: "CAD",
     carrierTotal: 1200,
+    load: { loadId: null, miles: null },
     quoteDate: "2026-09-10",
     createdDate: "2026-09-10T10:00:00.000Z",
     hazmat: false,
@@ -96,6 +99,25 @@ async function mount(rows = ROWS) {
   document.body.appendChild(el);
   await flush();
   return el;
+}
+
+async function exportCsv(el) {
+  const createUrl = jest.fn(() => "blob:x");
+  global.URL.createObjectURL = createUrl;
+  global.URL.revokeObjectURL = jest.fn();
+  jest.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+  jest.useFakeTimers();
+  el.shadowRoot.querySelector('[data-id="export"]').click();
+  await flush();
+  jest.runOnlyPendingTimers();
+  jest.useRealTimers();
+  const blob = createUrl.mock.calls[0][0];
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsText(blob);
+  });
 }
 
 describe("c-lane-benchmark-results", () => {
@@ -236,5 +258,34 @@ describe("c-lane-benchmark-results", () => {
     expect(el.shadowRoot.textContent).toContain(
       "No quotes match this lane and these filters."
     );
+  });
+
+  it("shows each load's miles, a dash for bids and loads without miles, and follows the unit", async () => {
+    const el = await mount();
+    const header = () =>
+      el.shadowRoot
+        .querySelector('[data-id="miles-header"]')
+        .textContent.trim();
+    const cells = () =>
+      Array.from(
+        el.shadowRoot.querySelectorAll('tbody tr[data-index] [data-id="miles"]')
+      ).map((c) => c.textContent.trim());
+    expect(header()).toBe("Miles");
+    expect(cells()).toEqual(["337 mi", "—", "—"]);
+    el.unit = "km";
+    await flush();
+    expect(header()).toBe("Km");
+    expect(cells()).toEqual(["543 km", "—", "—"]);
+  });
+
+  it("exports raw miles right after the carrier total, blank for bids, whatever the unit", async () => {
+    const el = await mount();
+    el.unit = "km";
+    await flush();
+    const lines = (await exportCsv(el)).split("\r\n");
+    expect(lines[0]).toContain("Carrier total,Miles,Quote date");
+    expect(lines[1]).toContain(",CAD,1000,337.2,2026-09-01,");
+    expect(lines[2]).toContain(",USD,800,,2026-08-30,");
+    expect(lines[3]).toContain(",CAD,1200,,2026-09-10,");
   });
 });

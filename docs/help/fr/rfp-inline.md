@@ -21,3 +21,14 @@ Une valeur qui ne peut pas être enregistrée (zéro, négatif, marge au-dessus 
 ## Voies identiques
 
 Quand vous tarifez une voie qui a des jumelles dans le même projet (mêmes extrémités, mode et équipement), une barre propose de copier le coût et le prix de vente. **Apply** copie; **Not now** refuse.
+
+## La colonne Miles
+
+La colonne **Miles**, après **History**, n'est pas modifiable : elle affiche la longueur du trajet de la voie en milles, ou en kilomètres quand **km** est choisi dans la barre d'outils. Une petite étiquette indique la provenance de la valeur :
+
+- Sans étiquette : **History**, la médiane des milles facturés sur les chargements trouvés.
+- `truck` : un itinéraire de camion Mapbox.
+- `route` : un itinéraire routier ordinaire, utilisé quand les limites du camion n'ont pas pu être respectées.
+- `approx.` : la distance à vol d'oiseau entre les deux lieux × 1,2.
+
+« — » signifie que la voie n'a pas de distance : survolez-le pour voir la raison (historique pas encore chargé, aucune route trouvée ou pas de coordonnées). **Load history** remplit la colonne. Ouvrir une voie enregistre son itinéraire et remplace une valeur `approx.` par les milles de l'itinéraire quand Mapbox en trouve un; la colonne affiche la nouvelle valeur après le prochain enregistrement de prix, chargement d'historique ou rechargement de la page.

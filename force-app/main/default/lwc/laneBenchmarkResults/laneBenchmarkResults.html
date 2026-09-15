@@ -30,6 +30,9 @@
               <th scope="col">Mode</th>
               <th scope="col" class="w-4">Cur.</th>
               <th scope="col" class="w-6">Total</th>
+              <th scope="col" class="w-6" data-id="miles-header">
+                {distanceHeader}
+              </th>
               <th scope="col" class="w-7">Quote date</th>
               <th scope="col">Status</th>
               <th scope="col" class="w-5">Flags</th>
@@ -75,6 +78,9 @@
                 <td data-id="mode" class={r.modeClass}>{r.mode}</td>
                 <td>{r.currencyIsoCode}</td>
                 <td class="slds-text-align_right">{r.total}</td>
+                <td data-id="miles" class="slds-text-align_right">
+                  {r.milesText}
+                </td>
                 <td>{r.quoteDate}</td>
                 <td class="slds-cell-wrap">{r.loadStatus}</td>
                 <td data-id="flags" class="slds-cell-wrap">
@@ -85,7 +91,7 @@
               </tr>
               <template lwc:if={r.isExpanded}>
                 <tr key={r.detailKey} data-detail={r.index} class="detail">
-                  <td colspan="12">
+                  <td colspan="13">
                     <div class="slds-p-around_x-small">
                       <strong>Quote {r.quoteName}</strong> · Contact:
                       {r.contactName} · Comments: {r.opsComments} ·

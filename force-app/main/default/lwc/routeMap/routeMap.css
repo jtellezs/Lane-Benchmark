@@ -1,0 +1,30 @@
+.route-map {
+  min-height: 3rem;
+}
+.route-image {
+  display: block;
+  max-width: 100%;
+  border-radius: 4px;
+}
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.swatch {
+  display: inline-block;
+  width: 1rem;
+  border-radius: 2px;
+}
+.swatch-1 {
+  height: 0.3125rem;
+  background: #0070d2;
+}
+.swatch-2 {
+  height: 0.1875rem;
+  background: #f59e0b;
+}
+.swatch-3 {
+  height: 0.1875rem;
+  background: #706e6b;
+}
