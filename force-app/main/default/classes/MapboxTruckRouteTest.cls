@@ -102,6 +102,17 @@ private class MapboxTruckRouteTest {
       '","refresh_type":"static","geometry_index_start":3,"geometry_index_end":5,"details":{"actual_value":"2.00","requested_value":"4.11","unit":"meters","message":"The vehicle is more than the permissible limit of the road."}}';
   }
 
+  /** The timeoutMs profileFrom builds from a setting whose only field is Timeout_Ms__c. */
+  private static Integer timeoutFrom(String ms) {
+    return TruckRoute.profileFrom(
+        (Truck_Routing_Setting__mdt) JSON.deserialize(
+          '{"Timeout_Ms__c":' + ms + '}',
+          Truck_Routing_Setting__mdt.class
+        )
+      )
+      .timeoutMs;
+  }
+
   private static String cleanTruckAnswer() {
     return answer(
       new List<String>{ routeJson(541234.5, 19845, MAIN_GEOMETRY, null) }
@@ -510,6 +521,17 @@ private class MapboxTruckRouteTest {
       'blank fields keep the default truck'
     );
     System.assertEquals(8000, partial.timeoutMs);
+
+    System.assertEquals(1, timeoutFrom('0'), 'setTimeout refuses 0 ms');
+    System.assertEquals(1, timeoutFrom('-250'), 'a negative timeout');
+    System.assertEquals(1, timeoutFrom('1'), 'the shortest timeout kept');
+    System.assertEquals(120000, timeoutFrom('120000'), 'the longest kept');
+    System.assertEquals(
+      120000,
+      timeoutFrom('120001'),
+      'setTimeout refuses more than 120,000 ms'
+    );
+    System.assertEquals(120000, timeoutFrom('999999'), 'the field maximum');
 
     TruckRoute.Profile fromOrg = TruckRoute.defaultProfile();
     System.assert(

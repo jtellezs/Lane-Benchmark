@@ -510,6 +510,69 @@ private class RfpLaneControllerTest {
     );
   }
 
+  /**
+   * The on-demand regular route (D2, R79). The main truck route breaks the height limit, so
+   * MapboxTruckRoute asks again without the truck limits and the lane takes a Regular route. The
+   * mock sends the same body to both requests: violations are only read on the truck answer, so
+   * the second answer is accepted as Regular.
+   */
+  @IsTest
+  static void laneRouteFallsBackToARegularRouteAndWritesIt() {
+    Fx f = fx();
+    MapboxHttp.tokenOverride = 'pk.test';
+    DirectionsMock mock = new DirectionsMock(
+      200,
+      FOUND.replaceFirst(
+        Pattern.quote('"notifications":[]'),
+        '"notifications":[{"type":"violation","subtype":"maxHeight"}]'
+      )
+    );
+    Test.setMock(HttpCalloutMock.class, mock);
+    String key = TripMilesService.routeKey(
+      f.mtl.Id,
+      f.tor.Id,
+      TruckRoute.defaultProfile()
+    );
+    Test.startTest();
+    TripRouteView view = RfpLaneController.laneRoute(f.lane.Id, false);
+    Test.stopTest();
+    System.assertEquals(
+      2,
+      mock.calls,
+      'the truck request, then the regular one'
+    );
+    System.assert(
+      !mock.lastEndpoint.contains('max_height'),
+      'the regular request carries no truck limits'
+    );
+    System.assertEquals('Found', view.status, 'message: ' + view.message);
+    System.assertEquals('Regular', view.routeType);
+    System.assertEquals('Regular route', view.source);
+    System.assertEquals(335.5, view.miles);
+    System.assertEquals(5.5, view.hours);
+    System.assertEquals(2, view.routes.size(), 'the regular routes');
+    System.assertNotEquals(null, view.mapUrl, 'the regular route is drawn');
+    System.assertNotEquals(null, view.lane, 'the lane was written');
+    System.assertEquals('Regular route', view.lane.Miles_Source__c);
+    RFP_Lane__c lane = storedLane(f.lane.Id);
+    System.assertEquals(335.5, lane.Miles__c);
+    System.assertEquals(
+      'Regular route',
+      lane.Miles_Source__c,
+      'the restricted picklist takes the R79 label'
+    );
+    System.assertEquals(5.5, lane.Route_Hours__c);
+    Truck_Route__c row = [
+      SELECT Status__c, Route_Type__c, Miles__c, Hours__c
+      FROM Truck_Route__c
+      WHERE Route_Key__c = :key
+    ];
+    System.assertEquals('Found', row.Status__c);
+    System.assertEquals('Regular', row.Route_Type__c);
+    System.assertEquals(335.5, row.Miles__c);
+    System.assertEquals(5.5, row.Hours__c);
+  }
+
   @IsTest
   static void laneRouteWithoutCoordinatesMakesNoCallout() {
     Fx f = fx();

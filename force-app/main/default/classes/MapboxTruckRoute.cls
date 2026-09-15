@@ -6,7 +6,8 @@
  * a regular driving route, returned as routeType 'Regular'; when that finds nothing either, the status is 'No route'.
  * A truck alternative that breaks a limit is left out: no partially compliant truck route is ever returned.
  * A blank token, a point without coordinates, an HTTP error, a callout failure or an unreadable answer is
- * 'Unavailable' with TruckRoute.UNAVAILABLE. The token only ever appears in the request URL. No DML.
+ * 'Unavailable' with TruckRoute.UNAVAILABLE; a failure inside the requests is logged at WARN with its exception type
+ * only. The token only ever appears in the request URL. No DML.
  */
 public with sharing class MapboxTruckRoute {
   private static final Decimal METRES_PER_MILE = 1609.344;
@@ -49,6 +50,11 @@ public with sharing class MapboxTruckRoute {
         : found('Regular', regularRoutes);
     } catch (Exception e) {
       // MapboxException (HTTP error or callout failure), JSONException or a cast on an unexpected answer.
+      // The type name only: a callout failure's message can carry the request URL, token included.
+      System.debug(
+        LoggingLevel.WARN,
+        'Mapbox truck route failed: ' + e.getTypeName()
+      );
       return unavailable();
     }
   }

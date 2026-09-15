@@ -44,6 +44,11 @@ describe("c-distance-unit-toggle", () => {
     const el = await mount();
     expect(pressed(el, "unit-mi")).toBe("true");
     expect(pressed(el, "unit-km")).toBe("false");
+    // Screen readers get the full words; the buttons still show mi and km.
+    expect(field(el, "unit-mi").getAttribute("aria-label")).toBe("Miles");
+    expect(field(el, "unit-km").getAttribute("aria-label")).toBe("Kilometres");
+    expect(field(el, "unit-mi").textContent.trim()).toBe("mi");
+    expect(field(el, "unit-km").textContent.trim()).toBe("km");
     expect(field(el, "unit-mi").className).toBe(
       "slds-button slds-button_brand"
     );

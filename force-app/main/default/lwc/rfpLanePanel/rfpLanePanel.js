@@ -135,7 +135,7 @@ export default class RfpLanePanel extends LightningElement {
   historySeq = 0;
   /** The TripRouteView c-route-map draws; null until laneRoute answers. */
   routeView = null;
-  /** The lane as laneRoute re-read it after writing its miles; see milesLane. */
+  /** The lane as stored after laneRoute's write step; see milesLane. */
   routeLane = null;
   loadingRoute = false;
   routeSeq = 0;
@@ -204,9 +204,12 @@ export default class RfpLanePanel extends LightningElement {
     return `${this.originLabel} → ${this.destinationLabel}`;
   }
   /**
-   * The lane's trip fields. The copy laneRoute wrote and re-read stands in
-   * until the container sends the lane again: rfpTool is not told about a
-   * route, so its lanes catch up on the next price save or history run.
+   * The lane's trip fields. The lane laneRoute returned stands in until the
+   * container sends the lane again. laneRoute re-reads the lane FOR UPDATE
+   * after its callouts, keeps History miles, writes only changed values and
+   * returns the stored lane whenever it reaches its write step, so this copy
+   * matches the database. rfpTool is not told about a route, so its lanes
+   * catch up on the next price save or history run.
    */
   get milesLane() {
     return this.routeLane || this._lane || {};
@@ -333,18 +336,20 @@ export default class RfpLanePanel extends LightningElement {
 
   /**
    * The stored truck route on open (refresh false), a new Mapbox request on
-   * Refresh route (refresh true). laneRoute also writes the lane's miles
-   * unless they come from History and returns the lane re-read. A failure is
-   * shown in the route map, not in the panel's error line, so it never hides
-   * a bid or history error.
+   * Refresh route (refresh true). After its callouts laneRoute re-reads the
+   * lane FOR UPDATE, keeps History miles (R75), writes the route's miles,
+   * source and hours only when they change, and returns the stored lane as
+   * view.lane whenever it reaches that write step (written, unchanged or kept
+   * for History); view.lane is null only for an Unavailable route or a lane
+   * without coordinates. A failure is shown in the route map, not in the
+   * panel's error line, so it never hides a bid or history error.
    *
-   * laneRoute checks for History miles on the lane it read before its Mapbox
-   * calls, which can take seconds. During a history run the lane's chunk could
-   * commit History miles in between and the route would overwrite them (R75),
-   * so while the container is busy the request waits, with the map loading,
-   * and runDeferredRoute sends it when the run ends. It also waits until the
-   * panel is connected: rfpTool.html sets lane before busy, so a panel rendered
-   * mid-run gets its lane while busy still reads false.
+   * The server's re-read is what keeps History miles. While the container is
+   * busy the request still waits, with the map loading, and runDeferredRoute
+   * sends it when the run ends: no lane write lands inside a chunked run, and
+   * the FOR UPDATE read never waits on a running chunk's lock. It also waits
+   * until the panel is connected: rfpTool.html sets lane before busy, so a
+   * panel rendered mid-run gets its lane while busy still reads false.
    */
   async loadRoute(refresh) {
     const seq = ++this.routeSeq;

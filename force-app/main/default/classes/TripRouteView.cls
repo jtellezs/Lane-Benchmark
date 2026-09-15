@@ -3,7 +3,7 @@
  * controllers share: the stored Truck_Route__c for the ordered place pair unless refresh,
  * otherwise Mapbox; the store row saved after the callouts; the static map URL built on each view
  * and never stored. The branching lives here rather than in the controllers for the reason
- * LaneBenchmarkPlaceService gives: RfpLaneController (31) and LaneBenchmarkController (36) sit
+ * LaneBenchmarkPlaceService gives: RfpLaneController (39) and LaneBenchmarkController (37) sit
  * close to PMD's class complexity budget of 40, and only moving branches to another class lowers
  * a class total.
  */

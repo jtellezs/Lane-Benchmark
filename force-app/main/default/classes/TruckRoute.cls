@@ -12,6 +12,8 @@ public with sharing class TruckRoute {
   private static final Decimal DEFAULT_WEIGHT_T = 36.29;
   private static final Decimal DEFAULT_APPROX_FACTOR = 1.2;
   private static final Integer DEFAULT_TIMEOUT_MS = 8000;
+  // HttpRequest.setTimeout throws outside 1 to 120,000 ms, which would make every route Unavailable.
+  private static final Integer MAX_TIMEOUT_MS = 120000;
 
   public class Point {
     public Decimal lat;
@@ -61,7 +63,10 @@ public with sharing class TruckRoute {
     return profileFrom(Truck_Routing_Setting__mdt.getInstance('Default'));
   }
 
-  /** A missing record or a blank field falls back to the default truck, so a half-filled setting never breaks routing. */
+  /**
+   * A missing record or a blank field falls back to the default truck, so a half-filled setting never breaks routing.
+   * A timeout outside the 1 to 120,000 ms a callout accepts is brought to the nearest end.
+   */
   @TestVisible
   private static Profile profileFrom(Truck_Routing_Setting__mdt setting) {
     Profile p = new Profile();
@@ -72,7 +77,7 @@ public with sharing class TruckRoute {
     p.approxFactor = setting?.Approx_Factor__c ?? DEFAULT_APPROX_FACTOR;
     p.timeoutMs = setting?.Timeout_Ms__c == null
       ? DEFAULT_TIMEOUT_MS
-      : setting.Timeout_Ms__c.intValue();
+      : Math.max(1, Math.min(MAX_TIMEOUT_MS, setting.Timeout_Ms__c.intValue()));
     return p;
   }
 }
