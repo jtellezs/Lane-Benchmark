@@ -25,6 +25,7 @@
           <th scope="col" class="w-8">Mode</th>
           <th scope="col" class="w-8">Equipment</th>
           <th scope="col">History</th>
+          <th scope="col" class="w-8">{distanceHeader}</th>
           <th scope="col" class="w-8">{costHeader}</th>
           <th scope="col" class="w-5">Margin</th>
           <th scope="col" class="w-8">{sellHeader}</th>
@@ -100,6 +101,16 @@
             <td>{r.equipment}</td>
             <td data-id="hist" class="slds-cell-wrap" title={r.histTitle}>
               {r.histText}
+            </td>
+            <td data-id="miles" class="slds-cell-wrap" title={r.milesTitle}>
+              {r.milesText}
+              <template lwc:if={r.milesTag}>
+                <span
+                  data-id="miles-tag"
+                  class="slds-badge slds-m-left_xx-small"
+                  >{r.milesTag}</span
+                >
+              </template>
             </td>
             <td
               data-id="cost"

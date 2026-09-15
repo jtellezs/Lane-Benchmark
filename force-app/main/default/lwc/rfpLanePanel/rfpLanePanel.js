@@ -1,7 +1,15 @@
-import { LightningElement, api, track } from "lwc";
+import { LightningElement, api, track, wire } from "lwc";
+import {
+  APPLICATION_SCOPE,
+  MessageContext,
+  subscribe,
+  unsubscribe
+} from "lightning/messageService";
+import DISTANCE_UNIT from "@salesforce/messageChannel/Distance_Unit__c";
 import getBids from "@salesforce/apex/RfpBidController.getBids";
 import saveBid from "@salesforce/apex/RfpBidController.saveBid";
 import search from "@salesforce/apex/LaneBenchmarkController.search";
+import laneRoute from "@salesforce/apex/RfpLaneController.laneRoute";
 import { bestBid } from "c/rfpMath";
 import {
   SOURCES,
@@ -17,12 +25,37 @@ import {
   historyRequest
 } from "c/rfpPricing";
 import { marginFor } from "c/marginMath";
+import { readUnit, formatDistance, perDistance } from "c/distanceUnit";
 
 const laneIdOf = (lane) => (lane && lane.Id) || null;
 const apexMessage = (e, fallback) =>
   (e && e.body && e.body.message) || fallback;
 const placeText = (city, province) =>
   [city, province].filter(Boolean).join(", ");
+/** Both place keys, or null while an end is unresolved: there is nothing to route between. */
+const placePair = (lane) => {
+  const origin = lane?.Origin_Place__r?.Key__c;
+  const destination = lane?.Destination_Place__r?.Key__c;
+  return origin && destination ? `${origin}~${destination}` : null;
+};
+/** The lane's three trip fields as one string, to notice newer miles arriving. */
+const milesFingerprint = (lane) =>
+  ["Miles__c", "Miles_Source__c", "Route_Hours__c"]
+    .map((f) => lane?.[f] ?? "")
+    .join("|");
+/** How the line under the title names each source that comes with miles. */
+const SOURCE_WORDS = {
+  History: "from history",
+  "Truck route": "truck route",
+  "Regular route": "regular route",
+  Approx: "approx."
+};
+/** The line under the title when the lane has no miles, by source. */
+const NO_MILES_LINES = {
+  "No route": "No route found between the two places",
+  "No coordinates": "A place on this lane is missing or has no coordinates"
+};
+const ROUTE_UNAVAILABLE = "The truck route is not available right now.";
 
 export default class RfpLanePanel extends LightningElement {
   @api project;
@@ -39,7 +72,10 @@ export default class RfpLanePanel extends LightningElement {
     const laneChanged = laneIdOf(value) !== laneIdOf(this._lane);
     const pricingChanged =
       pricingFingerprint(value) !== pricingFingerprint(this._lane);
+    const milesChanged =
+      milesFingerprint(value) !== milesFingerprint(this._lane);
     const previousHistoryKey = historyKey(this._lane);
+    const previousPlaces = placePair(this._lane);
     this._lane = value || null;
     if (laneChanged) {
       this.syncFromLane();
@@ -49,11 +85,22 @@ export default class RfpLanePanel extends LightningElement {
       // must show what is stored now, not what it showed before the change.
       this.syncPricing();
     }
+    // Miles the container sends for the lane on screen (a history run, a price
+    // save that re-read the lane) are newer than the copy the last route call
+    // returned, so that copy stops standing in for them.
+    if (milesChanged) {
+      this.routeLane = null;
+    }
     // A new lane always re-searches. Re-sending the same lane searches again
     // only once its place keys change — an end resolved through the table gives
     // it keys it did not have, while a pricing round trip changes nothing.
     if (laneChanged || historyKey(this._lane) !== previousHistoryKey) {
       this.loadHistory();
+    }
+    // The route belongs to the place pair alone: a history run changes the
+    // lane's precision and lookback, never its places, so it asks nothing.
+    if (laneChanged || placePair(this._lane) !== previousPlaces) {
+      this.loadRoute(false);
     }
   }
 
@@ -73,8 +120,44 @@ export default class RfpLanePanel extends LightningElement {
   loadingHistory = false;
   bidSeq = 0;
   historySeq = 0;
+  /** The TripRouteView c-route-map draws; null until laneRoute answers. */
+  routeView = null;
+  /** The lane as laneRoute re-read it after writing its miles; see milesLane. */
+  routeLane = null;
+  loadingRoute = false;
+  routeSeq = 0;
+  /** "mi" or "km"; every distance on the page follows Distance_Unit__c. */
+  unit = readUnit();
+  @wire(MessageContext) messageContext;
+  unitSubscription = null;
 
   sourceOptions = SOURCES;
+
+  connectedCallback() {
+    if (!this.unitSubscription) {
+      this.unitSubscription = subscribe(
+        this.messageContext,
+        DISTANCE_UNIT,
+        (message) => this.handleUnit(message),
+        { scope: APPLICATION_SCOPE }
+      );
+    }
+  }
+
+  /** The workbench drops the panel when it leaves the lanes view. */
+  disconnectedCallback() {
+    if (this.unitSubscription) {
+      unsubscribe(this.unitSubscription);
+    }
+    this.unitSubscription = null;
+  }
+
+  handleUnit(message) {
+    const unit = message && message.unit;
+    if (unit === "mi" || unit === "km") {
+      this.unit = unit;
+    }
+  }
 
   get laneId() {
     return laneIdOf(this._lane);
@@ -100,6 +183,44 @@ export default class RfpLanePanel extends LightningElement {
   get laneTitle() {
     return `${this.originLabel} → ${this.destinationLabel}`;
   }
+  /**
+   * The lane's trip fields. The copy laneRoute wrote and re-read stands in
+   * until the container sends the lane again: rfpTool is not told about a
+   * route, so its lanes catch up on the next price save or history run.
+   */
+  get milesLane() {
+    return this.routeLane || this._lane || {};
+  }
+  /** The lane's miles when its source comes with a distance, else null. */
+  get milesNumber() {
+    const l = this.milesLane;
+    const known = Object.prototype.hasOwnProperty.call(
+      SOURCE_WORDS,
+      l.Miles_Source__c || ""
+    );
+    const miles = Number(l.Miles__c);
+    return known && miles > 0 ? miles : null;
+  }
+  /** "1,234 mi · truck route · 21.5 h", why there are no miles, or "" before any run. */
+  get milesLine() {
+    const l = this.milesLane;
+    const miles = this.milesNumber;
+    if (miles === null) {
+      return NO_MILES_LINES[l.Miles_Source__c] || "";
+    }
+    const hours =
+      Number(l.Route_Hours__c) > 0
+        ? ` · ${Number(l.Route_Hours__c).toFixed(1)} h`
+        : "";
+    return `${formatDistance(miles, this.unit)} · ${SOURCE_WORDS[l.Miles_Source__c]}${hours}`;
+  }
+  get hasRoutePlaces() {
+    return !!placePair(this._lane);
+  }
+  /** c-route-map says under its legend that a hazmat lane gets the ordinary route. */
+  get laneHazmat() {
+    return !!(this._lane && this._lane.Hazmat__c);
+  }
 
   syncFromLane() {
     const l = this._lane || {};
@@ -108,6 +229,8 @@ export default class RfpLanePanel extends LightningElement {
     // Nothing from the lane we were showing may survive into the new one.
     this.bids = [];
     this.historyRows = [];
+    this.routeView = null;
+    this.routeLane = null;
     this.truncated = false;
     this.showForm = false;
     this.editingBid = null;
@@ -184,6 +307,48 @@ export default class RfpLanePanel extends LightningElement {
     } finally {
       if (seq === this.historySeq) {
         this.loadingHistory = false;
+      }
+    }
+  }
+
+  /**
+   * The stored truck route on open (refresh false), a new Mapbox request on
+   * Refresh route (refresh true). laneRoute also writes the lane's miles
+   * unless they come from History and returns the lane re-read. A failure is
+   * shown in the route map, not in the panel's error line, so it never hides
+   * a bid or history error.
+   */
+  async loadRoute(refresh) {
+    const seq = ++this.routeSeq;
+    const laneId = this.laneId;
+    if (!laneId || !placePair(this._lane)) {
+      this.routeView = null;
+      this.loadingRoute = false;
+      return;
+    }
+    this.loadingRoute = true;
+    try {
+      const view = await laneRoute({ laneId, refresh: !!refresh });
+      if (seq !== this.routeSeq) {
+        return; // the panel moved to another lane; this route is not its
+      }
+      this.routeView = view || null;
+      if (view && view.lane) {
+        this.routeLane = view.lane;
+      }
+    } catch (e) {
+      if (seq === this.routeSeq) {
+        this.routeView = {
+          status: "Unavailable",
+          routeType: null,
+          routes: [],
+          mapUrl: null,
+          message: apexMessage(e, ROUTE_UNAVAILABLE)
+        };
+      }
+    } finally {
+      if (seq === this.routeSeq) {
+        this.loadingRoute = false;
       }
     }
   }
@@ -271,6 +436,34 @@ export default class RfpLanePanel extends LightningElement {
     });
   }
 
+  /** The sell the pricer sees: typed in Manual mode, derived from the margin otherwise. */
+  get sellNumber() {
+    return this.isManualSell ? parseMoney(this.sellText) : this.pricing.Sell__c;
+  }
+  get hasPerDistance() {
+    return this.milesNumber !== null;
+  }
+  get costPerDistanceText() {
+    return this.perDistanceText("Cost", this.costNumber);
+  }
+  get sellPerDistanceText() {
+    return this.perDistanceText("Sell", this.sellNumber);
+  }
+
+  /** "Cost per mile: 1.22 CAD", or "—" while there is no amount to divide yet. */
+  perDistanceText(label, amount) {
+    const value =
+      amount === null || amount === undefined
+        ? null
+        : perDistance(amount, this.milesNumber, this.unit);
+    const word = this.unit === "km" ? "km" : "mile";
+    const shown =
+      value === null || value === undefined
+        ? "—"
+        : `${value.toFixed(2)} ${this.currency}`;
+    return `${label} per ${word}: ${shown}`;
+  }
+
   handleSource(event) {
     this.costSource = event.detail.value;
     if (this.isBidSource && !this.selectedBidId) {
@@ -302,6 +495,9 @@ export default class RfpLanePanel extends LightningElement {
     }
     this.costSource = "Bid";
     this.selectedBidId = best.Id;
+  }
+  handleRefreshRoute() {
+    this.loadRoute(true);
   }
 
   handleSavePrice() {

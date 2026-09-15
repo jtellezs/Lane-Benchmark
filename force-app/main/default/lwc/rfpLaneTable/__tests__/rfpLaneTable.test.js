@@ -1,5 +1,8 @@
 import { createElement } from "lwc";
+import { subscribe, unsubscribe } from "lightning/messageService";
+import DISTANCE_UNIT from "@salesforce/messageChannel/Distance_Unit__c";
 import RfpLaneTable from "c/rfpLaneTable";
+import { writeUnit } from "c/distanceUnit";
 
 // c-lane-benchmark-place-picker is rendered inline for unresolved ends and it
 // imports Apex, so its modules have to resolve in jsdom.
@@ -89,11 +92,36 @@ const key = (target, k, extra = {}) =>
     })
   );
 
+/** What Lightning Message Service does on a publish: every subscriber hears it. */
+const publishUnit = (unit) =>
+  subscribe.mock.calls
+    .filter((call) => call[1] === DISTANCE_UNIT)
+    .forEach((call) => call[2]({ unit }));
+
+/** The Miles cell split into its distance text, its tag and its tooltip. */
+function milesOf(row) {
+  const cell = row.querySelector('[data-id="miles"]');
+  const tag = cell.querySelector('[data-id="miles-tag"]');
+  return {
+    text: cell.textContent.replace(tag ? tag.textContent : "", "").trim(),
+    tag: tag ? tag.textContent.trim() : null,
+    title: cell.title
+  };
+}
+
+const headerTexts = (el) =>
+  [...el.shadowRoot.querySelectorAll("thead th")].map((th) =>
+    th.textContent.trim()
+  );
+
 describe("c-rfp-lane-table", () => {
   afterEach(() => {
     while (document.body.firstChild) {
       document.body.removeChild(document.body.firstChild);
     }
+    // readUnit() reads the real jsdom localStorage: a km test must not leak.
+    window.localStorage.clear();
+    jest.clearAllMocks();
   });
 
   it("renders one row per lane with places, history and pricing text", async () => {
@@ -231,6 +259,126 @@ describe("c-rfp-lane-table", () => {
     expect(
       rowsOf(el)[0].querySelector('[data-id="hist"]').textContent.trim()
     ).toBe("3 · no median");
+  });
+
+  describe("trip miles", () => {
+    const tripLane = (id, fields) => ({ ...RESOLVED_LANE, Id: id, ...fields });
+
+    it("shows a Miles column after History, tagged by where the miles came from", async () => {
+      const el = await mount({
+        lanes: [
+          tripLane("a0L00000011", {
+            Miles__c: 1234,
+            Miles_Source__c: "History"
+          }),
+          tripLane("a0L00000012", {
+            Miles__c: 1260.4,
+            Miles_Source__c: "Truck route",
+            Route_Hours__c: 21.5
+          }),
+          tripLane("a0L00000013", {
+            Miles__c: 1302,
+            Miles_Source__c: "Regular route",
+            Route_Hours__c: 22
+          }),
+          tripLane("a0L00000014", {
+            Miles__c: 1190,
+            Miles_Source__c: "Approx"
+          })
+        ]
+      });
+      const headers = headerTexts(el);
+      expect(headers[headers.indexOf("History") + 1]).toBe("Miles");
+      const rows = rowsOf(el);
+      // Billed miles are the reference, so they carry no tag.
+      expect(milesOf(rows[0])).toEqual({
+        text: "1,234 mi",
+        tag: null,
+        title: "Median billed miles of the loads the history matched"
+      });
+      expect(milesOf(rows[1])).toEqual({
+        text: "1,260 mi",
+        tag: "truck",
+        title: "Mapbox truck route · 21.5 h"
+      });
+      expect(milesOf(rows[2])).toEqual({
+        text: "1,302 mi",
+        tag: "route",
+        title:
+          "Mapbox regular route: the truck limits could not be met · 22.0 h"
+      });
+      expect(milesOf(rows[3])).toEqual({
+        text: "1,190 mi",
+        tag: "approx.",
+        title:
+          "Straight-line distance between the two places, adjusted for roads"
+      });
+    });
+
+    it("shows a dash with the reason when a lane has no miles", async () => {
+      const el = await mount({
+        lanes: [
+          tripLane("a0L00000021", {
+            Miles__c: null,
+            Miles_Source__c: "No route"
+          }),
+          tripLane("a0L00000022", {
+            Miles__c: null,
+            Miles_Source__c: "No coordinates"
+          }),
+          // never run: RESOLVED_LANE carries no trip fields at all
+          tripLane("a0L00000023", {})
+        ]
+      });
+      const rows = rowsOf(el);
+      expect(milesOf(rows[0])).toEqual({
+        text: "—",
+        tag: null,
+        title: "Mapbox found no route between the two places"
+      });
+      expect(milesOf(rows[1])).toEqual({
+        text: "—",
+        tag: null,
+        title: "A place on this lane is missing or has no coordinates"
+      });
+      expect(milesOf(rows[2])).toEqual({
+        text: "—",
+        tag: null,
+        title: "No miles yet: load history or open the lane"
+      });
+    });
+
+    it("starts from the stored unit, follows the channel and lets go of it when removed", async () => {
+      writeUnit("km");
+      subscribe.mockReturnValueOnce({ id: "unit-sub" });
+      const el = await mount({
+        lanes: [
+          tripLane("a0L00000031", {
+            Miles__c: 1234,
+            Miles_Source__c: "Truck route",
+            Route_Hours__c: 21.5
+          })
+        ]
+      });
+      expect(headerTexts(el)).toContain("Km");
+      expect(milesOf(rowsOf(el)[0]).text).toBe("1,986 km");
+      expect(subscribe.mock.calls.some((c) => c[1] === DISTANCE_UNIT)).toBe(
+        true
+      );
+
+      publishUnit("mi");
+      await flush();
+      expect(headerTexts(el)).toContain("Miles");
+      expect(milesOf(rowsOf(el)[0]).text).toBe("1,234 mi");
+
+      // anything but mi or km is ignored
+      publishUnit("furlongs");
+      await flush();
+      expect(milesOf(rowsOf(el)[0]).text).toBe("1,234 mi");
+
+      document.body.removeChild(el);
+      expect(unsubscribe).toHaveBeenCalledWith({ id: "unit-sub" });
+    });
   });
 
   it("selects a row from the keyboard without stealing the picker's keys", async () => {

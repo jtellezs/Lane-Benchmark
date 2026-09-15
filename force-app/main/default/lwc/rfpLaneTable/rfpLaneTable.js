@@ -1,5 +1,13 @@
-import { LightningElement, api } from "lwc";
+import { LightningElement, api, wire } from "lwc";
+import {
+  APPLICATION_SCOPE,
+  MessageContext,
+  subscribe,
+  unsubscribe
+} from "lightning/messageService";
+import DISTANCE_UNIT from "@salesforce/messageChannel/Distance_Unit__c";
 import { inlineEdit } from "c/rfpPricing";
+import { readUnit, formatDistance } from "c/distanceUnit";
 
 /** The three columns the pricer can type into, in column order. */
 const EDITABLE = ["cost", "margin", "sell"];
@@ -82,6 +90,54 @@ function historyTitle(lane) {
     : "";
 }
 
+/** The small tag after a lane's miles; billed History miles need none. */
+const MILES_TAGS = {
+  History: "",
+  "Truck route": "truck",
+  "Regular route": "route",
+  Approx: "approx."
+};
+
+/** The tooltip on a lane's miles: where they came from. */
+const MILES_TITLES = {
+  History: "Median billed miles of the loads the history matched",
+  "Truck route": "Mapbox truck route",
+  "Regular route": "Mapbox regular route: the truck limits could not be met",
+  Approx: "Straight-line distance between the two places, adjusted for roads"
+};
+
+/** The tooltip on "—": why the lane has no miles. */
+const NO_MILES_TITLES = {
+  "No route": "Mapbox found no route between the two places",
+  "No coordinates": "A place on this lane is missing or has no coordinates"
+};
+const NO_MILES_YET = "No miles yet: load history or open the lane";
+
+/**
+ * The Miles cell in the chosen unit: the distance and its tag, or "—" with the
+ * reason when the lane has no miles (No route, No coordinates, never run).
+ */
+function milesCell(lane, unit) {
+  const source = lane.Miles_Source__c || "";
+  const known = Object.prototype.hasOwnProperty.call(MILES_TAGS, source);
+  if (!known || !(Number(lane.Miles__c) > 0)) {
+    return {
+      milesText: "—",
+      milesTag: "",
+      milesTitle: NO_MILES_TITLES[source] || NO_MILES_YET
+    };
+  }
+  const hours =
+    Number(lane.Route_Hours__c) > 0
+      ? ` · ${Number(lane.Route_Hours__c).toFixed(1)} h`
+      : "";
+  return {
+    milesText: formatDistance(lane.Miles__c, unit),
+    milesTag: MILES_TAGS[source],
+    milesTitle: `${MILES_TITLES[source]}${hours}`
+  };
+}
+
 export default class RfpLaneTable extends LightningElement {
   @api selectedId;
   @api currency = "CAD";
@@ -115,6 +171,37 @@ export default class RfpLaneTable extends LightningElement {
   focusPending = false;
   refocus = null; // the { laneId, field } cell to hand focus back to
 
+  /** "mi" or "km"; every distance on the page follows Distance_Unit__c. */
+  unit = readUnit();
+  @wire(MessageContext) messageContext;
+  unitSubscription = null;
+
+  connectedCallback() {
+    if (!this.unitSubscription) {
+      this.unitSubscription = subscribe(
+        this.messageContext,
+        DISTANCE_UNIT,
+        (message) => this.handleUnit(message),
+        { scope: APPLICATION_SCOPE }
+      );
+    }
+  }
+
+  /** The workbench drops the table when it leaves the lanes view. */
+  disconnectedCallback() {
+    if (this.unitSubscription) {
+      unsubscribe(this.unitSubscription);
+    }
+    this.unitSubscription = null;
+  }
+
+  handleUnit(message) {
+    const unit = message && message.unit;
+    if (unit === "mi" || unit === "km") {
+      this.unit = unit;
+    }
+  }
+
   renderedCallback() {
     if (this.focusPending) {
       this.focusPending = false;
@@ -145,6 +232,10 @@ export default class RfpLaneTable extends LightningElement {
   }
   get hasLanes() {
     return this._lanes.length > 0;
+  }
+  /** The column reads in the unit its cells are shown in. */
+  get distanceHeader() {
+    return this.unit === "km" ? "Km" : "Miles";
   }
 
   get allChecked() {
@@ -180,6 +271,7 @@ export default class RfpLaneTable extends LightningElement {
       equipment: l.Equipment_Type__c || l.Equipment_Category__c || "",
       histText: historyText(l),
       histTitle: historyTitle(l),
+      ...milesCell(l, this.unit),
       costText: money(l.Cost__c),
       marginText:
         l.Margin__c === null || l.Margin__c === undefined

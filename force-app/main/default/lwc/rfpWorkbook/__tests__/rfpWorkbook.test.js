@@ -61,8 +61,9 @@ describe("rfpWorkbook", () => {
     expect(sheet[1].slice(0, 2)).toEqual(["Montreal", "Toronto"]);
     expect(sheet[1][2]).toBe(1000);
     expect(sheet[1][5]).toBe(1150);
-    expect(sheet[1][11]).toBe("Acme");
-    expect(sheet[1][13]).toBe("=SUM(A1)"); // typed string cell, no apostrophe
+    expect(sheet[1][2 + OUR_COLUMNS.indexOf("Bid carrier")]).toBe("Acme");
+    // typed string cell, no apostrophe
+    expect(sheet[1][2 + OUR_COLUMNS.indexOf("Notes")]).toBe("=SUM(A1)");
 
     // Phase 3d: how much of the lane's history came from other RFPs' bids.
     const bidCountIdx = 2 + OUR_COLUMNS.indexOf("History bids");
@@ -181,6 +182,70 @@ describe("rfpWorkbook", () => {
     expect(sheet[2][fuelIdx]).toBe("");
     expect(sheet[2][fscIdx]).toBe("");
     expect(sheet[2][transitIdx]).toBe("");
+  });
+
+  it("carries the trip in miles and km after Transit days, with the rate per mile", () => {
+    const tripLanes = [
+      {
+        Id: "t1",
+        Row_Number__c: 1,
+        Cost__c: 1500,
+        Sell__c: 1800,
+        CurrencyIsoCode: "CAD",
+        Miles__c: 1234,
+        Miles_Source__c: "Truck route",
+        Route_Hours__c: 21.5
+      },
+      {
+        Id: "t2",
+        Row_Number__c: 2,
+        Cost__c: null,
+        Sell__c: null,
+        CurrencyIsoCode: "CAD",
+        Miles__c: 410.5,
+        Miles_Source__c: "History",
+        Route_Hours__c: null
+      },
+      {
+        Id: "t3",
+        Row_Number__c: 3,
+        Cost__c: 900,
+        Sell__c: 1000,
+        CurrencyIsoCode: "CAD",
+        Miles__c: null,
+        Miles_Source__c: "No route",
+        Route_Hours__c: null
+      },
+      // never run: no trip fields at all
+      {
+        Id: "t4",
+        Row_Number__c: 4,
+        Cost__c: 900,
+        Sell__c: 1000,
+        CurrencyIsoCode: "CAD"
+      }
+    ];
+    const { lanes: sheet } = buildSheets(tripLanes, [], {});
+    const header = sheet[0];
+    const at = header.indexOf("Transit days");
+    expect(header.slice(at, at + 8)).toEqual([
+      "Transit days",
+      "Miles",
+      "Km",
+      "Miles source",
+      "Route hours",
+      "Cost per mile",
+      "Sell per mile",
+      "Bid carrier"
+    ]);
+    const trip = (i) => sheet[i].slice(at + 1, at + 7);
+    // 1234 mi = 1985.93 km; 1500 / 1234 = 1.2156; 1800 / 1234 = 1.4587
+    expect(trip(1)).toEqual([1234, 1985.9, "Truck route", 21.5, 1.22, 1.46]);
+    // miles without a price: the per-mile cells stay empty
+    expect(trip(2)).toEqual([410.5, 660.6, "History", "", "", ""]);
+    // no miles, but the reason still travels
+    expect(trip(3)).toEqual(["", "", "No route", "", "", ""]);
+    expect(trip(4)).toEqual(["", "", "", "", "", ""]);
   });
 });
 

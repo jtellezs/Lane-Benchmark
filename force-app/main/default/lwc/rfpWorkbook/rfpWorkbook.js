@@ -1,4 +1,5 @@
 import { slug } from "c/laneBenchmarkCsv";
+import { KM_PER_MILE, perDistance } from "c/distanceUnit";
 
 export const OUR_COLUMNS = [
   "Cost",
@@ -10,6 +11,12 @@ export const OUR_COLUMNS = [
   "Fuel surcharge",
   "FSC included",
   "Transit days",
+  "Miles",
+  "Km",
+  "Miles source",
+  "Route hours",
+  "Cost per mile",
+  "Sell per mile",
   "Bid carrier",
   "History bids",
   "Notes"
@@ -45,6 +52,31 @@ function sellSource(l) {
   return l.Sell_Source__c === "Manual" ? "Manual" : "Margin";
 }
 const priced = (l) => isNum(l.Cost__c);
+
+/** An amount per mile, or "" while the lane has no such amount. */
+function perMile(amount, miles) {
+  return isNum(amount) ? cell(perDistance(amount, miles, "mi")) : "";
+}
+
+/**
+ * Miles, Km, Miles source, Route hours, Cost per mile, Sell per mile. The file
+ * always carries both units, whatever the page shows, and the rates are per
+ * mile. A lane without miles still says why (No route, No coordinates).
+ */
+function tripCells(l) {
+  const source = cell(l.Miles_Source__c);
+  if (!(isNum(l.Miles__c) && l.Miles__c > 0)) {
+    return ["", "", source, "", "", ""];
+  }
+  return [
+    l.Miles__c,
+    Math.round(l.Miles__c * KM_PER_MILE * 10) / 10,
+    source,
+    cell(l.Route_Hours__c),
+    perMile(l.Cost__c, l.Miles__c),
+    perMile(l.Sell__c, l.Miles__c)
+  ];
+}
 
 function summarySheet(ordered) {
   const rows = [
@@ -147,6 +179,7 @@ export function buildSheets(lanes, rawRows, bidsByLaneId) {
       cell(best?.Fuel_Surcharge__c),
       best ? yesNo(best.FSC_Included__c) : "",
       cell(best?.Transit_Days__c),
+      ...tripCells(l),
       cell(l.Selected_Bid__r?.Carrier_Display__c),
       cell(l.Hist_Bid_Count__c),
       cell(l.Notes__c)

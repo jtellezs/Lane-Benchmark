@@ -92,6 +92,17 @@ describe("c-rfp-toolbar", () => {
     ).toBe(false);
   });
 
+  it("puts the distance unit toggle in the column right after Include RFP bids", () => {
+    const el = mount();
+    const toggle = field(el, "distance-unit");
+    expect(toggle).not.toBeNull();
+    expect(toggle.tagName.toLowerCase()).toBe("c-distance-unit-toggle");
+    // Every control has its own column, so the toggle's column is the one
+    // straight after the checkbox's.
+    const bidsColumn = field(el, "include-bids").parentElement;
+    expect(bidsColumn.nextElementSibling.contains(toggle)).toBe(true);
+  });
+
   it("hands the project, the lanes and its busy flag to the export", () => {
     const el = mount();
     const exporter = el.shadowRoot.querySelector("c-rfp-export");
