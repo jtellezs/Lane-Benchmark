@@ -90,6 +90,8 @@
         <members>MapboxTruckRoute</members>
         <members>MapboxTruckRouteTest</members>
         <members>TruckRoute</members>
+        <members>RouteMapUrl</members>
+        <members>RouteMapUrlTest</members>
         <members>LaneBenchmarkPlaceServiceTest</members>
         <members>RfpTestDataFactory</members>
         <members>RfpTestDataFactoryTest</members>
