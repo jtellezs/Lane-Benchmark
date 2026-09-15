@@ -689,4 +689,165 @@ private class RfpLaneControllerTest {
       'the colleague\'s row is replaced by the refresh'
     );
   }
+
+  // ---- phase 7 controller rulings: laneRoute's lane write, and resolveLaneEnd ----
+
+  /**
+   * R75 race (controller ruling): a history run saves History miles while laneRoute waits on
+   * Mapbox. One test transaction cannot run the two at once, so this replays that order on
+   * laneRoute's write step: the lane is read as Approx and its route found (from the store, so no
+   * callout has to follow the DML below), then the history run's save lands, then the write step
+   * runs.
+   */
+  @IsTest
+  static void laneRouteWritesNoMilesOverHistorySavedWhileTheRouteWasLoading() {
+    Fx f = fx();
+    update new RFP_Lane__c(
+      Id = f.lane.Id,
+      Miles__c = 402.3,
+      Miles_Source__c = 'Approx'
+    );
+    storedRoute(f, 335.5);
+    MapboxHttp.tokenOverride = 'pk.test';
+    RFP_Lane__c read = RfpLaneController.lanesByIds(
+      new List<Id>{ f.lane.Id }
+    )[0];
+    TripRouteView view = TripRouteView.routeBetween(
+      TripRouteView.laneEnd(read.Origin_Place__c, read.Origin_Place__r),
+      TripRouteView.laneEnd(
+        read.Destination_Place__c,
+        read.Destination_Place__r
+      ),
+      false
+    );
+    System.assertEquals('Truck route', view.source, 'message: ' + view.message);
+    System.assertNotEquals(
+      null,
+      TripRouteView.laneUpdate(read, view),
+      'the lane as read before the route would take the route'
+    );
+    update new RFP_Lane__c(
+      Id = f.lane.Id,
+      Miles__c = 350.0,
+      Miles_Source__c = 'History',
+      Route_Hours__c = null
+    );
+    Integer dmlBefore = Limits.getDmlStatements();
+    RFP_Lane__c written = RfpLaneController.writeLaneMiles(f.lane.Id, view);
+    System.assertEquals(
+      dmlBefore,
+      Limits.getDmlStatements(),
+      'no lane update at write time'
+    );
+    System.assertEquals(null, written, 'view.lane stays empty');
+    RFP_Lane__c lane = storedLane(f.lane.Id);
+    System.assertEquals(
+      350.0,
+      lane.Miles__c,
+      'the History miles saved meanwhile stay (R75)'
+    );
+    System.assertEquals('History', lane.Miles_Source__c);
+    System.assertEquals(null, lane.Route_Hours__c);
+  }
+
+  /**
+   * laneRoute writes the lane only when its miles, source or hours would change (controller
+   * ruling): the lane panel opens the route on every row click, so a lane that already holds the
+   * stored route is not rewritten (no DML, the lane's LastModifiedBy stays).
+   */
+  @IsTest
+  static void laneRouteDoesNotRewriteALaneThatAlreadyHoldsTheStoredRoute() {
+    Fx f = fx();
+    storedRoute(f, 335.5);
+    MapboxHttp.tokenOverride = 'pk.test';
+    DirectionsMock mock = new DirectionsMock(200, FOUND);
+    Test.setMock(HttpCalloutMock.class, mock);
+    Test.startTest();
+    Integer beforeFirst = Limits.getDmlStatements();
+    TripRouteView first = RfpLaneController.laneRoute(f.lane.Id, false);
+    Integer afterFirst = Limits.getDmlStatements();
+    TripRouteView second = RfpLaneController.laneRoute(f.lane.Id, false);
+    Integer afterSecond = Limits.getDmlStatements();
+    Test.stopTest();
+    System.assertEquals(0, mock.calls, 'both opens are answered by the store');
+    System.assertEquals(
+      1,
+      afterFirst - beforeFirst,
+      'the first open writes the stored route to the lane'
+    );
+    System.assertNotEquals(null, first.lane, 'the first open wrote the lane');
+    System.assertEquals('Truck route', first.lane.Miles_Source__c);
+    System.assertEquals('Found', second.status, 'message: ' + second.message);
+    System.assertEquals(335.5, second.miles, 'the view comes back either way');
+    System.assertNotEquals(null, second.mapUrl);
+    System.assertEquals(
+      0,
+      afterSecond - afterFirst,
+      'the second open performs no lane update'
+    );
+    System.assertEquals(null, second.lane, 'nothing written, nothing re-read');
+    RFP_Lane__c lane = storedLane(f.lane.Id);
+    System.assertEquals(335.5, lane.Miles__c);
+    System.assertEquals('Truck route', lane.Miles_Source__c);
+    System.assertEquals(20.0, lane.Route_Hours__c);
+  }
+
+  /**
+   * resolveLaneEnd clears the trip fields (controller ruling): a history run writes
+   * 'No coordinates' on a lane with an unresolved end, and a route's miles belong to the old place
+   * pair; neither may stay beside the newly resolved lane.
+   */
+  @IsTest
+  static void resolveLaneEndClearsTheTripMilesOfTheOldPlacePair() {
+    Fx f = fx();
+    update new RFP_Lane__c(
+      Id = f.lane.Id,
+      Destination_Place__c = null,
+      Destination_Resolved__c = false,
+      Miles_Source__c = 'No coordinates'
+    );
+    RFP_Lane__c resolved = RfpLaneController.resolveLaneEnd(
+      f.lane.Id,
+      'destination',
+      'toronto|on|ca'
+    );
+    System.assertEquals(true, resolved.Destination_Resolved__c);
+    System.assertEquals(
+      null,
+      resolved.Miles_Source__c,
+      'the No coordinates line does not stay beside the resolved lane'
+    );
+    System.assertEquals(null, storedLane(f.lane.Id).Miles_Source__c);
+    update new RFP_Lane__c(
+      Id = f.lane.Id,
+      Miles__c = 335.5,
+      Miles_Source__c = 'Truck route',
+      Route_Hours__c = 5.5
+    );
+    Pricing_Place__c laval = RfpTestDataFactory.createPlace(
+      'Laval',
+      'QC',
+      'CA',
+      45.6066,
+      -73.7124,
+      'H7P'
+    );
+    RFP_Lane__c moved = RfpLaneController.resolveLaneEnd(
+      f.lane.Id,
+      'origin',
+      'laval|qc|ca'
+    );
+    System.assertEquals(laval.Id, moved.Origin_Place__c);
+    System.assertEquals(
+      null,
+      moved.Miles__c,
+      'the Montréal route miles do not stay on a Laval lane'
+    );
+    System.assertEquals(null, moved.Miles_Source__c);
+    System.assertEquals(null, moved.Route_Hours__c);
+    RFP_Lane__c lane = storedLane(f.lane.Id);
+    System.assertEquals(null, lane.Miles__c);
+    System.assertEquals(null, lane.Miles_Source__c);
+    System.assertEquals(null, lane.Route_Hours__c);
+  }
 }

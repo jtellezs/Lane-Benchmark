@@ -102,10 +102,16 @@ public with sharing class TripRouteView {
   /**
    * The lane write a route makes, or null. History miles are billed PC*Miler miles and outrank a
    * route (R75); an unavailable route changes nothing (spec section 7); No route clears the miles
-   * and the hours.
+   * and the hours. A lane that already holds the route's miles, source and hours needs no write
+   * (controller ruling). RfpLaneController.writeLaneMiles passes the lane as read, FOR UPDATE,
+   * right before its update.
    */
   public static RFP_Lane__c laneUpdate(RFP_Lane__c lane, TripRouteView view) {
-    if (lane.Miles_Source__c == 'History' || view.source == null) {
+    if (
+      lane.Miles_Source__c == 'History' ||
+      view.source == null ||
+      holdsRoute(lane, view)
+    ) {
       return null;
     }
     return new RFP_Lane__c(
@@ -114,6 +120,13 @@ public with sharing class TripRouteView {
       Miles_Source__c = view.source,
       Route_Hours__c = view.hours
     );
+  }
+
+  /** True when the lane already carries the view's miles, source and hours; null matches null. */
+  private static Boolean holdsRoute(RFP_Lane__c lane, TripRouteView view) {
+    return lane.Miles__c == view.miles &&
+      view.source.equals(lane.Miles_Source__c) &&
+      lane.Route_Hours__c == view.hours;
   }
 
   /** Found needs at least one line; anything that is neither Found nor No route reads as Unavailable. */

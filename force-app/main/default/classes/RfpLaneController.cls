@@ -127,9 +127,15 @@ public with sharing class RfpLaneController {
         WITH USER_MODE
         LIMIT 1
       ];
+      // The trip fields belong to the old place pair, or to none: a history run writes 'No
+      // coordinates' on a lane with an unresolved end. They are cleared, and the lane panel's route
+      // or the next history run fills them for the resolved lane (controller ruling).
       RFP_Lane__c lane = new RFP_Lane__c(
         Id = laneId,
-        Hist_Status__c = nextHistStatus(laneId, side)
+        Hist_Status__c = nextHistStatus(laneId, side),
+        Miles__c = null,
+        Miles_Source__c = null,
+        Route_Hours__c = null
       );
       if (side == 'origin') {
         lane.Origin_City__c = place.City__c;
@@ -168,10 +174,10 @@ public with sharing class RfpLaneController {
    * The truck route of one lane (phase 7), for the lane panel; not cacheable, it calls out and
    * saves. The lane is read in user mode, so a lane the caller cannot read is "This lane is not
    * available." TripRouteView.routeBetween makes the callouts and then saves the store row; the
-   * lane's miles are written last, in user mode after the FLS strip like every lane save here,
-   * unless they come from History (TripRouteView.laneUpdate). view.lane is the re-read lane when
-   * it was written, for the table. The lane read and its refusal sit before the try so that no
-   * AuraHandledException needs re-throwing: each catch and throw counts toward PMD's class
+   * lane's miles are written last, by writeLaneMiles, which decides on the lane as it is at that
+   * moment; the read before the Mapbox call gives only the places. view.lane is the re-read lane
+   * when it was written, for the table. The lane read and its refusal sit before the try so that
+   * no AuraHandledException needs re-throwing: each catch and throw counts toward PMD's class
    * complexity budget, which this class is close to.
    */
   @AuraEnabled
@@ -190,24 +196,50 @@ public with sharing class RfpLaneController {
         ),
         refresh
       );
-      RFP_Lane__c miles = TripRouteView.laneUpdate(stored, view);
-      if (miles != null) {
-        Database.update(
-          Security.stripInaccessible(
-              AccessType.UPDATABLE,
-              new List<RFP_Lane__c>{ miles }
-            )
-            .getRecords()[0],
-          AccessLevel.USER_MODE
-        );
-        view.lane = one(laneId);
-      }
+      view.lane = writeLaneMiles(laneId, view);
       return view;
     } catch (Exception e) {
       throw RfpUserError.of(
         'The truck route could not be loaded. ' + RfpUserError.safe(e)
       );
     }
+  }
+
+  /**
+   * laneRoute's lane write, after every callout. The lane's miles fields are read again FOR UPDATE
+   * right before the update, not taken from laneRoute's read before the Mapbox call: History miles
+   * that a history run saved while the route was on its way stay (R75), and the lock keeps a run
+   * from saving between this read and the update (controller ruling). TripRouteView.laneUpdate
+   * decides on that fresh copy, so a lane that already holds the route's miles, source and hours
+   * is not rewritten either: the lane panel opens the route on every row click (controller
+   * ruling). Written in user mode after the FLS strip like every lane save here. Returns the
+   * re-read lane when it wrote it, otherwise null. @TestVisible: a history run cannot overlap a
+   * route call inside one test transaction, so the test replays that order on this step.
+   */
+  @TestVisible
+  private static RFP_Lane__c writeLaneMiles(Id laneId, TripRouteView view) {
+    RFP_Lane__c miles = TripRouteView.laneUpdate(
+      [
+        SELECT Id, Miles__c, Miles_Source__c, Route_Hours__c
+        FROM RFP_Lane__c
+        WHERE Id = :laneId
+        WITH USER_MODE
+        FOR UPDATE
+      ],
+      view
+    );
+    if (miles == null) {
+      return null;
+    }
+    Database.update(
+      Security.stripInaccessible(
+          AccessType.UPDATABLE,
+          new List<RFP_Lane__c>{ miles }
+        )
+        .getRecords()[0],
+      AccessLevel.USER_MODE
+    );
+    return one(laneId);
   }
 
   /**
