@@ -247,7 +247,6 @@ export default class LaneBenchmark extends LightningElement {
       equipmentCategories: r.equipmentCategories,
       equipmentTypes: r.equipmentTypes,
       hazmatOnly: r.hazmatOnly,
-      marketTestOnly: r.marketTestOnly,
       acceptedFilter: r.acceptedFilter,
       sourceFilter: r.sourceFilter,
       rowLimit: 2000,

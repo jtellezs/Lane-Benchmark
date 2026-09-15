@@ -6,7 +6,7 @@
  * orchestrates (validate, build, query, dedupe, aggregate); every precision branch that used to
  * push LaneSearchService's class-wide PMD complexity total past 40 lives here instead. Task 7's
  * fix round 1 found this class alone (lane-precision logic plus the filters) still totaled 44
- * against the 40 threshold; fix round 2 moved the currency/mode/equipment/hazmat/market-test/
+ * against the 40 threshold; fix round 2 moved the currency/mode/equipment/hazmat/
  * accepted filters into their own class, LaneSearchFilters, called from buildSoql below.
  */
 public with sharing class LaneSearchQueryBuilder {

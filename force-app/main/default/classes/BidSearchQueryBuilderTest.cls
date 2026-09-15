@@ -124,12 +124,6 @@ private class BidSearchQueryBuilderTest {
       BidSearchQueryBuilder.buildSoql(r, new Map<String, Object>(), places())
     );
     r = req();
-    r.marketTestOnly = true;
-    System.assertEquals(
-      null,
-      BidSearchQueryBuilder.buildSoql(r, new Map<String, Object>(), places())
-    );
-    r = req();
     r.acceptedFilter = LaneSearchRequest.Accepted.DECLINED;
     System.assertEquals(
       null,

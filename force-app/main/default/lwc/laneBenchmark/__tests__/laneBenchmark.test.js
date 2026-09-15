@@ -167,7 +167,6 @@ describe("c-lane-benchmark", () => {
           equipmentCategories: [],
           equipmentTypes: [],
           hazmatOnly: false,
-          marketTestOnly: false,
           acceptedFilter: "ANY_STATUS"
         }
       })
@@ -179,6 +178,7 @@ describe("c-lane-benchmark", () => {
     await flush();
     expect(search).toHaveBeenCalledTimes(1);
     const sent = JSON.parse(search.mock.calls[0][0].requestJson);
+    expect(sent).not.toHaveProperty("marketTestOnly");
     expect(sent).toMatchObject({
       originKey: "montreal|qc|ca",
       originPrecision: "CITY",

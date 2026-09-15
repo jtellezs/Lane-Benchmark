@@ -1,5 +1,5 @@
 /**
- * Task 7's currency/mode/equipment/hazmat/market-test/accepted filters. Pure: no SOQL, no DML -
+ * Task 7's currency/mode/equipment/hazmat/accepted filters, plus the Market Test exclusion. Pure: no SOQL, no DML -
  * just condition/bind assembly from a LaneSearchRequest, appended to the conditions/binds
  * LaneSearchQueryBuilder.buildSoql() is assembling. Split out of LaneSearchQueryBuilder per the
  * Task 7 review ruling ("split the filters out"): LaneSearchQueryBuilder alone (lane-precision
@@ -19,7 +19,7 @@ public with sharing class LaneSearchFilters {
     addModeFilter(req, conditions, binds);
     addEquipmentFilter(req, conditions, binds);
     addHazmatFilter(req, conditions);
-    addMarketTestFilter(req, conditions, binds);
+    addMarketTestExclusion(conditions, binds);
     addAcceptedFilter(req, conditions);
   }
 
@@ -80,15 +80,17 @@ public with sharing class LaneSearchFilters {
     }
   }
 
-  private static void addMarketTestFilter(
-    LaneSearchRequest req,
+  /**
+   * Quotes whose customer is a Market Test account are left out of every lane search (owner,
+   * 2026-09-15): pricing reads carrier bids instead. A customer name is always set on quotes, so
+   * NOT LIKE drops only the Market Test quotes (PostProduc, 90 days: 10,642 = 218 + 10,424).
+   */
+  private static void addMarketTestExclusion(
     List<String> conditions,
     Map<String, Object> binds
   ) {
-    if (req.marketTestOnly == true) {
-      binds.put('marketTest', '%Market Test%');
-      conditions.add('Customer_Name__c LIKE :marketTest');
-    }
+    binds.put('marketTest', '%Market Test%');
+    conditions.add('(NOT Customer_Name__c LIKE :marketTest)');
   }
 
   private static void addAcceptedFilter(

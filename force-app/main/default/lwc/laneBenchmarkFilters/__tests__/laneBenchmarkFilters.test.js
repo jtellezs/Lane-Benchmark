@@ -14,7 +14,6 @@ const DEFAULTS = {
   equipmentCategories: [],
   equipmentTypes: [],
   hazmatOnly: false,
-  marketTestOnly: false,
   acceptedFilter: "ANY_STATUS",
   sourceFilter: "ALL"
 };
@@ -87,7 +86,17 @@ describe("c-lane-benchmark-filters", () => {
     const final = handler.mock.calls[handler.mock.calls.length - 1][0].detail;
     expect(final.acceptedFilter).toBe("ACCEPTED");
     expect(final.hazmatOnly).toBe(true);
-    expect(final.marketTestOnly).toBe(false);
+    expect(final).not.toHaveProperty("marketTestOnly");
+  });
+
+  it("offers Hazmat only as the only flag: Market Test quotes are never searched", async () => {
+    const el = await mount();
+    expect(
+      el.shadowRoot
+        .querySelector('[data-id="flags"]')
+        .options.map((o) => o.value)
+    ).toEqual(["hazmatOnly"]);
+    expect(el.value).not.toHaveProperty("marketTestOnly");
   });
 
   it("rejects a non-positive lookback and keeps the previous value", async () => {

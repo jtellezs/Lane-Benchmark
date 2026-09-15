@@ -249,7 +249,7 @@ public class PricingTestDataFactory {
     return createLoad(g, origin, destination, false, g.customer, g.mode, miles);
   }
 
-  /** Sets a customer other than the graph's at insert, for the market-test filter scenario. */
+  /** Sets a customer other than the graph's at insert, for the Market Test exclusion scenario. */
   public static rtms__Load__c createLoad(
     Graph g,
     Account origin,
