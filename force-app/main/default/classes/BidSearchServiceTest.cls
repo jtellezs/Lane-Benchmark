@@ -191,6 +191,83 @@ private class BidSearchServiceTest {
     );
   }
 
+  /**
+   * Phase 8: a bid whose carrier account is blacklisted carries the same warning text as a quote
+   * row; a bid on a clean carrier account and a bid that only names its carrier carry none. A bid
+   * has no Transportation Profile, so never the claim text (spec D5).
+   */
+  @IsTest
+  static void aBlacklistedBidCarrierGetsTheWarning() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c mtl = RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    Pricing_Place__c tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      RfpTestDataFactory.createProject(g.customer),
+      mtl,
+      tor
+    );
+    Benchmark_Rate__c blacklisted = RfpTestDataFactory.buildBid(lane, 1000);
+    blacklisted.Carrier__c = RfpTestDataFactory.hiddenCarrier().Id;
+    Benchmark_Rate__c clean = RfpTestDataFactory.buildBid(lane, 2000);
+    clean.Carrier__c = g.vendor.Id;
+    insert new List<Benchmark_Rate__c>{
+      blacklisted,
+      clean,
+      RfpTestDataFactory.buildBid(lane, 3000)
+    };
+    LaneSearchRequest request = new LaneSearchRequest();
+    request.originKey = mtl.Key__c;
+    request.destinationKey = tor.Key__c;
+    request.validate();
+
+    Test.startTest();
+    List<LaneSearchResult.Row> rows = BidSearchService.search(
+      request,
+      new Map<String, Pricing_Place__c>{ mtl.Key__c => mtl, tor.Key__c => tor },
+      new BidSearchService.Outcome()
+    );
+    Test.stopTest();
+
+    Map<Integer, String> warningByRate = new Map<Integer, String>();
+    for (LaneSearchResult.Row r : rows) {
+      warningByRate.put(r.carrierTotal.intValue(), r.carrier.attention);
+    }
+    System.assertEquals(
+      new Set<Integer>{ 1000, 2000, 3000 },
+      warningByRate.keySet(),
+      'the three live bids on the lane'
+    );
+    System.assertEquals(
+      'THE CARRIER IS BLACK-LISTED',
+      warningByRate.get(1000),
+      'the bid carrier account is blacklisted'
+    );
+    System.assertEquals(
+      null,
+      warningByRate.get(2000),
+      'the graph vendor is not blacklisted'
+    );
+    System.assertEquals(
+      null,
+      warningByRate.get(3000),
+      'a bid that only names its carrier has no account flag'
+    );
+  }
+
   private static List<Decimal> ratesFor(
     Pricing_Place__c origin,
     Pricing_Place__c destination,

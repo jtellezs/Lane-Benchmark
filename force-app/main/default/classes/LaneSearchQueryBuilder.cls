@@ -13,12 +13,16 @@
  * LaneSearchQueryBuilderTest pins the exact SOQL and bind names.
  */
 public with sharing class LaneSearchQueryBuilder {
+  // Phase 8: the vendor account's blacklist flag and the Transportation Profile's claim flag replace
+  // the Carrier_Att__c formula, whose blacklist half read the profile; LaneSearchService.toRow joins
+  // them with CarrierWarning.text (spec D5).
   private static final String SELECT_CLAUSE =
     'SELECT Id, Name, rtms__Load__c, Origin__c, Destination__c, Mode__c, Equipment_Type__c, ' +
     'rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c, rtms__Load__r.rtms__Distance_Miles__c, ' +
     'Carrier_Name__c, Carrier_Contact__c, ' +
     'CurrencyIsoCode, rtms__Carrier_Total__c, Quote_Date__c, Hazmat__c, rtms__Accepted__c, Load_Status__c, Ops_Comments__c, ' +
-    'Contact_Email__c, Contact_Phone__c, Carrier_Risk__c, Nb_of_loads__c, Carrier_Att__c, ' +
+    'Contact_Email__c, Contact_Phone__c, Carrier_Risk__c, Nb_of_loads__c, ' +
+    'rtms__Vendor__r.Black_List__c, rtms__Carrier_Service__r.rtms__Transportation_Profile__r.Outstanding_Claim__c, ' +
     'CreatedDate FROM rtms__CarrierQuote__c';
 
   // Brief called this local/parameter "where", but WHERE is a reserved Apex identifier (compiler

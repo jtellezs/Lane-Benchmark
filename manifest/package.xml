@@ -148,6 +148,8 @@
         <members>HandoffPointsTest</members>
         <members>ExchangeRates</members>
         <members>ExchangeRatesTest</members>
+        <members>CarrierWarning</members>
+        <members>CarrierWarningTest</members>
         <name>ApexClass</name>
     </types>
     <types>

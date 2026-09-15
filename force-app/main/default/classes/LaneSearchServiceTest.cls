@@ -107,9 +107,10 @@ private class LaneSearchServiceTest {
       r.rows[0].carrier.loadCount,
       'from the vendor account Number_of_Loads__c (BlankAsZero formula)'
     );
-    System.assert(
-      String.isBlank(r.rows[0].carrier.attention),
-      'clean profile (no BlackList__c/Outstanding_Claim__c) has no attention flags'
+    System.assertEquals(
+      null,
+      r.rows[0].carrier.attention,
+      'a vendor that is not blacklisted, on a profile with no claim, has no warning'
     );
   }
 
@@ -984,6 +985,142 @@ private class LaneSearchServiceTest {
       null,
       LaneSearchService.ratePerMileMedian(new List<Decimal>()),
       'no rate, no median'
+    );
+  }
+
+  /**
+   * Phase 8: builders for theWarningReadsTheVendorBlacklistAndTheProfileClaim. An inner class with
+   * instance methods, so they stay out of this test class's PMD complexity total (37 of 40 before
+   * phase 8).
+   */
+  private class WarningFixture {
+    /**
+     * A second carrier chain like the graph's (account, quote contact, Transportation Profile,
+     * carrier service) on RfpTestDataFactory.hiddenCarrier(), which is inserted with
+     * Black_List__c = true. The flag is set at insert on purpose: switching it on by an update
+     * starts the org's Account_BlackList flow, which hands the account to another owner. A quote
+     * keeps its vendor and its carrier service on the same account, as every quote in PostProduc
+     * does.
+     */
+    rtms__CarrierService__c blacklistedCarrierService(
+      PricingTestDataFactory.Graph g
+    ) {
+      Account carrier = RfpTestDataFactory.hiddenCarrier();
+      Contact quoteContact = new Contact(
+        FirstName = 'Blacklisted',
+        LastName = 'Contact',
+        AccountId = carrier.Id,
+        Email = 'blacklisted.contact@example.invalid',
+        Phone = '514-555-0101'
+      );
+      insert quoteContact;
+      rtms__TransportationProfile__c carrierProfile = new rtms__TransportationProfile__c(
+        Name = 'Blacklisted Carrier Profile',
+        RecordTypeId = Schema.SObjectType.rtms__TransportationProfile__c
+          .getRecordTypeInfosByDeveloperName()
+          .get('Carrier')
+          .getRecordTypeId(),
+        rtms__Company_Risk__c = 'Acceptable',
+        rtms__Carrier_Remit_To__c = carrier.Id
+      );
+      insert carrierProfile;
+      rtms__CarrierService__c carrierService = new rtms__CarrierService__c(
+        Name = 'Blacklisted Carrier Service',
+        rtms__Carrier__c = carrier.Id,
+        rtms__Mode__c = g.mode.Id,
+        rtms__Transportation_Profile__c = carrierProfile.Id,
+        rtms__Quote_Contact__c = quoteContact.Id,
+        rtms__Minimum_Weight__c = 0,
+        rtms__Maximum_Weight__c = 100000
+      );
+      insert carrierService;
+      return carrierService;
+    }
+
+    /** Each row's warning by its total; the quotes of one test have distinct totals. */
+    Map<Integer, String> warningsByTotal(LaneSearchResult result) {
+      Map<Integer, String> byTotal = new Map<Integer, String>();
+      for (LaneSearchResult.Row row : result.rows) {
+        byTotal.put(row.carrierTotal.intValue(), row.carrier.attention);
+      }
+      return byTotal;
+    }
+  }
+
+  /**
+   * Phase 8: the red warning takes its blacklist text from the vendor account's Black_List__c and
+   * keeps its claim text from the Transportation Profile's Outstanding_Claim__c (spec D5, R90).
+   * Carrier_Att__c read the blacklist from the profile, so the blacklisted vendor showed nothing.
+   * The second carrier chain is inserted before Test.startTest() and the load inside it: the chain
+   * spends the budget one load outside would have used (PricingTestDataFactory class doc).
+   */
+  @IsTest
+  static void theWarningReadsTheVendorBlacklistAndTheProfileClaim() {
+    Fixture f = fixture();
+    WarningFixture w = new WarningFixture();
+    rtms__CarrierService__c blacklistedService = w.blacklistedCarrierService(
+      f.g
+    );
+    Test.startTest();
+    f.mtlTor = PricingTestDataFactory.createLoad(
+      f.g,
+      f.g.originLocation,
+      f.g.destinationLocation
+    );
+    rtms__CarrierQuote__c blacklistedQuote = PricingTestDataFactory.buildQuote(
+      f.g,
+      f.mtlTor,
+      2000
+    );
+    blacklistedQuote.rtms__Carrier_Service__c = blacklistedService.Id;
+    blacklistedQuote.rtms__Vendor__c = blacklistedService.rtms__Carrier__c;
+    blacklistedQuote.rtms__Quote_Contact__c = blacklistedService.rtms__Quote_Contact__c;
+    insert new List<rtms__CarrierQuote__c>{
+      PricingTestDataFactory.buildQuote(f.g, f.mtlTor, 1000),
+      blacklistedQuote
+    };
+    Map<Integer, String> beforeClaims = w.warningsByTotal(
+      LaneSearchService.search(req('montreal|qc|ca', 'toronto|on|ca'))
+    );
+    update new List<rtms__TransportationProfile__c>{
+      new rtms__TransportationProfile__c(
+        Id = f.g.profile.Id,
+        Outstanding_Claim__c = true
+      ),
+      new rtms__TransportationProfile__c(
+        Id = blacklistedService.rtms__Transportation_Profile__c,
+        Outstanding_Claim__c = true
+      )
+    };
+    Map<Integer, String> afterClaims = w.warningsByTotal(
+      LaneSearchService.search(req('montreal|qc|ca', 'toronto|on|ca'))
+    );
+    Test.stopTest();
+
+    System.assertEquals(
+      new Set<Integer>{ 1000, 2000 },
+      beforeClaims.keySet(),
+      'both quotes are on the lane'
+    );
+    System.assertEquals(
+      null,
+      beforeClaims.get(1000),
+      'the graph vendor is not blacklisted and its profile has no claim'
+    );
+    System.assertEquals(
+      'THE CARRIER IS BLACK-LISTED',
+      beforeClaims.get(2000),
+      'the vendor account is blacklisted; its profile is not flagged'
+    );
+    System.assertEquals(
+      'UNDER A CLAIM',
+      afterClaims.get(1000),
+      'the claim text still comes from the Transportation Profile'
+    );
+    System.assertEquals(
+      'THE CARRIER IS BLACK-LISTED  UNDER A CLAIM',
+      afterClaims.get(2000),
+      'blacklist first, then the claim, as in the formula'
     );
   }
 }

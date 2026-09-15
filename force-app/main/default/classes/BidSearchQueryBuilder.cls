@@ -8,8 +8,9 @@
  * Returns null when the request can never match a bid (see canMatchBids).
  */
 public with sharing class BidSearchQueryBuilder {
+  // Phase 8: Carrier__r.Black_List__c feeds the bid row's carrier warning (BidSearchService.toRow).
   private static final String SELECT_CLAUSE =
-    'SELECT Id, Name, RFP_Lane__c, RFP_Project__c, Carrier__c, Carrier_Name__c, Carrier_Display__c, ' +
+    'SELECT Id, Name, RFP_Lane__c, RFP_Project__c, Carrier__c, Carrier__r.Black_List__c, Carrier_Name__c, Carrier_Display__c, ' +
     'Contact_Name__c, Contact_Email__c, Contact_Phone__c, Rate__c, CurrencyIsoCode, Fuel_Surcharge__c, ' +
     'FSC_Included__c, Transit_Days__c, Valid_From__c, Expires_On__c, Status__c, Mode__c, ' +
     'Equipment_Category__c, Equipment_Type__c, Hazmat__c, Origin_City__c, Origin_Province__c, ' +
