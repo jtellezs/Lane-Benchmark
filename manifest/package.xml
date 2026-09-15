@@ -138,6 +138,10 @@
         <members>FreightPlanReader</members>
         <members>SplitTestData</members>
         <members>SplitTestDataTest</members>
+        <members>LaneSearchQueryBuilderTest</members>
+        <members>LaneKeyMatcher</members>
+        <members>LaneKeyMatcherTest</members>
+        <members>LaneLoadFilters</members>
         <name>ApexClass</name>
     </types>
     <types>

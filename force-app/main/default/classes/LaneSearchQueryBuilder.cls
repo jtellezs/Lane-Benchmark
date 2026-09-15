@@ -7,7 +7,10 @@
  * push LaneSearchService's class-wide PMD complexity total past 40 lives here instead. Task 7's
  * fix round 1 found this class alone (lane-precision logic plus the filters) still totaled 44
  * against the 40 threshold; fix round 2 moved the currency/mode/equipment/hazmat/
- * accepted filters into their own class, LaneSearchFilters, called from buildSoql below.
+ * accepted filters into their own class, LaneSearchFilters, called from buildSoql below. Phase 8
+ * moved the city, province and postal-prefix conditions into LaneKeyMatcher, which the Carriers to
+ * ask and Split-lane services share; only the radius (DISTANCE through the stops) stays here.
+ * LaneSearchQueryBuilderTest pins the exact SOQL and bind names.
  */
 public with sharing class LaneSearchQueryBuilder {
   private static final String SELECT_CLAUSE =
@@ -42,7 +45,7 @@ public with sharing class LaneSearchQueryBuilder {
   }
 
   /**
-   * Every per-end value addEnd and its helpers need, resolved once for origin or destination by
+   * Every per-end value addEnd and addRadius need, resolved once for origin or destination by
    * originEnd()/destinationEnd() below. Bundling these (rather than branching on an isOrigin flag
    * inside each helper) means the origin/destination choice is decided exactly once per search,
    * not re-decided in every helper - see those two builders' doc comment for why that matters for
@@ -50,14 +53,12 @@ public with sharing class LaneSearchQueryBuilder {
    */
   private class LaneEnd {
     String key;
+    Boolean isOrigin; // passed to LaneKeyMatcher, which shapes the LIKE pattern and error from it
     LaneSearchRequest.Precision precision;
     String explicitZip3;
     Decimal radius;
     String bindPrefix; // 'o' or 'd' - the SOQL bind-variable name prefix for this end
     String stopRel; // relationship path from rtms__CarrierQuote__c to this end's Stop
-    String likePrefix; // '' for an origin, '%:' for a destination
-    String likeSuffix; // ':%' for an origin, '' for a destination
-    String zip3FieldName; // 'originZip3' or 'destinationZip3', for the missing-prefix error
   }
 
   /**
@@ -66,47 +67,35 @@ public with sharing class LaneSearchQueryBuilder {
    * re-derived each of these per call with its own isOrigin ternary (cyclomatic 18-21, suppressed).
    * Task 6 needed a real RADIUS branch on top of that, which would have pushed the class past PMD's
    * total-complexity threshold; resolving origin vs. destination exactly once here, instead of once
-   * per helper, keeps every method below (addEnd, the largest, is at 7) with no suppression needed.
+   * per helper, keeps every method below (addRadius, the largest, is at 6) with no suppression needed.
    */
   private static LaneEnd originEnd(LaneSearchRequest req) {
     LaneEnd e = new LaneEnd();
     e.key = req.originKey;
+    e.isOrigin = true;
     e.precision = req.originPrecision;
     e.explicitZip3 = req.originZip3;
     e.radius = req.originRadius;
     e.bindPrefix = 'o';
     e.stopRel = 'rtms__Load__r.rtms__First_Stop__r';
-    e.likePrefix = '';
-    e.likeSuffix = ':%';
-    e.zip3FieldName = 'originZip3';
     return e;
   }
 
   private static LaneEnd destinationEnd(LaneSearchRequest req) {
     LaneEnd e = new LaneEnd();
     e.key = req.destinationKey;
+    e.isOrigin = false;
     e.precision = req.destinationPrecision;
     e.explicitZip3 = req.destinationZip3;
     e.radius = req.destinationRadius;
     e.bindPrefix = 'd';
     e.stopRel = 'rtms__Load__r.rtms__Last_Stop__r';
-    e.likePrefix = '%:';
-    e.likeSuffix = '';
-    e.zip3FieldName = 'destinationZip3';
     return e;
   }
 
-  private static void requirePostalPrefix(Pricing_Place__c place, LaneEnd e) {
-    if (String.isBlank(place.Postal_Prefix__c)) {
-      throw new LaneSearchException(
-        'Place ' + e.key + ' has no postal prefix; pass ' + e.zip3FieldName
-      );
-    }
-  }
-
-  // Per-precision dispatch. Task 5 had this as one large method (cyclomatic 18-21, suppressed);
-  // Task 6 splits each precision into its own helper below so addEnd stays a small dispatcher and
-  // needs no complexity suppression.
+  // Per-precision dispatch. CITY, PROVINCE and ZIP3 (with an explicit prefix or the place's own)
+  // go to LaneKeyMatcher, which returns null when the end has no constraint; RADIUS stays here.
+  // buildSoql runs after LaneSearchRequest.validate(), which defaults a missing precision to CITY.
   private static void addEnd(
     List<String> conditions,
     Map<String, Object> binds,
@@ -114,74 +103,25 @@ public with sharing class LaneSearchQueryBuilder {
     LaneEnd e,
     Map<String, Pricing_Place__c> places
   ) {
-    if (
-      e.precision == LaneSearchRequest.Precision.ZIP3 &&
-      String.isNotBlank(e.explicitZip3)
-    ) {
-      addZip3(conditions, binds, e, e.explicitZip3);
-      return;
-    }
     // places only ever holds non-blank keys (see loadPlaces), and Map.get(null) is a safe miss, so
     // a blank e.key already falls through to null here without a separate blank check.
     Pricing_Place__c place = places.get(e.key);
-    if (place == null) {
-      return; // no constraint on this end
-    }
-    if (e.precision == LaneSearchRequest.Precision.CITY) {
-      addCity(conditions, binds, e, place);
-    } else if (e.precision == LaneSearchRequest.Precision.PROVINCE) {
-      addProvince(conditions, binds, e, place);
-    } else if (e.precision == LaneSearchRequest.Precision.ZIP3) {
-      requirePostalPrefix(place, e);
-      addZip3(conditions, binds, e, place.Postal_Prefix__c);
-    } else {
+    if (e.precision != LaneSearchRequest.Precision.RADIUS) {
+      String laneKey = LaneKeyMatcher.condition(
+        'rtms__Load__r.',
+        e.isOrigin,
+        e.bindPrefix,
+        e.precision,
+        place,
+        e.explicitZip3,
+        binds
+      );
+      if (laneKey != null) {
+        conditions.add(laneKey);
+      }
+    } else if (place != null) {
       addRadius(conditions, binds, req, e, place);
     }
-  }
-
-  /** "value:%" for an origin, "%:value" for a destination - the shared shape of every lane LIKE pattern. */
-  private static String laneLikePattern(LaneEnd e, String rawValue) {
-    return e.likePrefix + escapeLike(rawValue) + e.likeSuffix;
-  }
-
-  private static void addCity(
-    List<String> conditions,
-    Map<String, Object> binds,
-    LaneEnd e,
-    Pricing_Place__c place
-  ) {
-    List<String> patterns = new List<String>();
-    for (String v : PlaceNormalizer.cityLaneVariants(place)) {
-      patterns.add(laneLikePattern(e, v));
-    }
-    binds.put(e.bindPrefix + 'City', patterns);
-    conditions.add(
-      'rtms__Load__r.rtms__City_Lane__c LIKE :' + e.bindPrefix + 'City'
-    );
-  }
-
-  private static void addProvince(
-    List<String> conditions,
-    Map<String, Object> binds,
-    LaneEnd e,
-    Pricing_Place__c place
-  ) {
-    binds.put(e.bindPrefix + 'Prov', laneLikePattern(e, place.Province__c));
-    conditions.add(
-      'rtms__Load__r.rtms__State_Lane__c LIKE :' + e.bindPrefix + 'Prov'
-    );
-  }
-
-  private static void addZip3(
-    List<String> conditions,
-    Map<String, Object> binds,
-    LaneEnd e,
-    String prefix
-  ) {
-    binds.put(e.bindPrefix + 'Zip3', laneLikePattern(e, prefix));
-    conditions.add(
-      'rtms__Load__r.rtms__Zip3_Lane__c LIKE :' + e.bindPrefix + 'Zip3'
-    );
   }
 
   // Bound decimals inside GEOLOCATION() work through Database.queryWithBinds in this org (API
