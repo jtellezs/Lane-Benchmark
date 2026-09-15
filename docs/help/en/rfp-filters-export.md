@@ -14,4 +14,4 @@ Tick rows one by one, or tick the header checkbox to select every row currently 
 
 ## Export to Excel
 
-**Export to Excel** downloads a workbook with three sheets: **Lanes** (every lane with its history, cost, margin, sell, annual sell and sell source), **Bids**, and **Summary** (counts, total annual sell per currency, average margin, by mode). Open it in Excel or Numbers.
+**Export to Excel** downloads a workbook with three sheets: **Lanes** (every lane with its history, cost, currency, cost source, margin, sell, annual sell and sell source), **Bids**, and **Summary** (counts, total annual sell per currency, average margin, by mode). On **Lanes**, **Cost source** comes right after **Currency** and reads Bid, History median, Manual or Split; it is blank when the lane has no cost. Open it in Excel or Numbers.

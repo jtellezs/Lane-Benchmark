@@ -14,4 +14,4 @@ Cochez les lignes une à une, ou cochez la case d'en-tête pour sélectionner to
 
 ## Export to Excel
 
-**Export to Excel** télécharge un classeur à trois feuilles : **Lanes** (chaque voie avec son historique, coût, marge, prix de vente, vente annuelle et source du prix), **Bids**, et **Summary** (compteurs, vente annuelle totale par devise, marge moyenne, par mode). Ouvrez-le dans Excel ou Numbers.
+**Export to Excel** télécharge un classeur à trois feuilles : **Lanes** (chaque voie avec son historique, coût, devise, source du coût, marge, prix de vente, vente annuelle et source du prix), **Bids**, et **Summary** (compteurs, vente annuelle totale par devise, marge moyenne, par mode). Dans **Lanes**, la colonne **Cost source** suit **Currency** et indique Bid, History median, Manual ou Split; elle reste vide quand la voie n'a pas de coût. Ouvrez-le dans Excel ou Numbers.

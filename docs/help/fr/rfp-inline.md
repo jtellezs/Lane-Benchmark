@@ -32,3 +32,7 @@ La colonne **Miles**, après **History**, n'est pas modifiable : elle affiche la
 - `approx.` : la distance à vol d'oiseau entre les deux lieux × 1,2.
 
 « — » signifie que la voie n'a pas de distance : survolez-le pour voir la raison (historique pas encore chargé, aucune route trouvée ou pas de coordonnées). **Load history** remplit la colonne. Ouvrir une voie enregistre son itinéraire et remplace une valeur `approx.` par les milles de l'itinéraire quand Mapbox en trouve un; la colonne affiche la nouvelle valeur après le prochain enregistrement de prix, chargement d'historique ou rechargement de la page.
+
+## L'étiquette no rate
+
+Après **Load history**, la cellule **History** affiche l'étiquette **no rate** quand la voie n'a aucun tarif de transporteur avec un prix dans sa devise : la cellule indique **No match**, ou des cotations correspondent mais aucune n'a de prix dans la devise de la voie (pas de médiane). Ouvrez la voie pour voir **Carriers to ask** et **Split-lane options** dans le panneau. **Load history** ne cherche jamais de transporteurs.

@@ -13,6 +13,7 @@ Cliquez sur une voie pour ouvrir son panneau à droite. Il reste visible pendant
 - **Bid** : choisissez un des tarifs de transporteur enregistrés pour cette voie. Le coût est le tarif de la soumission.
 - **History median** : la médiane du dernier chargement d'historique.
 - **Manual** : saisissez le coût vous-même.
+- **Split** : le total d'une option de voie fractionnée, rempli par **Use as cost** (voir plus bas). Ce n'est pas un choix offert : il n'apparaît que lorsqu'il est la source de la voie, après **Use as cost** ou sur une voie enregistrée ainsi, et choisir une autre source le remplace.
 
 ## Marge ou prix de vente
 
@@ -39,3 +40,15 @@ L'export Excel contient, pour chaque voie, les colonnes Miles, Km, Miles source,
 ## Résultats
 
 Sous le formulaire, les lignes d'historique de la voie sont listées exactement comme Lane Benchmark les montre, pour voir quelles cotations ont fait la médiane.
+
+## Carriers to ask
+
+Quand les résultats d'historique de la voie n'ont aucun tarif de transporteur avec un prix dans la devise de la voie, le panneau affiche **Carriers to ask** sous ces résultats : les transporteurs qui ont déjà coté ou transporté la voie, par leur nom seulement, jamais avec un montant. L'en-tête se lit « No carrier rate on this lane in USD. These carriers quoted or moved it before; amounts are not shown. » Les deux extrémités doivent être associées à des lieux, et l'encadré se charge à l'ouverture de la voie, jamais pendant **Load history** (le tableau affiche plutôt l'étiquette **no rate**; voir **Modifier dans le tableau**). Les deux étapes (la même voie sur 3 ans, puis les 10 principaux transporteurs de la voie de province à province ou d'État à État), le badge **Blacklisted**, le lien vers le compte et **Retry** fonctionnent comme dans Lane Benchmark (voir **Lire les statistiques**).
+
+## Split-lane options
+
+Sous les résultats d'historique (après **Carriers to ask** quand il est affiché), cliquez sur **Split-lane options** pour voir comment la voie a été transportée en tronçons, ou des estimations par un point de transfert, comme l'explique **Lire les statistiques**. L'encadré s'ouvre dans la devise de la voie, et **Direct median** est la médiane des résultats d'historique du panneau dans la devise de l'encadré.
+
+## Use as cost
+
+Tant que l'encadré affiche la devise de la voie, chaque option qui a un total offre **Use as cost**. Une option d'historique utilise sa médiane du total par envoi; une estimation utilise son **Estimate total** : saisissez donc d'abord son **Handoff cost** (0 est accepté). **Use as cost** inscrit ce total dans **Cost**, met **Cost source** à **Split** et retire la soumission choisie; la marge et le prix de vente suivent comme pour tout autre coût. Rien n'est enregistré avant que vous cliquiez sur **Save price**. Quand vous passez l'encadré à l'autre devise, le bouton est remplacé par « Switch to USD to use a split cost. » (sur une voie en USD; « Switch to CAD… » sur une voie en CAD). La barre des voies identiques copie un coût Split comme n'importe quel autre coût.
