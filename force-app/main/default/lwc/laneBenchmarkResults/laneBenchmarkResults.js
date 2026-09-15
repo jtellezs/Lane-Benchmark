@@ -1,5 +1,6 @@
 import { LightningElement, api, track } from "lwc";
 import { toCsv, fileName } from "c/laneBenchmarkCsv";
+import { formatDistance } from "c/distanceUnit";
 
 const MODE_CLASS = {
   LTL: "ltl-cell",
@@ -18,6 +19,9 @@ export const CSV_COLUMNS = [
   { label: "Equipment", field: "equipment" },
   { label: "Currency", field: "currencyIsoCode" },
   { label: "Carrier total", field: "carrierTotal" },
+  // phase 7: the load's billed miles as a raw number (blank for bids); the CSV never follows the
+  // mi/km toggle, so a spreadsheet can always divide by it
+  { label: "Miles", field: "load.miles" },
   { label: "Quote date", field: "quoteDate" },
   { label: "Load status", field: "loadStatus" },
   { label: "Hazmat", field: "hazmat" },
@@ -30,6 +34,8 @@ export const CSV_COLUMNS = [
 export default class LaneBenchmarkResults extends LightningElement {
   @api originLabel = "";
   @api destinationLabel = "";
+  // 'mi' | 'km', owned by c-lane-benchmark (which follows the Distance_Unit__c channel)
+  @api unit = "mi";
   @track expanded = new Set();
   selected = null;
   _rows = [];
@@ -47,6 +53,9 @@ export default class LaneBenchmarkResults extends LightningElement {
   get hasRows() {
     return (this._rows || []).length > 0;
   }
+  get distanceHeader() {
+    return this.unit === "km" ? "Km" : "Miles";
+  }
   get viewRows() {
     return (this._rows || []).map((r, i) => ({
       ...r,
@@ -59,6 +68,11 @@ export default class LaneBenchmarkResults extends LightningElement {
         r.carrierTotal === null || r.carrierTotal === undefined
           ? ""
           : Number(r.carrierTotal).toFixed(2),
+      // bid rows carry no miles, and a load can have none (or 0) in Revenova: both show a dash
+      milesText:
+        r.load && Number(r.load.miles) > 0
+          ? formatDistance(r.load.miles, this.unit)
+          : "—",
       hazmatText: r.hazmat ? "Hazmat" : "",
       acceptedText: r.bid ? "" : r.accepted ? "Accepted" : "Declined",
       isBid: !!r.bid,

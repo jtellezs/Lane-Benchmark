@@ -3,7 +3,15 @@ import LaneBenchmark from "c/laneBenchmark";
 import search from "@salesforce/apex/LaneBenchmarkController.search";
 import getFilterOptions from "@salesforce/apex/LaneBenchmarkController.getFilterOptions";
 import mapPreviewUrl from "@salesforce/apex/LaneBenchmarkController.mapPreviewUrl";
+import truckRoute from "@salesforce/apex/LaneBenchmarkController.truckRoute";
+import {
+  subscribe,
+  unsubscribe,
+  APPLICATION_SCOPE
+} from "lightning/messageService";
+import DISTANCE_UNIT from "@salesforce/messageChannel/Distance_Unit__c";
 import { save, load, STORAGE_KEY } from "c/laneBenchmarkStorage";
+import { writeUnit } from "c/distanceUnit";
 
 jest.mock(
   "@salesforce/apex/LaneBenchmarkController.search",
@@ -17,6 +25,11 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/LaneBenchmarkController.mapPreviewUrl",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/LaneBenchmarkController.truckRoute",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -43,6 +56,7 @@ const RESULT = {
       carrierName: "Acme",
       currencyIsoCode: "CAD",
       carrierTotal: 1000,
+      load: { loadId: "a0L000000000001", miles: 337.2 },
       quoteDate: "2026-09-01",
       accepted: true
     }
@@ -54,13 +68,28 @@ const RESULT = {
       min: 1000,
       max: 1000,
       avg: 1000,
-      median: 1000
+      median: 1000,
+      ratePerMileMedian: 2.97
     }
   },
   truncated: false,
   elapsedMs: 300,
-  dedupedCount: 0
+  dedupedCount: 0,
+  medianMiles: 337.2
 };
+const ROUTE_VIEW = {
+  status: "Found",
+  routeType: "Truck",
+  source: "Truck route",
+  miles: 336.9,
+  hours: 5.4,
+  routes: [{ miles: 336.9, hours: 5.4 }],
+  mapUrl:
+    "https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-a+0070d2(-73.5674,45.5019)/auto/600x300@2x?padding=40&access_token=pk.test",
+  message: null
+};
+// a route answer comes after the search, the preview and a re-render: give it room to land
+const settle = () => flush().then(flush).then(flush).then(flush);
 
 async function mount() {
   const el = createElement("c-lane-benchmark", { is: LaneBenchmark });
@@ -73,6 +102,26 @@ const pick = (el, label, detail) =>
   el.shadowRoot
     .querySelector(`c-lane-benchmark-place-picker[data-id="${label}"]`)
     .dispatchEvent(new CustomEvent("placechange", { detail }));
+const pickLane = (el) => {
+  pick(el, "origin", {
+    key: "montreal|qc|ca",
+    label: "Montréal, QC, CA",
+    precision: "CITY",
+    radius: null,
+    unit: "MI"
+  });
+  pick(el, "destination", {
+    key: "toronto|on|ca",
+    label: "Toronto, ON, CA",
+    precision: "CITY",
+    radius: null,
+    unit: "MI"
+  });
+};
+const applySearch = (el) =>
+  el.shadowRoot
+    .querySelector("c-lane-benchmark-filters")
+    .dispatchEvent(new CustomEvent("apply"));
 
 describe("c-lane-benchmark", () => {
   beforeEach(() => {
@@ -84,6 +133,7 @@ describe("c-lane-benchmark", () => {
     });
     search.mockResolvedValue(RESULT);
     mapPreviewUrl.mockResolvedValue(null);
+    truckRoute.mockResolvedValue(ROUTE_VIEW);
   });
   afterEach(() => {
     while (document.body.firstChild)
@@ -376,5 +426,210 @@ describe("c-lane-benchmark", () => {
       modes: [],
       acceptedFilter: "ANY_STATUS"
     });
+  });
+
+  it("asks for the truck route after a successful search and shows it in place of the preview", async () => {
+    // two quotes on one load and a load without miles: "median of N loads" counts each load once,
+    // like LaneSearchResult.medianMiles (TripMilesService.medianMiles counts distinct load Ids)
+    search.mockResolvedValueOnce({
+      ...RESULT,
+      rows: [
+        RESULT.rows[0],
+        { ...RESULT.rows[0], quoteId: "q2", quoteName: "CQ-2" },
+        {
+          ...RESULT.rows[0],
+          quoteId: "q3",
+          quoteName: "CQ-3",
+          load: { loadId: "a0L000000000002", miles: 0 }
+        }
+      ]
+    });
+    const el = await mount();
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    expect(truckRoute).toHaveBeenCalledTimes(1);
+    expect(truckRoute).toHaveBeenCalledWith({
+      originKey: "montreal|qc|ca",
+      destinationKey: "toronto|on|ca",
+      refresh: false
+    });
+    const routeMap = el.shadowRoot.querySelector("c-route-map");
+    expect(routeMap).not.toBeNull();
+    expect(routeMap.view.mapUrl).toBe(ROUTE_VIEW.mapUrl);
+    expect(routeMap.unit).toBe("mi");
+    expect(el.shadowRoot.querySelector("c-lane-benchmark-map")).toBeNull();
+    const stats = el.shadowRoot.querySelector("c-lane-benchmark-stats");
+    expect(stats.routeView.status).toBe("Found");
+    expect(stats.medianMiles).toBe(337.2);
+    expect(stats.milesCount).toBe(1);
+  });
+
+  it("does not ask for a route when only one end is chosen, and keeps the preview", async () => {
+    mapPreviewUrl.mockResolvedValue(
+      "https://api.mapbox.com/styles/v1/x/static/auto/600x300?access_token=pk.test"
+    );
+    const el = await mount();
+    pick(el, "origin", {
+      key: "montreal|qc|ca",
+      label: "Montréal, QC, CA",
+      precision: "RADIUS",
+      radius: 100,
+      unit: "MI"
+    });
+    applySearch(el);
+    await settle();
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(truckRoute).not.toHaveBeenCalled();
+    expect(el.shadowRoot.querySelector("c-route-map")).toBeNull();
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-map").previewUrl
+    ).toContain("api.mapbox.com");
+  });
+
+  it("keeps the radius preview under the route map after a radius search", async () => {
+    mapPreviewUrl.mockResolvedValue(
+      "https://api.mapbox.com/styles/v1/x/static/auto/600x300?access_token=pk.test"
+    );
+    const el = await mount();
+    pick(el, "origin", {
+      key: "montreal|qc|ca",
+      label: "Montréal, QC, CA",
+      precision: "RADIUS",
+      radius: 100,
+      unit: "MI"
+    });
+    pick(el, "destination", {
+      key: "toronto|on|ca",
+      label: "Toronto, ON, CA",
+      precision: "CITY",
+      radius: null,
+      unit: "MI"
+    });
+    applySearch(el);
+    await settle();
+    expect(truckRoute).toHaveBeenCalledTimes(1);
+    expect(el.shadowRoot.querySelector("c-route-map").view.mapUrl).toBe(
+      ROUTE_VIEW.mapUrl
+    );
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-map").previewUrl
+    ).toContain("api.mapbox.com");
+  });
+
+  it("keeps the preview and the results when the route has no map or the route call fails", async () => {
+    truckRoute.mockResolvedValueOnce({
+      status: "Unavailable",
+      routeType: null,
+      routes: [],
+      mapUrl: null,
+      message: "The truck route is not available right now."
+    });
+    const el = await mount();
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    expect(el.shadowRoot.querySelector("c-route-map")).toBeNull();
+    expect(el.shadowRoot.querySelector("c-lane-benchmark-map")).not.toBeNull();
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-stats").routeView.message
+    ).toBe("The truck route is not available right now.");
+    truckRoute.mockRejectedValueOnce({
+      body: { message: "Unknown place key: toronto|on|ca" }
+    });
+    applySearch(el);
+    await settle();
+    expect(truckRoute).toHaveBeenCalledTimes(2);
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-results").rows.length
+    ).toBe(1);
+    expect(el.shadowRoot.querySelector('[data-id="error"]')).toBeNull();
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-stats").routeView
+    ).toBeNull();
+    expect(el.shadowRoot.querySelector("c-lane-benchmark-map")).not.toBeNull();
+  });
+
+  it("refresh route asks again for the same pair without searching again", async () => {
+    const el = await mount();
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    truckRoute.mockResolvedValueOnce({
+      ...ROUTE_VIEW,
+      routeType: "Regular",
+      miles: 351
+    });
+    el.shadowRoot
+      .querySelector("c-route-map")
+      .dispatchEvent(new CustomEvent("refreshroute"));
+    await settle();
+    expect(truckRoute).toHaveBeenCalledTimes(2);
+    expect(truckRoute.mock.calls[1][0]).toEqual({
+      originKey: "montreal|qc|ca",
+      destinationKey: "toronto|on|ca",
+      refresh: true
+    });
+    expect(el.shadowRoot.querySelector("c-route-map").view.routeType).toBe(
+      "Regular"
+    );
+    expect(search).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a route answer that belongs to an earlier search", async () => {
+    let resolveFirst;
+    truckRoute.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        })
+    );
+    const el = await mount();
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    pick(el, "destination", {
+      key: "ottawa|on|ca",
+      label: "Ottawa, ON, CA",
+      precision: "CITY",
+      radius: null,
+      unit: "MI"
+    });
+    truckRoute.mockResolvedValueOnce({ ...ROUTE_VIEW, miles: 124.8 });
+    applySearch(el);
+    await settle();
+    resolveFirst({ ...ROUTE_VIEW, miles: 336.9 });
+    await settle();
+    expect(truckRoute).toHaveBeenCalledTimes(2);
+    expect(truckRoute.mock.calls[1][0].destinationKey).toBe("ottawa|on|ca");
+    expect(el.shadowRoot.querySelector("c-route-map").view.miles).toBe(124.8);
+  });
+
+  it("starts from the saved unit, follows the distance unit channel and unsubscribes when removed", async () => {
+    writeUnit("km");
+    subscribe.mockReturnValueOnce({ channel: "unit" });
+    const el = await mount();
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(subscribe.mock.calls[0][1]).toBe(DISTANCE_UNIT);
+    expect(subscribe.mock.calls[0][3]).toEqual({ scope: APPLICATION_SCOPE });
+    const onUnit = subscribe.mock.calls[0][2];
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    const results = () =>
+      el.shadowRoot.querySelector("c-lane-benchmark-results");
+    expect(results().unit).toBe("km");
+    onUnit({ unit: "mi" });
+    await flush();
+    expect(results().unit).toBe("mi");
+    expect(el.shadowRoot.querySelector("c-lane-benchmark-stats").unit).toBe(
+      "mi"
+    );
+    expect(el.shadowRoot.querySelector("c-route-map").unit).toBe("mi");
+    onUnit({ unit: "furlongs" });
+    await flush();
+    expect(results().unit).toBe("mi");
+    document.body.removeChild(el);
+    expect(unsubscribe).toHaveBeenCalledWith({ channel: "unit" });
   });
 });

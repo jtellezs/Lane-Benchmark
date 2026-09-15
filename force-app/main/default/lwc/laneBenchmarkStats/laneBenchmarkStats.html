@@ -1,11 +1,25 @@
 <template>
   <lightning-card title="Statistics" icon-name="standard:metrics">
+    <c-distance-unit-toggle
+      slot="actions"
+      class="slds-m-right_x-small"
+    ></c-distance-unit-toggle>
     <c-help-hint
       slot="actions"
       topic="lb-stats"
       label="Help: reading the statistics"
     ></c-help-hint>
     <div class="slds-p-horizontal_medium">
+      <template lwc:if={hasTripInfo}>
+        <div class="slds-m-bottom_small">
+          <template lwc:if={tripLine}>
+            <p data-id="trip-line" class="slds-text-title_bold">{tripLine}</p>
+          </template>
+          <template lwc:if={routeLine}>
+            <p data-id="route-line">{routeLine}</p>
+          </template>
+        </div>
+      </template>
       <template lwc:if={isEmpty}>
         <p class="slds-text-color_weak">
           No quotes match this lane and these filters yet. Widen the radius or
@@ -87,6 +101,10 @@
                   </dd>
                   <dt class="slds-dl_horizontal__label">Sell (average)</dt>
                   <dd class="slds-dl_horizontal__detail">{c.sellAvg}</dd>
+                  <dt class="slds-dl_horizontal__label">{rateLabel}</dt>
+                  <dd data-id="rate" class="slds-dl_horizontal__detail">
+                    {c.rate}
+                  </dd>
                 </dl>
               </div>
             </div>
