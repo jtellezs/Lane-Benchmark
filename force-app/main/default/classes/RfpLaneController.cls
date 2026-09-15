@@ -7,7 +7,9 @@ public with sharing class RfpLaneController {
     'Mode__c, Equipment_Category__c, Equipment_Type__c, Commodity__c, Quantity__c, Quantity_Unit__c, Shipments_Per_Year__c, ' +
     'Hazmat__c, Customer_Fuel_Surcharge__c, Customer_FSC_Included__c, Hist_Count__c, Hist_Bid_Count__c, Hist_Min__c, Hist_Median__c, ' +
     'Hist_Average__c, Hist_Max__c, Hist_Precision__c, Hist_Lookback_Days__c, Hist_As_Of__c, Hist_Status__c, Cost__c, ' +
-    'Cost_Source__c, Selected_Bid__c, Selected_Bid__r.Carrier_Display__c, Margin__c, Sell__c, Sell_Source__c, Notes__c, CurrencyIsoCode';
+    'Cost_Source__c, Selected_Bid__c, Selected_Bid__r.Carrier_Display__c, Margin__c, Sell__c, Sell_Source__c, Notes__c, CurrencyIsoCode, ' +
+    'Miles__c, Miles_Source__c, Route_Hours__c, Origin_Place__r.Geolocation__Latitude__s, Origin_Place__r.Geolocation__Longitude__s, ' +
+    'Destination_Place__r.Geolocation__Latitude__s, Destination_Place__r.Geolocation__Longitude__s';
 
   @AuraEnabled
   public static RfpImportService.Summary importLanes(

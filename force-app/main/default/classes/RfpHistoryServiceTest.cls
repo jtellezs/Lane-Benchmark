@@ -1,5 +1,19 @@
 @IsTest
 private class RfpHistoryServiceTest {
+  /**
+   * Phase 7, ruling R73: Load history never asks Mapbox for a route. The tests set a token
+   * (MapboxHttp.tokenOverride), so a stray route request would really reach this mock, and its
+   * AssertException - which no catch block in the service can swallow - fails the test right there.
+   */
+  private class NoRouteCallMock implements HttpCalloutMock {
+    Integer calls = 0;
+    public HttpResponse respond(HttpRequest req) {
+      calls++;
+      System.assert(false, 'Load history must not call Mapbox');
+      return null;
+    }
+  }
+
   @IsTest
   static void snapshotsCityFallsBackToRadiusAndFlagsUnresolved() {
     PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
@@ -487,19 +501,278 @@ private class RfpHistoryServiceTest {
     System.assertEquals(2000, out[0].Hist_Median__c);
   }
 
-  private class Fixture {
-    PricingTestDataFactory.Graph g;
-    RFP_Lane__c lane;
-    RFP_Lane__c otherLane;
+  // Phase 7. The six tests below cover the trip miles a run writes on each lane: History, a stored
+  // Truck or Regular route, a stored No route, Approx and No coordinates - never with a callout.
+
+  // Rulings R70 and R75: billed PC*Miler miles are what the company invoices on, so the history
+  // median wins even when a truck route is already stored for the pair, and the hours that route
+  // left on the lane are cleared.
+  @IsTest
+  static void historyMilesOutrankAStoredTruckRoute() {
+    Fixture f = fixture();
+    storedRoute(
+      f.mtl,
+      f.tor,
+      TruckRoute.defaultProfile(),
+      'Found',
+      'Truck',
+      336.4,
+      4.1
+    );
+    update new RFP_Lane__c(
+      Id = f.lane.Id,
+      Miles__c = 336.4,
+      Miles_Source__c = 'Truck route',
+      Route_Hours__c = 4.1
+    );
+    NoRouteCallMock mock = new NoRouteCallMock();
+    Test.setMock(HttpCalloutMock.class, mock);
+    MapboxHttp.tokenOverride = 'pk.test';
+    Test.startTest();
+    addLoadWithMiles(f.g, 347.5, 1000, 3000);
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ f.lane.Id },
+      'CITY',
+      90,
+      null,
+      null,
+      true
+    );
+    Integer callouts = Limits.getCallouts();
+    Test.stopTest();
+    System.assertEquals(0, callouts, 'Load history makes no callout');
+    System.assertEquals(0, mock.calls);
+    System.assertEquals('Done', out[0].Hist_Status__c);
+    System.assertEquals(2, out[0].Hist_Count__c);
+    System.assertEquals(
+      347.5,
+      out[0].Miles__c,
+      'the median billed miles of the matched loads'
+    );
+    System.assertEquals('History', out[0].Miles_Source__c);
+    System.assertEquals(
+      null,
+      out[0].Route_Hours__c,
+      'the stored route\'s hours are cleared'
+    );
   }
 
-  /**
-   * Montréal -> Toronto twice: once on the project a run prices, once on a second project whose
-   * bids are the "another RFP" evidence phase 3d counts.
-   */
-  private static Fixture fixture() {
-    Fixture f = new Fixture();
-    f.g = PricingTestDataFactory.createGraph();
+  // Ruling R70: the miles come from the search the run actually used. Laval -> Toronto finds
+  // nothing at CITY precision and falls back to RADIUS, where the Montréal -> Toronto load matches.
+  @IsTest
+  static void historyMilesComeFromTheRadiusFallback() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c laval = RfpTestDataFactory.createPlace(
+      'Laval',
+      'QC',
+      'CA',
+      45.6066,
+      -73.7124,
+      'H7P'
+    );
+    Pricing_Place__c tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
+    RFP_Lane__c nearby = RfpTestDataFactory.createLane(
+      RfpTestDataFactory.createProject(g.customer),
+      laval,
+      tor
+    );
+    NoRouteCallMock mock = new NoRouteCallMock();
+    Test.setMock(HttpCalloutMock.class, mock);
+    MapboxHttp.tokenOverride = 'pk.test';
+    Test.startTest();
+    addLoadWithMiles(g, 351.0, 1000, 3000);
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ nearby.Id },
+      'CITY',
+      90,
+      120,
+      'KM',
+      true
+    );
+    Integer callouts = Limits.getCallouts();
+    Test.stopTest();
+    System.assertEquals(0, callouts);
+    System.assertEquals(0, mock.calls);
+    System.assertEquals('RADIUS-120KM', out[0].Hist_Precision__c);
+    System.assertEquals('Done', out[0].Hist_Status__c);
+    System.assertEquals(351.0, out[0].Miles__c);
+    System.assertEquals('History', out[0].Miles_Source__c);
+    System.assertEquals(null, out[0].Route_Hours__c);
+  }
+
+  // Spec D4: with no billed miles, a lane takes the route stored for its ordered place pair and the
+  // current truck - its miles, its hours, and whether Mapbox had to fall back to a regular route.
+  // Direction matters (R71): Montréal -> Toronto and Toronto -> Montréal are two rows.
+  @IsTest
+  static void storedTruckAndRegularRoutesFillLanesWithoutHistory() {
+    Fixture f = fixture();
+    RFP_Lane__c back = RfpTestDataFactory.createLane(
+      RfpTestDataFactory.createProject(f.g.customer),
+      f.tor,
+      f.mtl
+    );
+    storedRoute(
+      f.mtl,
+      f.tor,
+      TruckRoute.defaultProfile(),
+      'Found',
+      'Truck',
+      336.4,
+      4.1
+    );
+    storedRoute(
+      f.tor,
+      f.mtl,
+      TruckRoute.defaultProfile(),
+      'Found',
+      'Regular',
+      339.8,
+      4.3
+    );
+    NoRouteCallMock mock = new NoRouteCallMock();
+    Test.setMock(HttpCalloutMock.class, mock);
+    MapboxHttp.tokenOverride = 'pk.test';
+    Test.startTest();
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ f.lane.Id, back.Id },
+      'CITY',
+      90,
+      null,
+      null,
+      true
+    );
+    Integer callouts = Limits.getCallouts();
+    Test.stopTest();
+    System.assertEquals(0, callouts, 'a stored route is read, never requested');
+    System.assertEquals(0, mock.calls);
+    Map<Id, RFP_Lane__c> byId = new Map<Id, RFP_Lane__c>(out);
+    RFP_Lane__c there = byId.get(f.lane.Id);
+    System.assertEquals(
+      'No match',
+      there.Hist_Status__c,
+      'no loads, so no history miles'
+    );
+    System.assertEquals(336.4, there.Miles__c);
+    System.assertEquals('Truck route', there.Miles_Source__c);
+    System.assertEquals(4.1, there.Route_Hours__c);
+    RFP_Lane__c home = byId.get(back.Id);
+    System.assertEquals(339.8, home.Miles__c);
+    System.assertEquals('Regular route', home.Miles_Source__c);
+    System.assertEquals(4.3, home.Route_Hours__c);
+  }
+
+  // Spec section 7: Mapbox found no road even without truck limits (across water, say). The stored
+  // answer is kept - no Approx miles for a trip no road makes - and the miles of an earlier run go.
+  @IsTest
+  static void aStoredNoRouteLeavesTheMilesBlank() {
+    Fixture f = fixture();
+    storedRoute(
+      f.mtl,
+      f.tor,
+      TruckRoute.defaultProfile(),
+      'No route',
+      null,
+      null,
+      null
+    );
+    update new RFP_Lane__c(
+      Id = f.lane.Id,
+      Miles__c = 376.0,
+      Miles_Source__c = 'Approx'
+    );
+    NoRouteCallMock mock = new NoRouteCallMock();
+    Test.setMock(HttpCalloutMock.class, mock);
+    MapboxHttp.tokenOverride = 'pk.test';
+    Test.startTest();
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ f.lane.Id },
+      'CITY',
+      90,
+      null,
+      null,
+      true
+    );
+    Integer callouts = Limits.getCallouts();
+    Test.stopTest();
+    System.assertEquals(0, callouts);
+    System.assertEquals(0, mock.calls);
+    System.assertEquals('No route', out[0].Miles_Source__c);
+    System.assertEquals(
+      null,
+      out[0].Miles__c,
+      'the Approx miles of an earlier run are cleared'
+    );
+    System.assertEquals(null, out[0].Route_Hours__c);
+  }
+
+  // Spec D1 and D7: no billed miles and no stored route for this direction and this truck, so the
+  // straight line x 1.2. Montréal (45.5019, -73.5674) -> Toronto (43.6532, -79.3832) is 313.335 mi
+  // on a 3,958.7613 mi sphere; x 1.2 = 376.002, one decimal 376.0. The reverse direction's route
+  // and a route stored for a lower truck (3.5 m) must not be used (R71).
+  @IsTest
+  static void approxMilesWhenNoRouteIsStoredForThisTruckAndDirection() {
+    Fixture f = fixture();
+    storedRoute(
+      f.tor,
+      f.mtl,
+      TruckRoute.defaultProfile(),
+      'Found',
+      'Truck',
+      339.8,
+      4.3
+    );
+    TruckRoute.Profile lowTruck = new TruckRoute.Profile();
+    lowTruck.heightM = 3.5;
+    lowTruck.widthM = 2.6;
+    lowTruck.weightT = 36.29;
+    storedRoute(f.mtl, f.tor, lowTruck, 'Found', 'Truck', 341.2, 4.4);
+    NoRouteCallMock mock = new NoRouteCallMock();
+    Test.setMock(HttpCalloutMock.class, mock);
+    MapboxHttp.tokenOverride = 'pk.test';
+    Test.startTest();
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ f.lane.Id },
+      'CITY',
+      90,
+      null,
+      null,
+      true
+    );
+    Integer callouts = Limits.getCallouts();
+    Test.stopTest();
+    System.assertEquals(0, callouts);
+    System.assertEquals(0, mock.calls);
+    System.assertEquals('Approx', out[0].Miles_Source__c);
+    System.assertEquals(376.0, out[0].Miles__c);
+    System.assertEquals(
+      TripMilesService.approxMiles(f.mtl, f.tor, TruckRoute.defaultProfile()),
+      out[0].Miles__c,
+      'the same number Lane Benchmark and the lane panel compute'
+    );
+    System.assertEquals(null, out[0].Route_Hours__c);
+  }
+
+  // A place without coordinates gives no Approx miles. An unresolved lane (a place missing) gets
+  // the same answer instead of keeping miles from an earlier run (phase 7 plan, Task 6 notes).
+  @IsTest
+  static void lanesWithoutCoordinatesOrAPlaceGetNoCoordinates() {
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    Pricing_Place__c nowhere = RfpTestDataFactory.createPlace(
+      'Nowhere',
+      'ZZ',
+      'CA',
+      null,
+      null,
+      'Z9Z'
+    );
     Pricing_Place__c mtl = RfpTestDataFactory.createPlace(
       'Montréal',
       'QC',
@@ -517,15 +790,96 @@ private class RfpHistoryServiceTest {
       'M5V'
     );
     LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
+    RFP_Project__c p = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c noCoords = RfpTestDataFactory.createLane(p, nowhere, tor);
+    RFP_Lane__c unresolved = RfpTestDataFactory.createLane(p, mtl, tor);
+    unresolved.Destination_Place__c = null;
+    unresolved.Destination_Resolved__c = false;
+    unresolved.Miles__c = 376.0;
+    unresolved.Miles_Source__c = 'Approx';
+    update unresolved;
+    NoRouteCallMock mock = new NoRouteCallMock();
+    Test.setMock(HttpCalloutMock.class, mock);
+    MapboxHttp.tokenOverride = 'pk.test';
+    Test.startTest();
+    List<RFP_Lane__c> out = RfpHistoryService.run(
+      new List<Id>{ noCoords.Id, unresolved.Id },
+      'CITY',
+      90,
+      null,
+      null,
+      true
+    );
+    Integer callouts = Limits.getCallouts();
+    Test.stopTest();
+    System.assertEquals(0, callouts);
+    System.assertEquals(0, mock.calls);
+    Map<Id, RFP_Lane__c> byId = new Map<Id, RFP_Lane__c>(out);
+    System.assertEquals(
+      'No match',
+      byId.get(noCoords.Id).Hist_Status__c,
+      'the radius fallback threw: no coordinates'
+    );
+    System.assertEquals(null, byId.get(noCoords.Id).Miles__c);
+    System.assertEquals(
+      'No coordinates',
+      byId.get(noCoords.Id).Miles_Source__c
+    );
+    System.assertEquals('Unresolved', byId.get(unresolved.Id).Hist_Status__c);
+    System.assertEquals(
+      null,
+      byId.get(unresolved.Id).Miles__c,
+      'an unresolved lane keeps no miles from an earlier run'
+    );
+    System.assertEquals(
+      'No coordinates',
+      byId.get(unresolved.Id).Miles_Source__c
+    );
+    System.assertEquals(null, byId.get(unresolved.Id).Route_Hours__c);
+  }
+
+  private class Fixture {
+    PricingTestDataFactory.Graph g;
+    Pricing_Place__c mtl;
+    Pricing_Place__c tor;
+    RFP_Lane__c lane;
+    RFP_Lane__c otherLane;
+  }
+
+  /**
+   * Montréal -> Toronto twice: once on the project a run prices, once on a second project whose
+   * bids are the "another RFP" evidence phase 3d counts. The two places stay on the fixture for
+   * the phase 7 trip-miles tests (route keys and Approx miles).
+   */
+  private static Fixture fixture() {
+    Fixture f = new Fixture();
+    f.g = PricingTestDataFactory.createGraph();
+    f.mtl = RfpTestDataFactory.createPlace(
+      'Montréal',
+      'QC',
+      'CA',
+      45.5019,
+      -73.5674,
+      'H1A'
+    );
+    f.tor = RfpTestDataFactory.createPlace(
+      'Toronto',
+      'ON',
+      'CA',
+      43.6532,
+      -79.3832,
+      'M5V'
+    );
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     f.lane = RfpTestDataFactory.createLane(
       RfpTestDataFactory.createProject(f.g.customer),
-      mtl,
-      tor
+      f.mtl,
+      f.tor
     );
     f.otherLane = RfpTestDataFactory.createLane(
       RfpTestDataFactory.createProject(f.g.customer),
-      mtl,
-      tor
+      f.mtl,
+      f.tor
     );
     return f;
   }
@@ -545,6 +899,79 @@ private class RfpHistoryServiceTest {
       PricingTestDataFactory.buildQuote(g, load, low),
       PricingTestDataFactory.buildQuote(g, load, high)
     };
+  }
+
+  /**
+   * addLoads with the load's billed miles (rtms__Distance_Miles__c, which PC*Miler fills in
+   * production), through Task 5's createLoad overload that sets them before the insert. Revenova's
+   * managed rtms__LoadUpsert trigger runs on every load save (ApexTrigger query, PostProduc,
+   * 2026-09-14), so the miles are read back: a failure on that assertion means the trigger rewrote
+   * them, not that the history run is wrong.
+   */
+  private static void addLoadWithMiles(
+    PricingTestDataFactory.Graph g,
+    Decimal miles,
+    Decimal low,
+    Decimal high
+  ) {
+    rtms__Load__c load = PricingTestDataFactory.createLoad(
+      g,
+      g.originLocation,
+      g.destinationLocation,
+      miles
+    );
+    System.assertEquals(
+      miles,
+      [SELECT rtms__Distance_Miles__c FROM rtms__Load__c WHERE Id = :load.Id]
+      .rtms__Distance_Miles__c,
+      'the load keeps its billed miles'
+    );
+    insert new List<rtms__CarrierQuote__c>{
+      PricingTestDataFactory.buildQuote(g, load, low),
+      PricingTestDataFactory.buildQuote(g, load, high)
+    };
+  }
+
+  /**
+   * A Truck_Route__c row the way TripMilesService.save stores one: both places set (storedRoutes
+   * ignores a row with a blank place) and the key from TripMilesService.routeKey, never built by
+   * hand. The polyline is a two-point placeholder; a history run never draws it.
+   */
+  private static void storedRoute(
+    Pricing_Place__c origin,
+    Pricing_Place__c destination,
+    TruckRoute.Profile profile,
+    String status,
+    String routeType,
+    Decimal miles,
+    Decimal hours
+  ) {
+    List<Map<String, Object>> routes = new List<Map<String, Object>>();
+    if (miles != null) {
+      routes.add(
+        new Map<String, Object>{
+          'miles' => miles,
+          'hours' => hours,
+          'polyline5' => '{avtGfs_`MjahJv{nb@'
+        }
+      );
+    }
+    insert new Truck_Route__c(
+      Origin_Place__c = origin.Id,
+      Destination_Place__c = destination.Id,
+      Profile_Key__c = profile.key(),
+      Route_Key__c = TripMilesService.routeKey(
+        origin.Id,
+        destination.Id,
+        profile
+      ),
+      Status__c = status,
+      Route_Type__c = routeType,
+      Miles__c = miles,
+      Hours__c = hours,
+      Routes_Json__c = JSON.serialize(routes),
+      Checked_On__c = Datetime.now()
+    );
   }
 
   /** Same shape as RfpSecurityTest.restrictedUser: a user holding only the named permission

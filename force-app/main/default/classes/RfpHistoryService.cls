@@ -1,4 +1,7 @@
-/** Writes carrier-quote history snapshots onto RFP lanes, ten lanes per call (user-mode DML). */
+/**
+ * Writes carrier-quote history snapshots and trip miles onto RFP lanes, ten lanes per call
+ * (user-mode DML). Trip miles never call Mapbox here (spec D4, ruling R73): see TripMiles.
+ */
 public with sharing class RfpHistoryService {
   private static final Integer MAX_LANES = 10;
   private static final Integer ROW_LIMIT = 500;
@@ -25,9 +28,11 @@ public with sharing class RfpHistoryService {
     // what the workbench's toggle shows by default.
     Boolean bids = includeBids != false;
     List<RFP_Lane__c> lanes = RfpLaneController.lanesByIds(laneIds);
+    // Built once per call: one read of the stored truck routes for the whole chunk.
+    TripMiles trip = new TripMiles(lanes);
     List<RFP_Lane__c> updates = new List<RFP_Lane__c>();
     for (RFP_Lane__c lane : lanes) {
-      updates.add(snapshot(lane, precision, days, km, unit, bids));
+      updates.add(snapshot(lane, precision, days, km, unit, bids, trip));
     }
     saveSnapshots(updates);
     return RfpLaneController.lanesByIds(laneIds);
@@ -101,7 +106,8 @@ public with sharing class RfpHistoryService {
     Integer days,
     Integer radius,
     String unit,
-    Boolean includeBids
+    Boolean includeBids,
+    TripMiles trip
   ) {
     RFP_Lane__c u = new RFP_Lane__c(
       Id = lane.Id,
@@ -123,11 +129,15 @@ public with sharing class RfpHistoryService {
       lane.Destination_Place__r?.Key__c == null
     ) {
       u.Hist_Status__c = 'Unresolved';
+      trip.apply(u, lane, null);
       return u;
     }
+    // Declared outside the try so the miles below read the search actually used: the RADIUS
+    // fallback's result when it ran, the CITY result when the fallback threw.
+    LaneSearchResult r = null;
     try {
       String used = precision;
-      LaneSearchResult r = LaneSearchService.search(
+      r = LaneSearchService.search(
         request(lane, precision, days, radius, unit, includeBids)
       );
       if (r.rows.isEmpty() && precision == 'CITY') {
@@ -144,6 +154,7 @@ public with sharing class RfpHistoryService {
     } catch (Exception e) {
       u.Hist_Status__c = 'Failed';
     }
+    trip.apply(u, lane, r);
     return u;
   }
 
@@ -216,5 +227,72 @@ public with sharing class RfpHistoryService {
     u.Hist_Median__c = s.median;
     u.Hist_Average__c = s.avg;
     u.Hist_Max__c = s.max;
+  }
+
+  /**
+   * Phase 7 trip miles for a history run (spec D4; rulings R73, R75): History, else the stored
+   * truck route for the lane's ordered place pair and the current truck, else Approx, else
+   * No coordinates. Every branch rewrites all three fields, so a stale route's hours never sit
+   * next to History or Approx miles. Kept out of the outer class for the same complexity-budget
+   * reason as RfpBidAccess.Gate.
+   */
+  private class TripMiles {
+    private final TruckRoute.Profile profile = TruckRoute.defaultProfile();
+    private final Map<String, Truck_Route__c> stored;
+
+    TripMiles(List<RFP_Lane__c> lanes) {
+      Set<String> keys = new Set<String>();
+      for (RFP_Lane__c lane : lanes) {
+        String key = routeKeyOf(lane);
+        if (key != null) {
+          keys.add(key);
+        }
+      }
+      stored = TripMilesService.storedRoutes(keys);
+    }
+
+    private void apply(RFP_Lane__c u, RFP_Lane__c lane, LaneSearchResult r) {
+      u.Miles__c = r?.medianMiles;
+      u.Route_Hours__c = null;
+      if (u.Miles__c != null) {
+        u.Miles_Source__c = 'History';
+        return;
+      }
+      Truck_Route__c route = stored.get(routeKeyOf(lane));
+      if (route?.Status__c == 'Found') {
+        u.Miles__c = route.Miles__c;
+        u.Route_Hours__c = route.Hours__c;
+        u.Miles_Source__c = route.Route_Type__c == 'Regular'
+          ? 'Regular route'
+          : 'Truck route';
+      } else if (route?.Status__c == 'No route') {
+        u.Miles_Source__c = 'No route';
+      } else {
+        u.Miles__c = approx(lane);
+        u.Miles_Source__c = u.Miles__c == null ? 'No coordinates' : 'Approx';
+      }
+    }
+
+    private String routeKeyOf(RFP_Lane__c lane) {
+      return lane.Origin_Place__c == null ||
+        lane.Destination_Place__c == null
+        ? null
+        : TripMilesService.routeKey(
+            lane.Origin_Place__c,
+            lane.Destination_Place__c,
+            profile
+          );
+    }
+
+    private Decimal approx(RFP_Lane__c lane) {
+      return lane.Origin_Place__r == null ||
+        lane.Destination_Place__r == null
+        ? null
+        : TripMilesService.approxMiles(
+            lane.Origin_Place__r,
+            lane.Destination_Place__r,
+            profile
+          );
+    }
   }
 }
