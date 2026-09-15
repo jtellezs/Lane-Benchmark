@@ -175,10 +175,13 @@ public with sharing class RfpLaneController {
    * saves. The lane is read in user mode, so a lane the caller cannot read is "This lane is not
    * available." TripRouteView.routeBetween makes the callouts and then saves the store row; the
    * lane's miles are written last, by writeLaneMiles, which decides on the lane as it is at that
-   * moment; the read before the Mapbox call gives only the places. view.lane is the re-read lane
-   * when it was written, for the table. The lane read and its refusal sit before the try so that
-   * no AuraHandledException needs re-throwing: each catch and throw counts toward PMD's class
-   * complexity budget, which this class is close to.
+   * moment; the read before the Mapbox call gives only the places. view.lane is the lane as stored
+   * after that write step (written, already holding the route, or kept for its History miles), so
+   * the panel's miles line always matches the database; it stays null only for an Unavailable
+   * route (no coordinates included), which never reaches the write step (controller ruling). The
+   * lane read and its refusal sit before the try so that no AuraHandledException needs
+   * re-throwing: each catch and throw counts toward PMD's class complexity budget, which this
+   * class is close to.
    */
   @AuraEnabled
   public static TripRouteView laneRoute(Id laneId, Boolean refresh) {
@@ -206,18 +209,24 @@ public with sharing class RfpLaneController {
   }
 
   /**
-   * laneRoute's lane write, after every callout. The lane's miles fields are read again FOR UPDATE
-   * right before the update, not taken from laneRoute's read before the Mapbox call: History miles
-   * that a history run saved while the route was on its way stay (R75), and the lock keeps a run
-   * from saving between this read and the update (controller ruling). TripRouteView.laneUpdate
-   * decides on that fresh copy, so a lane that already holds the route's miles, source and hours
-   * is not rewritten either: the lane panel opens the route on every row click (controller
-   * ruling). Written in user mode after the FLS strip like every lane save here. Returns the
-   * re-read lane when it wrote it, otherwise null. @TestVisible: a history run cannot overlap a
-   * route call inside one test transaction, so the test replays that order on this step.
+   * laneRoute's write step, after every callout. An Unavailable route (no source, no coordinates
+   * included) changes nothing and never reaches the step: null. The lane's miles fields are read
+   * again FOR UPDATE right before the update, not taken from laneRoute's read before the Mapbox
+   * call: History miles that a history run saved while the route was on its way stay (R75), and
+   * the lock keeps a run from saving between this read and the update (controller ruling).
+   * TripRouteView.laneUpdate decides on that fresh copy, so a lane that already holds the route's
+   * miles, source and hours is not rewritten either: the lane panel opens the route on every row
+   * click (controller ruling). Written in user mode after the FLS strip like every lane save here.
+   * Returns the lane as stored after the step, re-read with LANE_FIELDS, whether it was written,
+   * already held the route or kept its History miles: the panel shows these miles beside the
+   * route, so they must match the database (controller ruling). @TestVisible: a history run cannot
+   * overlap a route call inside one test transaction, so the test replays that order on this step.
    */
   @TestVisible
   private static RFP_Lane__c writeLaneMiles(Id laneId, TripRouteView view) {
+    if (view.source == null) {
+      return null;
+    }
     RFP_Lane__c miles = TripRouteView.laneUpdate(
       [
         SELECT Id, Miles__c, Miles_Source__c, Route_Hours__c
@@ -228,17 +237,16 @@ public with sharing class RfpLaneController {
       ],
       view
     );
-    if (miles == null) {
-      return null;
+    if (miles != null) {
+      Database.update(
+        Security.stripInaccessible(
+            AccessType.UPDATABLE,
+            new List<RFP_Lane__c>{ miles }
+          )
+          .getRecords()[0],
+        AccessLevel.USER_MODE
+      );
     }
-    Database.update(
-      Security.stripInaccessible(
-          AccessType.UPDATABLE,
-          new List<RFP_Lane__c>{ miles }
-        )
-        .getRecords()[0],
-      AccessLevel.USER_MODE
-    );
     return one(laneId);
   }
 

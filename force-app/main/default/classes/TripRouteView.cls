@@ -30,7 +30,11 @@ public with sharing class TripRouteView {
   public String mapUrl;
   @AuraEnabled
   public String message;
-  /** Set by RfpLaneController.laneRoute only, and only when the call wrote the lane's miles. */
+  /**
+   * Set by RfpLaneController.laneRoute only: the lane as stored after its write step, whether the
+   * route was written, was already on the lane or gave way to History miles, so the panel's miles
+   * match the database. Null for an Unavailable route (no coordinates included) and for truckRoute.
+   */
   @AuraEnabled
   public RFP_Lane__c lane;
 

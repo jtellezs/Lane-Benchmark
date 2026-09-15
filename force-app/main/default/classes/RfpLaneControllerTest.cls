@@ -409,7 +409,18 @@ private class RfpLaneControllerTest {
     Test.stopTest();
     System.assertEquals('Found', view.status, 'message: ' + view.message);
     System.assertEquals(335.5, view.miles, 'the map still shows the route');
-    System.assertEquals(null, view.lane, 'the lane was not written');
+    System.assertNotEquals(
+      null,
+      view.lane,
+      'the lane as stored comes back although it was not written'
+    );
+    System.assertEquals(
+      350.0,
+      view.lane.Miles__c,
+      'the miles line beside the route shows the History miles'
+    );
+    System.assertEquals('History', view.lane.Miles_Source__c);
+    System.assertEquals(null, view.lane.Route_Hours__c);
     RFP_Lane__c lane = storedLane(f.lane.Id);
     System.assertEquals(
       350.0,
@@ -739,7 +750,15 @@ private class RfpLaneControllerTest {
       Limits.getDmlStatements(),
       'no lane update at write time'
     );
-    System.assertEquals(null, written, 'view.lane stays empty');
+    System.assertNotEquals(
+      null,
+      written,
+      'view.lane is the lane as stored, History miles and all'
+    );
+    System.assertEquals(f.lane.Id, written.Id);
+    System.assertEquals(350.0, written.Miles__c);
+    System.assertEquals('History', written.Miles_Source__c);
+    System.assertEquals(null, written.Route_Hours__c);
     RFP_Lane__c lane = storedLane(f.lane.Id);
     System.assertEquals(
       350.0,
@@ -753,7 +772,9 @@ private class RfpLaneControllerTest {
   /**
    * laneRoute writes the lane only when its miles, source or hours would change (controller
    * ruling): the lane panel opens the route on every row click, so a lane that already holds the
-   * stored route is not rewritten (no DML, the lane's LastModifiedBy stays).
+   * stored route is not rewritten (no DML, the lane's LastModifiedBy stays). The lane as stored
+   * still comes back as view.lane, so the panel's miles line matches the route beside it
+   * (controller ruling).
    */
   @IsTest
   static void laneRouteDoesNotRewriteALaneThatAlreadyHoldsTheStoredRoute() {
@@ -785,7 +806,21 @@ private class RfpLaneControllerTest {
       afterSecond - afterFirst,
       'the second open performs no lane update'
     );
-    System.assertEquals(null, second.lane, 'nothing written, nothing re-read');
+    System.assertNotEquals(
+      null,
+      second.lane,
+      'the lane as stored comes back although nothing was written'
+    );
+    System.assertEquals(
+      335.5,
+      second.lane.Miles__c,
+      'the miles line matches the route beside it'
+    );
+    System.assertEquals(second.miles, second.lane.Miles__c);
+    System.assertEquals('Truck route', second.lane.Miles_Source__c);
+    System.assertEquals(second.source, second.lane.Miles_Source__c);
+    System.assertEquals(20.0, second.lane.Route_Hours__c);
+    System.assertEquals(second.hours, second.lane.Route_Hours__c);
     RFP_Lane__c lane = storedLane(f.lane.Id);
     System.assertEquals(335.5, lane.Miles__c);
     System.assertEquals('Truck route', lane.Miles_Source__c);
