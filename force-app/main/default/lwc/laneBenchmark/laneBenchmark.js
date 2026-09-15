@@ -135,6 +135,15 @@ export default class LaneBenchmark extends LightningElement {
     );
   }
 
+  /** Split-lane options need a place key on both ends of the search that ran (spec §4). */
+  get showSplitOptions() {
+    return this.hasResult && hasBothKeys(this.lastRequestJson);
+  }
+  /** The split card opens in the currency filter the search ran with, or in CAD without one. */
+  get splitStartCurrency() {
+    return this.lastCurrency === "USD" ? "USD" : "CAD";
+  }
+
   async connectedCallback() {
     // subscribe before the first await, so a unit published while the options load is not missed
     this.unitSubscription = subscribe(

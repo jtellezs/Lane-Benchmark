@@ -4,6 +4,7 @@ import search from "@salesforce/apex/LaneBenchmarkController.search";
 import getFilterOptions from "@salesforce/apex/LaneBenchmarkController.getFilterOptions";
 import mapPreviewUrl from "@salesforce/apex/LaneBenchmarkController.mapPreviewUrl";
 import truckRoute from "@salesforce/apex/LaneBenchmarkController.truckRoute";
+import splitOptions from "@salesforce/apex/SplitLaneController.splitOptions";
 import findCarrierLeads from "@salesforce/apex/CarrierLeadController.findCarrierLeads";
 import {
   subscribe,
@@ -46,6 +47,11 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/CarrierLeadController.findCarrierLeads",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/SplitLaneController.splitOptions",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -743,5 +749,68 @@ describe("c-lane-benchmark", () => {
     expect(results().unit).toBe("mi");
     document.body.removeChild(el);
     expect(unsubscribe).toHaveBeenCalledWith({ channel: "unit" });
+  });
+
+  it("puts Split-lane options under the results once a search ran with both place keys", async () => {
+    const el = await mount();
+    const filters = () =>
+      el.shadowRoot.querySelector("c-lane-benchmark-filters");
+    const split = () =>
+      el.shadowRoot.querySelector('[data-id="split-options"]');
+    pickLane(el);
+    filters().dispatchEvent(
+      new CustomEvent("filterschange", { detail: { currencyIsoCode: "USD" } })
+    );
+    applySearch(el);
+    await settle();
+    expect(split()).not.toBeNull();
+    expect(split().requestJson).toBe(search.mock.calls[0][0].requestJson);
+    expect(split().startCurrency).toBe("USD");
+    expect(split().statsByCurrency).toEqual(RESULT.statsByCurrency);
+    // Lane Benchmark has no price editor to fill.
+    expect(split().allowUseAsCost).toBe(false);
+    // Direct first (D1): the card asks nothing before its button is clicked.
+    expect(splitOptions).not.toHaveBeenCalled();
+    // It sits at the bottom, after the results.
+    expect(
+      [
+        ...el.shadowRoot.querySelectorAll(
+          "c-lane-benchmark-results, c-split-lane-options"
+        )
+      ].map((n) => n.tagName.toLowerCase())
+    ).toEqual(["c-lane-benchmark-results", "c-split-lane-options"]);
+
+    // Without a currency filter the card opens in CAD.
+    filters().dispatchEvent(
+      new CustomEvent("filterschange", { detail: { currencyIsoCode: null } })
+    );
+    applySearch(el);
+    await settle();
+    expect(split().startCurrency).toBe("CAD");
+    expect(split().requestJson).toBe(search.mock.calls[1][0].requestJson);
+  });
+
+  it("hides Split-lane options after a search with an end that has no place key", async () => {
+    const el = await mount();
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    expect(
+      el.shadowRoot.querySelector('[data-id="split-options"]')
+    ).not.toBeNull();
+    pick(el, "destination", {
+      key: null,
+      label: "",
+      precision: "CITY",
+      radius: null,
+      unit: "MI"
+    });
+    applySearch(el);
+    await settle();
+    expect(search).toHaveBeenCalledTimes(2);
+    expect(el.shadowRoot.querySelector('[data-id="split-options"]')).toBeNull();
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-results").rows.length
+    ).toBe(1);
   });
 });

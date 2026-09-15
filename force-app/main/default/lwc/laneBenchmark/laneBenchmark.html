@@ -131,6 +131,16 @@
           origin-label={request.originLabel}
           destination-label={request.destinationLabel}
         ></c-lane-benchmark-results>
+        <template lwc:if={showSplitOptions}>
+          <div class="slds-m-top_small">
+            <c-split-lane-options
+              data-id="split-options"
+              request-json={lastRequestJson}
+              start-currency={splitStartCurrency}
+              stats-by-currency={statsByCurrency}
+            ></c-split-lane-options>
+          </div>
+        </template>
       </template>
       <template lwc:if={showEmptyState}>
         <lightning-card title="Lane Benchmark">

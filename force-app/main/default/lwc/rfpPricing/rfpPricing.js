@@ -1,12 +1,18 @@
 import { parseMargin, suggestedSell, marginFor } from "c/marginMath";
 import { bestBid, otherCurrencyCount } from "c/rfpMath";
 
-/** The three values RFP_Lane__c.Cost_Source__c accepts. */
+/** The three cost sources a pricer picks; RFP_Lane__c.Cost_Source__c also accepts Split. */
 export const SOURCES = [
   { label: "Bid", value: "Bid" },
   { label: "History median", value: "History median" },
   { label: "Manual", value: "Manual" }
 ];
+
+/**
+ * A cost filled from a split-lane option (Use as cost). It is never a source
+ * to pick: the lane panel lists it only while it is the lane's source (R98).
+ */
+export const SPLIT_SOURCE = { label: "Split", value: "Split" };
 
 /** Two decimals, no grouping, so the numbers line up column by column. */
 export function money(value) {
@@ -18,7 +24,10 @@ export function money(value) {
 }
 
 /** The cost the editor is currently showing, or null when it has none yet. */
-export function costFor(source, { lane, bids, selectedBidId, manualCost }) {
+export function costFor(
+  source,
+  { lane, bids, selectedBidId, manualCost, splitCost }
+) {
   if (source === "Bid") {
     const picked = (bids || []).find((b) => b.Id === selectedBidId);
     return picked ? Number(picked.Rate__c) : null;
@@ -26,6 +35,16 @@ export function costFor(source, { lane, bids, selectedBidId, manualCost }) {
   if (source === "History median") {
     const median = lane && lane.Hist_Median__c;
     return median === null || median === undefined ? null : Number(median);
+  }
+  if (source === "Split") {
+    // The total Use as cost filled in; before that, the cost the lane was saved with.
+    if (typeof splitCost === "number" && Number.isFinite(splitCost)) {
+      return splitCost;
+    }
+    const stored = lane && lane.Cost__c;
+    return stored === null || stored === undefined || stored === ""
+      ? null
+      : Number(stored);
   }
   const n = Number(manualCost);
   return manualCost !== "" && manualCost !== null && Number.isFinite(n)

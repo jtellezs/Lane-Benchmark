@@ -13,6 +13,7 @@ import laneRoute from "@salesforce/apex/RfpLaneController.laneRoute";
 import { bestBid } from "c/rfpMath";
 import {
   SOURCES,
+  SPLIT_SOURCE,
   costFor,
   bidOptions,
   bidRows,
@@ -57,6 +58,8 @@ const NO_MILES_LINES = {
   "No coordinates": "A place on this lane is missing or has no coordinates"
 };
 const ROUTE_UNAVAILABLE = "The truck route is not available right now.";
+/** The source buttons while a split cost is the lane's source: Split shows as chosen, never as a pick (R98). */
+const SOURCES_WITH_SPLIT = [...SOURCES, SPLIT_SOURCE];
 
 export default class RfpLanePanel extends LightningElement {
   @api project;
@@ -153,7 +156,12 @@ export default class RfpLanePanel extends LightningElement {
   @wire(MessageContext) messageContext;
   unitSubscription = null;
 
-  sourceOptions = SOURCES;
+  /**
+   * The total Use as cost filled in from a split-lane option: null until then,
+   * and again whenever syncPricing takes the stored pricing (a new lane, a price
+   * save, an inline edit or a bulk action), so a stored Split cost reads Cost__c.
+   */
+  splitCost = null;
 
   connectedCallback() {
     if (!this.unitSubscription) {
@@ -285,6 +293,7 @@ export default class RfpLanePanel extends LightningElement {
   syncPricing() {
     const l = this._lane || {};
     this.costSource = l.Cost_Source__c || "Manual";
+    this.splitCost = null;
     this.selectedBidId = l.Selected_Bid__c || null;
     this.manualCost =
       l.Cost__c === null || l.Cost__c === undefined ? "" : String(l.Cost__c);
@@ -426,6 +435,9 @@ export default class RfpLanePanel extends LightningElement {
     this.loadRoute(this.routeDeferred);
   }
 
+  get sourceOptions() {
+    return this.costSource === "Split" ? SOURCES_WITH_SPLIT : SOURCES;
+  }
   get isBidSource() {
     return this.costSource === "Bid";
   }
@@ -463,7 +475,8 @@ export default class RfpLanePanel extends LightningElement {
       lane: this._lane,
       bids: this.bids,
       selectedBidId: this.selectedBidId,
-      manualCost: this.manualCost
+      manualCost: this.manualCost,
+      splitCost: this.splitCost
     });
   }
   get costInputValue() {
@@ -568,6 +581,15 @@ export default class RfpLanePanel extends LightningElement {
     }
     this.costSource = "Bid";
     this.selectedBidId = best.Id;
+  }
+  /**
+   * A split-lane option's total becomes the cost, as choosing a bid does: the
+   * source turns Split, any selected bid is cleared, and Save price stores it.
+   */
+  handleUseAsCost(event) {
+    this.costSource = "Split";
+    this.selectedBidId = null;
+    this.splitCost = event.detail.cost;
   }
   handleRefreshRoute() {
     this.loadRoute(true);

@@ -60,7 +60,7 @@ describe("rfpWorkbook", () => {
     expect(sheet[0]).toEqual(["From", "To", ...OUR_COLUMNS]);
     expect(sheet[1].slice(0, 2)).toEqual(["Montreal", "Toronto"]);
     expect(sheet[1][2]).toBe(1000);
-    expect(sheet[1][5]).toBe(1150);
+    expect(sheet[1][2 + OUR_COLUMNS.indexOf("Sell")]).toBe(1150);
     expect(sheet[1][2 + OUR_COLUMNS.indexOf("Bid carrier")]).toBe("Acme");
     // typed string cell, no apostrophe
     expect(sheet[1][2 + OUR_COLUMNS.indexOf("Notes")]).toBe("=SUM(A1)");
@@ -74,7 +74,7 @@ describe("rfpWorkbook", () => {
     // A lane that has never run carries no count, so its cell stays blank.
     expect(sheet[2][bidCountIdx]).toBe("");
     expect(sheet[2][2]).toBe("");
-    expect(sheet[2][5]).toBe("");
+    expect(sheet[2][2 + OUR_COLUMNS.indexOf("Sell")]).toBe("");
     expect(bidSheet[0][0]).toBe("Lane row");
     expect(bidSheet[1]).toEqual([
       1,
@@ -93,6 +93,75 @@ describe("rfpWorkbook", () => {
       ""
     ]);
   });
+  it("puts the cost source right after Currency, blank while the lane has no cost", () => {
+    const sourced = [
+      {
+        Id: "c1",
+        Row_Number__c: 1,
+        Cost__c: 6453.25,
+        Cost_Source__c: "Split",
+        CurrencyIsoCode: "USD"
+      },
+      {
+        Id: "c2",
+        Row_Number__c: 2,
+        Cost__c: 1800,
+        Cost_Source__c: "Bid",
+        CurrencyIsoCode: "CAD"
+      },
+      {
+        Id: "c3",
+        Row_Number__c: 3,
+        Cost__c: 2000,
+        Cost_Source__c: "History median",
+        CurrencyIsoCode: "CAD"
+      },
+      {
+        Id: "c4",
+        Row_Number__c: 4,
+        Cost__c: 900,
+        Cost_Source__c: "Manual",
+        CurrencyIsoCode: "CAD"
+      },
+      // A source left on a lane without a cost says nothing.
+      {
+        Id: "c5",
+        Row_Number__c: 5,
+        Cost__c: null,
+        Cost_Source__c: "Manual",
+        CurrencyIsoCode: "CAD"
+      },
+      {
+        Id: "c6",
+        Row_Number__c: 6,
+        Cost__c: "",
+        Cost_Source__c: "Split",
+        CurrencyIsoCode: "CAD"
+      },
+      { Id: "c7", Row_Number__c: 7, CurrencyIsoCode: "CAD" }
+    ];
+    const { lanes: sheet } = buildSheets(sourced, [], {});
+    const header = sheet[0];
+    const at = header.indexOf("Currency");
+    expect(header.slice(at - 1, at + 3)).toEqual([
+      "Cost",
+      "Currency",
+      "Cost source",
+      "Margin %"
+    ]);
+    expect(OUR_COLUMNS.length).toBe(19);
+    expect(sheet.slice(1).map((row) => row[at + 1])).toEqual([
+      "Split",
+      "Bid",
+      "History median",
+      "Manual",
+      "",
+      "",
+      ""
+    ]);
+    expect(sheet[1].slice(at - 1, at + 1)).toEqual([6453.25, "USD"]);
+  });
+
   it("names the file from customer, project and date", () => {
     expect(
       exportFileName("Costco Canada", "Q4 Lanes", new Date(2026, 8, 11))

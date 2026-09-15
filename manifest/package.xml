@@ -58,6 +58,7 @@
         <members>routeMap</members>
         <members>carrierLeadRules</members>
         <members>carrierLeads</members>
+        <members>splitLaneOptions</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>
