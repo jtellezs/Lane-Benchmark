@@ -4,6 +4,8 @@ import search from "@salesforce/apex/LaneBenchmarkController.search";
 import getFilterOptions from "@salesforce/apex/LaneBenchmarkController.getFilterOptions";
 import mapPreviewUrl from "@salesforce/apex/LaneBenchmarkController.mapPreviewUrl";
 import truckRoute from "@salesforce/apex/LaneBenchmarkController.truckRoute";
+import splitOptions from "@salesforce/apex/SplitLaneController.splitOptions";
+import findCarrierLeads from "@salesforce/apex/CarrierLeadController.findCarrierLeads";
 import {
   subscribe,
   unsubscribe,
@@ -41,6 +43,16 @@ jest.mock(
 jest.mock(
   "@salesforce/apex/LaneBenchmarkController.geocode",
   () => ({ default: jest.fn().mockResolvedValue([]) }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/CarrierLeadController.findCarrierLeads",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/SplitLaneController.splitOptions",
+  () => ({ default: jest.fn() }),
   { virtual: true }
 );
 
@@ -134,6 +146,12 @@ describe("c-lane-benchmark", () => {
     search.mockResolvedValue(RESULT);
     mapPreviewUrl.mockResolvedValue(null);
     truckRoute.mockResolvedValue(ROUTE_VIEW);
+    findCarrierLeads.mockResolvedValue({
+      leads: [],
+      stage: "None",
+      stateLaneLabel: null,
+      truncated: false
+    });
   });
   afterEach(() => {
     while (document.body.firstChild)
@@ -605,6 +623,106 @@ describe("c-lane-benchmark", () => {
     expect(el.shadowRoot.querySelector("c-route-map").view.miles).toBe(124.8);
   });
 
+  it("shows Carriers to ask under the statistics when the search has no rate in the currency filter", async () => {
+    const el = await mount();
+    pickLane(el);
+    el.shadowRoot
+      .querySelector("c-lane-benchmark-filters")
+      .dispatchEvent(
+        new CustomEvent("filterschange", { detail: { currencyIsoCode: "USD" } })
+      );
+    applySearch(el);
+    await settle();
+    // RESULT is priced in CAD only, so the USD filter has no rate
+    const leads = el.shadowRoot.querySelector('[data-id="carrier-leads"]');
+    expect(leads).not.toBeNull();
+    const sent = search.mock.calls[0][0].requestJson;
+    expect(leads.requestJson).toBe(sent);
+    expect(leads.currencyCode).toBe("USD");
+    expect(findCarrierLeads).toHaveBeenCalledWith({
+      requestJson: sent,
+      attempt: 0
+    });
+    const order = [
+      ...el.shadowRoot.querySelectorAll(
+        "c-lane-benchmark-stats, c-carrier-leads, c-route-map, c-lane-benchmark-results"
+      )
+    ].map((node) => node.tagName.toLowerCase());
+    expect(order).toEqual([
+      "c-lane-benchmark-stats",
+      "c-carrier-leads",
+      "c-route-map",
+      "c-lane-benchmark-results"
+    ]);
+  });
+
+  it("shows Carriers to ask without a filter only when no currency has a rate, and never without both place keys", async () => {
+    const el = await mount();
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    // no currency filter: the CAD rate counts
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-stats")
+    ).not.toBeNull();
+    expect(el.shadowRoot.querySelector('[data-id="carrier-leads"]')).toBeNull();
+
+    search.mockResolvedValue({ ...RESULT, rows: [], statsByCurrency: {} });
+    pick(el, "destination", {
+      key: null,
+      label: "",
+      precision: "CITY",
+      radius: null,
+      unit: "MI"
+    });
+    applySearch(el);
+    await settle();
+    expect(search).toHaveBeenCalledTimes(2);
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-stats")
+    ).not.toBeNull();
+    expect(el.shadowRoot.querySelector('[data-id="carrier-leads"]')).toBeNull();
+    expect(findCarrierLeads).not.toHaveBeenCalled();
+
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    const leads = el.shadowRoot.querySelector('[data-id="carrier-leads"]');
+    expect(leads).not.toBeNull();
+    expect(leads.currencyCode).toBeNull();
+    expect(findCarrierLeads).toHaveBeenCalledTimes(1);
+    expect(findCarrierLeads.mock.calls[0][0].requestJson).toBe(
+      search.mock.calls[2][0].requestJson
+    );
+  });
+
+  it("keeps the statistics and results when Carriers to ask fails", async () => {
+    findCarrierLeads.mockRejectedValue({
+      body: { message: "Carriers failed" }
+    });
+    const el = await mount();
+    pickLane(el);
+    el.shadowRoot
+      .querySelector("c-lane-benchmark-filters")
+      .dispatchEvent(
+        new CustomEvent("filterschange", { detail: { currencyIsoCode: "USD" } })
+      );
+    applySearch(el);
+    await settle();
+    await settle();
+    const leads = el.shadowRoot.querySelector('[data-id="carrier-leads"]');
+    expect(leads).not.toBeNull();
+    expect(
+      leads.shadowRoot.querySelector('[data-id="leads-error"]')
+    ).not.toBeNull();
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-stats")
+    ).not.toBeNull();
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-results")
+    ).not.toBeNull();
+  });
+
   it("starts from the saved unit, follows the distance unit channel and unsubscribes when removed", async () => {
     writeUnit("km");
     subscribe.mockReturnValueOnce({ channel: "unit" });
@@ -631,5 +749,68 @@ describe("c-lane-benchmark", () => {
     expect(results().unit).toBe("mi");
     document.body.removeChild(el);
     expect(unsubscribe).toHaveBeenCalledWith({ channel: "unit" });
+  });
+
+  it("puts Split-lane options under the results once a search ran with both place keys", async () => {
+    const el = await mount();
+    const filters = () =>
+      el.shadowRoot.querySelector("c-lane-benchmark-filters");
+    const split = () =>
+      el.shadowRoot.querySelector('[data-id="split-options"]');
+    pickLane(el);
+    filters().dispatchEvent(
+      new CustomEvent("filterschange", { detail: { currencyIsoCode: "USD" } })
+    );
+    applySearch(el);
+    await settle();
+    expect(split()).not.toBeNull();
+    expect(split().requestJson).toBe(search.mock.calls[0][0].requestJson);
+    expect(split().startCurrency).toBe("USD");
+    expect(split().statsByCurrency).toEqual(RESULT.statsByCurrency);
+    // Lane Benchmark has no price editor to fill.
+    expect(split().allowUseAsCost).toBe(false);
+    // Direct first (D1): the card asks nothing before its button is clicked.
+    expect(splitOptions).not.toHaveBeenCalled();
+    // It sits at the bottom, after the results.
+    expect(
+      [
+        ...el.shadowRoot.querySelectorAll(
+          "c-lane-benchmark-results, c-split-lane-options"
+        )
+      ].map((n) => n.tagName.toLowerCase())
+    ).toEqual(["c-lane-benchmark-results", "c-split-lane-options"]);
+
+    // Without a currency filter the card opens in CAD.
+    filters().dispatchEvent(
+      new CustomEvent("filterschange", { detail: { currencyIsoCode: null } })
+    );
+    applySearch(el);
+    await settle();
+    expect(split().startCurrency).toBe("CAD");
+    expect(split().requestJson).toBe(search.mock.calls[1][0].requestJson);
+  });
+
+  it("hides Split-lane options after a search with an end that has no place key", async () => {
+    const el = await mount();
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    expect(
+      el.shadowRoot.querySelector('[data-id="split-options"]')
+    ).not.toBeNull();
+    pick(el, "destination", {
+      key: null,
+      label: "",
+      precision: "CITY",
+      radius: null,
+      unit: "MI"
+    });
+    applySearch(el);
+    await settle();
+    expect(search).toHaveBeenCalledTimes(2);
+    expect(el.shadowRoot.querySelector('[data-id="split-options"]')).toBeNull();
+    expect(
+      el.shadowRoot.querySelector("c-lane-benchmark-results").rows.length
+    ).toBe(1);
   });
 });

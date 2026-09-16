@@ -1,0 +1,90 @@
+<template>
+  <lightning-card
+    data-id="leads-card"
+    title="Carriers to ask"
+    icon-name="standard:account"
+  >
+    <div class="slds-p-horizontal_medium">
+      <template lwc:if={loading}>
+        <div class="slds-is-relative leads-loading">
+          <lightning-spinner
+            data-id="leads-loading"
+            size="small"
+            alternative-text="Finding carriers to ask"
+          ></lightning-spinner>
+        </div>
+      </template>
+      <template lwc:if={error}>
+        <div class="slds-grid slds-grid_vertical-align-center">
+          <p data-id="leads-error" class="slds-text-color_error" role="alert">
+            {error}
+          </p>
+          <lightning-button
+            data-id="leads-retry"
+            class="slds-m-left_x-small"
+            label="Retry"
+            onclick={handleRetry}
+          ></lightning-button>
+        </div>
+      </template>
+      <template lwc:if={showHeading}>
+        <p data-id="leads-heading" class="slds-m-bottom_x-small">{heading}</p>
+      </template>
+      <template lwc:if={showStateLane}>
+        <p data-id="leads-stage2" class="slds-m-bottom_x-small">
+          {stateLaneText}
+        </p>
+      </template>
+      <template lwc:if={showEmpty}>
+        <p data-id="leads-empty" class="slds-text-color_weak">{emptyText}</p>
+      </template>
+      <template lwc:if={hasLeads}>
+        <ul class="slds-has-dividers_bottom-space">
+          <template for:each={leadRows} for:item="lead">
+            <li key={lead.key} data-id="lead-row" class="slds-item">
+              <template lwc:if={lead.canOpen}>
+                <a
+                  data-id="lead-link"
+                  class="slds-text-title_bold"
+                  href={lead.url}
+                  target="_blank"
+                  rel="noopener"
+                  >{lead.name}</a
+                >
+              </template>
+              <template lwc:else>
+                <span data-id="lead-name" class="slds-text-title_bold"
+                  >{lead.name}</span
+                >
+              </template>
+              <template lwc:if={lead.blacklisted}>
+                <span
+                  data-id="lead-blacklisted"
+                  class="slds-badge slds-theme_error slds-m-left_x-small"
+                  >Blacklisted</span
+                >
+              </template>
+              <p data-id="lead-counts" class="slds-text-body_small">
+                {lead.counts}
+              </p>
+              <p
+                data-id="lead-sources"
+                class="slds-text-body_small slds-text-color_weak"
+              >
+                {lead.sources}
+              </p>
+            </li>
+          </template>
+        </ul>
+      </template>
+      <template lwc:if={truncated}>
+        <p
+          data-id="leads-truncated"
+          class="slds-text-body_small slds-text-color_weak slds-m-top_x-small"
+        >
+          The list may be incomplete.
+        </p>
+      </template>
+    </div>
+  </lightning-card>
+</template>

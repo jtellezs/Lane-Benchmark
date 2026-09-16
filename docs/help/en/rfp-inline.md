@@ -32,3 +32,7 @@ When you price a lane that has twins in the same project (same ends, mode and eq
 - `approx.`: the straight-line distance between the two places × 1.2.
 
 "—" means the lane has no distance: hover it for the reason (history not loaded yet, no route found, or no coordinates). Load history fills the column. Opening a lane stores its route and replaces an `approx.` value with the route's miles when Mapbox finds one; the column shows the new value after your next price save, history run or page reload.
+
+## The no rate tag
+
+After **Load history**, the **History** cell shows a **no rate** tag when the lane has no priced carrier rate in its currency: the cell reads **No match**, or quotes matched but none had a price in the lane's currency (no median). Open the lane to see **Carriers to ask** and **Split-lane options** in the panel. Load history itself never looks for carriers.

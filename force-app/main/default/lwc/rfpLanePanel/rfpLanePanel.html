@@ -213,6 +213,28 @@
           ></c-lane-benchmark-results>
         </div>
       </div>
+      <template lwc:if={showCarrierLeads}>
+        <div class="slds-m-top_x-small">
+          <c-carrier-leads
+            data-id="carrier-leads"
+            request-json={historyRequestJson}
+            currency-code={currency}
+          ></c-carrier-leads>
+        </div>
+      </template>
+      <template lwc:if={historyRequestJson}>
+        <div data-id="split" class="slds-m-top_x-small">
+          <c-split-lane-options
+            data-id="split-options"
+            request-json={historyRequestJson}
+            start-currency={currency}
+            lane-currency={currency}
+            stats-by-currency={historyStats}
+            allow-use-as-cost
+            onuseascost={handleUseAsCost}
+          ></c-split-lane-options>
+        </div>
+      </template>
     </div>
   </template>
   <template lwc:else>

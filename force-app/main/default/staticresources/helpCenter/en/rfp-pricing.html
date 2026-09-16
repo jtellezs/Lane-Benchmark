@@ -5,6 +5,7 @@
 <li><strong>Bid</strong>: pick one of the carrier rates recorded for this lane. The cost is the bid&#39;s rate.</li>
 <li><strong>History median</strong>: the median from the last history run.</li>
 <li><strong>Manual</strong>: type the cost yourself.</li>
+<li><strong>Split</strong>: the total of a split-lane option, filled by <strong>Use as cost</strong> (see below). It is not a choice you can pick: it shows only while it is the lane&#39;s source, after <strong>Use as cost</strong> or on a lane saved with it, and choosing another source replaces it.</li>
 </ul>
 <h3>Margin or sell</h3>
 <p>Type a <strong>Margin %</strong> and the sell follows (&quot;Sell follows the margin&quot;), or type a <strong>Sell</strong> and the margin follows (&quot;Margin follows the sell&quot;). A sell you typed is kept when the cost changes later; the table shows a <strong>manual</strong> tag on it. Type a <strong>Margin %</strong> to go back to margin mode; the sell is recomputed from it.</p>
@@ -19,3 +20,9 @@
 <p>The Excel export carries Miles, Km, Miles source, Route hours, Cost per mile and Sell per mile for every lane.</p>
 <h3>Results</h3>
 <p>Below the form, the lane&#39;s history rows are listed exactly as Lane Benchmark shows them, so you can see which quotes made the median.</p>
+<h3>Carriers to ask</h3>
+<p>When the lane&#39;s history results have no priced carrier rate in the lane&#39;s currency, the panel shows <strong>Carriers to ask</strong> under them: carriers that quoted or moved the lane before, by name only, never with an amount. The heading reads &quot;No carrier rate on this lane in USD. These carriers quoted or moved it before; amounts are not shown.&quot; It needs both ends resolved to places, and it runs when you open the lane, never during <strong>Load history</strong> (the table shows a <strong>no rate</strong> tag instead; see <strong>Editing in the table</strong>). The two steps (the same lane over 3 years, then the top 10 carriers on the state or province lane), the <strong>Blacklisted</strong> badge, the account link and <strong>Retry</strong> work as on Lane Benchmark (see <strong>Reading the statistics</strong>).</p>
+<h3>Split-lane options</h3>
+<p>Under the history results (below <strong>Carriers to ask</strong> when it shows), click <strong>Split-lane options</strong> to see the lane&#39;s split history, or estimates through a handoff point, as described in <strong>Reading the statistics</strong>. The card starts in the lane&#39;s currency, and <strong>Direct median</strong> is the median of the panel&#39;s history results in the card&#39;s currency.</p>
+<h3>Use as cost</h3>
+<p>While the card shows the lane&#39;s currency, each option with a total has <strong>Use as cost</strong>. A history option uses its median total per shipment; an estimate uses its <strong>Estimate total</strong>, so type its <strong>Handoff cost</strong> first (0 is allowed). <strong>Use as cost</strong> puts that total in <strong>Cost</strong>, sets <strong>Cost source</strong> to <strong>Split</strong> and clears any selected bid; the margin and the sell follow as for any other cost. Nothing is saved until you click <strong>Save price</strong>. When you switch the card to the other currency, the button gives way to &quot;Switch to USD to use a split cost.&quot; (on a USD lane; &quot;Switch to CAD…&quot; on a CAD lane). The identical lanes bar copies a Split cost like any other cost.</p>

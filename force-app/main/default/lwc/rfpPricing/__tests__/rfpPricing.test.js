@@ -1,5 +1,6 @@
 import {
   SOURCES,
+  SPLIT_SOURCE,
   money,
   costFor,
   bidOptions,
@@ -87,6 +88,52 @@ describe("rfpPricing", () => {
     expect(
       costFor("History median", { ...state, lane: { Id: "a0L1" } })
     ).toBeNull();
+  });
+
+  it("keeps Split out of the sources a pricer picks", () => {
+    expect(SPLIT_SOURCE).toEqual({ label: "Split", value: "Split" });
+    expect(SOURCES.map((s) => s.value)).not.toContain("Split");
+  });
+
+  it("reads a Split cost from the filled amount, then from the lane's stored cost", () => {
+    const state = {
+      lane: LANE,
+      bids: [ACTIVE],
+      selectedBidId: "a0B1",
+      manualCost: "1750.25"
+    };
+    expect(costFor("Split", { ...state, splitCost: 6453.25 })).toBe(6453.25);
+    expect(costFor("Split", { ...state, splitCost: 0 })).toBe(0);
+    // Nothing filled yet: the cost the lane was saved with (LANE.Cost__c).
+    expect(costFor("Split", state)).toBe(1000);
+    expect(costFor("Split", { ...state, splitCost: null })).toBe(1000);
+    expect(costFor("Split", { ...state, splitCost: Number.NaN })).toBe(1000);
+    expect(costFor("Split", { ...state, splitCost: "6453.25" })).toBe(1000);
+    expect(
+      costFor("Split", { ...state, lane: { ...LANE, Cost__c: null } })
+    ).toBeNull();
+    expect(costFor("Split", { ...state, lane: null })).toBeNull();
+    // The filled amount belongs to Split alone.
+    expect(costFor("Manual", { ...state, splitCost: 6453.25 })).toBe(1750.25);
+    expect(
+      pricingDetail({
+        laneId: "a0L1",
+        source: "Split",
+        selectedBidId: "a0B1",
+        cost: 6450,
+        marginText: "10",
+        notes: ""
+      })
+    ).toEqual({
+      laneId: "a0L1",
+      Cost__c: 6450,
+      Cost_Source__c: "Split",
+      Selected_Bid__c: null,
+      Margin__c: 10,
+      Sell__c: 7095,
+      Sell_Source__c: "Margin",
+      Notes__c: null
+    });
   });
 
   it("labels bid options with the carrier, rate and expiry", () => {

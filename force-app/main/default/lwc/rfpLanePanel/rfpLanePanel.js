@@ -13,6 +13,7 @@ import laneRoute from "@salesforce/apex/RfpLaneController.laneRoute";
 import { bestBid } from "c/rfpMath";
 import {
   SOURCES,
+  SPLIT_SOURCE,
   costFor,
   bidOptions,
   bidRows,
@@ -24,6 +25,7 @@ import {
   historyKey,
   historyRequest
 } from "c/rfpPricing";
+import { hasBothKeys, noRate } from "c/carrierLeadRules";
 import { marginFor } from "c/marginMath";
 import { readUnit, formatDistance, perDistance } from "c/distanceUnit";
 
@@ -56,6 +58,8 @@ const NO_MILES_LINES = {
   "No coordinates": "A place on this lane is missing or has no coordinates"
 };
 const ROUTE_UNAVAILABLE = "The truck route is not available right now.";
+/** The source buttons while a split cost is the lane's source: Split shows as chosen, never as a pick (R98). */
+const SOURCES_WITH_SPLIT = [...SOURCES, SPLIT_SOURCE];
 
 export default class RfpLanePanel extends LightningElement {
   @api project;
@@ -131,6 +135,10 @@ export default class RfpLanePanel extends LightningElement {
   truncated = false;
   error = null;
   loadingHistory = false;
+  /** The history search's statsByCurrency; Carriers to ask reads "no rate" from it (spec D2). */
+  historyStats = null;
+  /** True only once the history search answered for the current historySeq. */
+  historyLoaded = false;
   bidSeq = 0;
   historySeq = 0;
   /** The TripRouteView c-route-map draws; null until laneRoute answers. */
@@ -148,7 +156,12 @@ export default class RfpLanePanel extends LightningElement {
   @wire(MessageContext) messageContext;
   unitSubscription = null;
 
-  sourceOptions = SOURCES;
+  /**
+   * The total Use as cost filled in from a split-lane option: null until then,
+   * and again whenever syncPricing takes the stored pricing (a new lane, a price
+   * save, an inline edit or a bulk action), so a stored Split cost reads Cost__c.
+   */
+  splitCost = null;
 
   connectedCallback() {
     if (!this.unitSubscription) {
@@ -244,6 +257,22 @@ export default class RfpLanePanel extends LightningElement {
   get laneHazmat() {
     return !!(this._lane && this._lane.Hazmat__c);
   }
+  /** The request the history search sends, while both ends have a place key; else null. */
+  get historyRequestJson() {
+    return historyKey(this._lane) ? historyRequest(this._lane) : null;
+  }
+  /**
+   * Carriers to ask shows once the history search has answered with no priced rate in the lane's
+   * currency (spec D2, D3), never while a newer search is loading or after one failed.
+   */
+  get showCarrierLeads() {
+    return (
+      this.historyLoaded &&
+      !this.loadingHistory &&
+      noRate(this.historyStats, this.currency) &&
+      hasBothKeys(this.historyRequestJson)
+    );
+  }
 
   syncFromLane() {
     const l = this._lane || {};
@@ -252,6 +281,7 @@ export default class RfpLanePanel extends LightningElement {
     // Nothing from the lane we were showing may survive into the new one.
     this.bids = [];
     this.historyRows = [];
+    this.historyStats = null;
     this.routeView = null;
     this.routeLane = null;
     this.truncated = false;
@@ -263,6 +293,7 @@ export default class RfpLanePanel extends LightningElement {
   syncPricing() {
     const l = this._lane || {};
     this.costSource = l.Cost_Source__c || "Manual";
+    this.splitCost = null;
     this.selectedBidId = l.Selected_Bid__c || null;
     this.manualCost =
       l.Cost__c === null || l.Cost__c === undefined ? "" : String(l.Cost__c);
@@ -306,8 +337,10 @@ export default class RfpLanePanel extends LightningElement {
    */
   async loadHistory() {
     const seq = ++this.historySeq;
+    this.historyLoaded = false;
     if (!historyKey(this._lane)) {
       this.historyRows = [];
+      this.historyStats = null;
       this.truncated = false;
       this.loadingHistory = false;
       return;
@@ -321,10 +354,13 @@ export default class RfpLanePanel extends LightningElement {
         return; // a newer lane already landed; drop this stale response
       }
       this.historyRows = (result && result.rows) || [];
+      this.historyStats = (result && result.statsByCurrency) || null;
       this.truncated = !!(result && result.truncated);
+      this.historyLoaded = true;
     } catch (e) {
       if (seq === this.historySeq) {
         this.historyRows = [];
+        this.historyStats = null;
         this.error = apexMessage(e, "The lane history could not be loaded.");
       }
     } finally {
@@ -399,6 +435,9 @@ export default class RfpLanePanel extends LightningElement {
     this.loadRoute(this.routeDeferred);
   }
 
+  get sourceOptions() {
+    return this.costSource === "Split" ? SOURCES_WITH_SPLIT : SOURCES;
+  }
   get isBidSource() {
     return this.costSource === "Bid";
   }
@@ -436,7 +475,8 @@ export default class RfpLanePanel extends LightningElement {
       lane: this._lane,
       bids: this.bids,
       selectedBidId: this.selectedBidId,
-      manualCost: this.manualCost
+      manualCost: this.manualCost,
+      splitCost: this.splitCost
     });
   }
   get costInputValue() {
@@ -541,6 +581,20 @@ export default class RfpLanePanel extends LightningElement {
     }
     this.costSource = "Bid";
     this.selectedBidId = best.Id;
+  }
+  /**
+   * A split-lane option's total becomes the cost, as choosing a bid does: the
+   * source turns Split, any selected bid is cleared, and Save price stores it.
+   * A total in another currency than the lane's is ignored (R88).
+   */
+  handleUseAsCost(event) {
+    const detail = event.detail || {};
+    if (detail.currencyCode !== this.currency) {
+      return;
+    }
+    this.costSource = "Split";
+    this.selectedBidId = null;
+    this.splitCost = detail.cost;
   }
   handleRefreshRoute() {
     this.loadRoute(true);

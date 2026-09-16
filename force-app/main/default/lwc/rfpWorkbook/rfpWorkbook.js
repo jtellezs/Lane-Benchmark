@@ -4,6 +4,7 @@ import { KM_PER_MILE, perDistance } from "c/distanceUnit";
 export const OUR_COLUMNS = [
   "Cost",
   "Currency",
+  "Cost source",
   "Margin %",
   "Sell",
   "Annual sell",
@@ -52,6 +53,13 @@ function sellSource(l) {
   return l.Sell_Source__c === "Manual" ? "Manual" : "Margin";
 }
 const priced = (l) => isNum(l.Cost__c);
+
+/** Bid, History median, Manual or Split; blank while the lane has no cost. */
+function costSource(l) {
+  return l.Cost__c === null || l.Cost__c === undefined || l.Cost__c === ""
+    ? ""
+    : cell(l.Cost_Source__c);
+}
 
 /** An amount per mile, or "" while the lane has no such amount. */
 function perMile(amount, miles) {
@@ -172,6 +180,7 @@ export function buildSheets(lanes, rawRows, bidsByLaneId) {
       l.Cost__c === null || l.Cost__c === undefined
         ? ""
         : cell(l.CurrencyIsoCode),
+      costSource(l),
       cell(l.Margin__c),
       cell(l.Sell__c),
       annualSell(l),

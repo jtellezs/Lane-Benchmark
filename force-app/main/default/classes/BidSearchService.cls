@@ -65,6 +65,12 @@ public without sharing class BidSearchService {
     r.createdDate = b.CreatedDate;
     r.carrier.contactEmail = b.Contact_Email__c;
     r.carrier.contactPhone = b.Contact_Phone__c;
+    // Phase 8: the same warning as a quote row when the bid's carrier account is blacklisted; a bid
+    // has no Transportation Profile, so no claim text (spec D5).
+    r.carrier.attention = CarrierWarning.text(
+      b.Carrier__r?.Black_List__c,
+      false
+    );
     r.bid = new LaneSearchResult.BidDetail();
     r.bid.rateId = b.Id;
     r.bid.expiresOn = b.Expires_On__c;

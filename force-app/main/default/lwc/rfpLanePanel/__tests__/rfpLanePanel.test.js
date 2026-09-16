@@ -6,6 +6,8 @@ import getBids from "@salesforce/apex/RfpBidController.getBids";
 import saveBid from "@salesforce/apex/RfpBidController.saveBid";
 import search from "@salesforce/apex/LaneBenchmarkController.search";
 import laneRoute from "@salesforce/apex/RfpLaneController.laneRoute";
+import splitOptions from "@salesforce/apex/SplitLaneController.splitOptions";
+import findCarrierLeads from "@salesforce/apex/CarrierLeadController.findCarrierLeads";
 import { writeUnit } from "c/distanceUnit";
 
 jest.mock(
@@ -25,6 +27,16 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/RfpLaneController.laneRoute",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/CarrierLeadController.findCarrierLeads",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/SplitLaneController.splitOptions",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -147,6 +159,12 @@ describe("c-rfp-lane-panel", () => {
     search.mockResolvedValue(HISTORY);
     // No stored route unless a test says so: the earlier tests are about pricing.
     laneRoute.mockResolvedValue(null);
+    findCarrierLeads.mockResolvedValue({
+      leads: [],
+      stage: "None",
+      stateLaneLabel: null,
+      truncated: false
+    });
   });
   afterEach(() => {
     while (document.body.firstChild) {
@@ -817,6 +835,224 @@ describe("c-rfp-lane-panel", () => {
       });
       expect(map(el).loading).toBe(false);
       expect(textOf(el, "lane-miles")).toBe("1,198 mi · from history");
+    });
+  });
+
+  describe("carriers to ask", () => {
+    it("shows Carriers to ask under the history once it loads with no rate in the lane's currency", async () => {
+      // HISTORY has no statistics bucket at all
+      const el = await mount();
+      const leads = field(el, "carrier-leads");
+      expect(leads).not.toBeNull();
+      const sent = search.mock.calls[0][0].requestJson;
+      expect(leads.requestJson).toBe(sent);
+      expect(leads.currencyCode).toBe("CAD");
+      expect(findCarrierLeads).toHaveBeenCalledWith({
+        requestJson: sent,
+        attempt: 0
+      });
+      expect(
+        field(el, "history-scroll").nextElementSibling.contains(leads)
+      ).toBe(true);
+    });
+
+    it("judges the rate in the lane's own currency", async () => {
+      search.mockResolvedValue({
+        ...HISTORY,
+        statsByCurrency: { CAD: { count: 1, countNonZero: 1, median: 1950 } }
+      });
+      const el = await mount();
+      expect(field(el, "carrier-leads")).toBeNull();
+      expect(findCarrierLeads).not.toHaveBeenCalled();
+
+      el.lane = { ...LANE, Id: "a0L00000002", CurrencyIsoCode: "USD" };
+      await flush();
+      await flush();
+      const leads = field(el, "carrier-leads");
+      expect(leads).not.toBeNull();
+      expect(leads.currencyCode).toBe("USD");
+    });
+
+    it("hides Carriers to ask while the history loads, after it fails and without both place keys", async () => {
+      let releaseSearch;
+      search.mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseSearch = resolve;
+        })
+      );
+      const el = await mount();
+      expect(field(el, "carrier-leads")).toBeNull();
+      releaseSearch(HISTORY);
+      await flush();
+      await flush();
+      expect(field(el, "carrier-leads")).not.toBeNull();
+
+      // the previous lane's answer does not count for a lane still loading
+      search.mockReturnValueOnce(new Promise(() => {}));
+      el.lane = { ...LANE, Id: "a0L00000002" };
+      await flush();
+      expect(field(el, "carrier-leads")).toBeNull();
+
+      search.mockRejectedValueOnce({ body: { message: "Search failed" } });
+      el.lane = { ...LANE, Id: "a0L00000003" };
+      await flush();
+      await flush();
+      expect(textOf(el, "panel-error")).toBe("Search failed");
+      expect(field(el, "carrier-leads")).toBeNull();
+
+      el.lane = { ...LANE, Id: "a0L00000004", Destination_Place__r: undefined };
+      await flush();
+      await flush();
+      expect(field(el, "carrier-leads")).toBeNull();
+      expect(findCarrierLeads).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("split-lane options and the Split cost", () => {
+    const split = (el) => field(el, "split-options");
+    const useAsCost = (el, cost) =>
+      split(el).dispatchEvent(
+        new CustomEvent("useascost", { detail: { cost, currencyCode: "CAD" } })
+      );
+    const sourceValues = (el) =>
+      field(el, "cost-source").options.map((o) => o.value);
+
+    it("hands the lane's history request, currency and statistics to the split card", async () => {
+      const stats = {
+        CAD: { count: 1, countNonZero: 1, median: 1950 },
+        USD: { count: 1, countNonZero: 1, median: 1420 }
+      };
+      search.mockResolvedValue({ ...HISTORY, statsByCurrency: stats });
+      const el = await mount({ lane: { ...LANE, CurrencyIsoCode: "USD" } });
+      expect(split(el)).not.toBeNull();
+      expect(split(el).requestJson).toBe(search.mock.calls[0][0].requestJson);
+      expect(split(el).startCurrency).toBe("USD");
+      expect(split(el).laneCurrency).toBe("USD");
+      expect(split(el).statsByCurrency).toEqual(stats);
+      expect(split(el).allowUseAsCost).toBe(true);
+      // The card asks nothing until the pricer clicks it (D1).
+      expect(splitOptions).not.toHaveBeenCalled();
+
+      el.lane = { ...LANE, Id: "a0L00000002", Destination_Place__r: undefined };
+      await flush();
+      expect(split(el)).toBeNull();
+    });
+
+    it("fills the editor from a split option: source Split, bid cleared, cost locked, saved as a Split cost", async () => {
+      getBids.mockResolvedValue([CHEAP_BID]);
+      const el = await mount({
+        lane: {
+          ...LANE,
+          Cost_Source__c: "Bid",
+          Selected_Bid__c: "a0B00000001",
+          Cost__c: 1800
+        }
+      });
+      expect(field(el, "bid-select")).not.toBeNull();
+      const handler = jest.fn();
+      el.addEventListener("pricingchange", handler);
+
+      useAsCost(el, 6450);
+      await flush();
+      expect(field(el, "cost-source").value).toBe("Split");
+      expect(field(el, "bid-select")).toBeNull();
+      expect(field(el, "cost").value).toBe(6450);
+      expect(field(el, "cost").disabled).toBe(true);
+
+      change(el, "margin", { value: "10" });
+      await flush();
+      field(el, "save-price").click();
+      expect(handler).toHaveBeenCalledTimes(1);
+      expect(handler.mock.calls[0][0].detail).toEqual({
+        laneId: "a0L00000001",
+        Cost__c: 6450,
+        Cost_Source__c: "Split",
+        Selected_Bid__c: null,
+        Margin__c: 10,
+        Sell__c: 7095,
+        Sell_Source__c: "Margin",
+        Notes__c: "Watch the ferry surcharge"
+      });
+    });
+
+    it("offers Split as a cost source only while Split is the source", async () => {
+      const el = await mount();
+      expect(sourceValues(el)).toEqual(["Bid", "History median", "Manual"]);
+      useAsCost(el, 2400);
+      await flush();
+      expect(sourceValues(el)).toEqual([
+        "Bid",
+        "History median",
+        "Manual",
+        "Split"
+      ]);
+      change(el, "cost-source", { value: "Manual" });
+      await flush();
+      expect(sourceValues(el)).toEqual(["Bid", "History median", "Manual"]);
+      expect(field(el, "cost").disabled).toBe(false);
+      expect(field(el, "cost").value).toBe("1500");
+    });
+
+    it("shows a lane saved with Split at its stored cost, and lets stored pricing replace a filled amount", async () => {
+      const el = await mount({
+        lane: { ...LANE, Cost_Source__c: "Split", Cost__c: 6400 }
+      });
+      expect(field(el, "cost-source").value).toBe("Split");
+      expect(sourceValues(el)).toContain("Split");
+      expect(field(el, "cost").value).toBe(6400);
+
+      useAsCost(el, 6510.4);
+      await flush();
+      expect(field(el, "cost").value).toBe(6510.4);
+
+      // A bulk action stored another Split cost on the lane on screen.
+      el.lane = { ...LANE, Cost_Source__c: "Split", Cost__c: 6300 };
+      await flush();
+      expect(field(el, "cost").value).toBe(6300);
+
+      useAsCost(el, 6999);
+      await flush();
+      // Another lane: nothing is filled for it yet.
+      el.lane = {
+        ...LANE,
+        Id: "a0L00000002",
+        Cost_Source__c: "Split",
+        Cost__c: 5900
+      };
+      await flush();
+      expect(field(el, "cost").value).toBe(5900);
+    });
+
+    it("ignores Use as cost in another currency than the lane's (R88)", async () => {
+      getBids.mockResolvedValue([CHEAP_BID]);
+      const el = await mount({
+        lane: {
+          ...LANE,
+          Cost_Source__c: "Bid",
+          Selected_Bid__c: "a0B00000001",
+          Cost__c: 1800
+        }
+      });
+      const costBefore = field(el, "cost").value;
+      expect(costBefore).toBe(1800);
+      expect(field(el, "bid-select").value).toBe("a0B00000001");
+
+      split(el).dispatchEvent(
+        new CustomEvent("useascost", {
+          detail: { cost: 4671.51, currencyCode: "USD" }
+        })
+      );
+      await flush();
+      expect(field(el, "cost-source").value).toBe("Bid");
+      expect(field(el, "bid-select").value).toBe("a0B00000001");
+      expect(field(el, "cost").value).toBe(costBefore);
+
+      // The same card in the lane's currency still fills the editor.
+      useAsCost(el, 6453.25);
+      await flush();
+      expect(field(el, "cost-source").value).toBe("Split");
+      expect(field(el, "bid-select")).toBeNull();
+      expect(field(el, "cost").value).toBe(6453.25);
     });
   });
 });

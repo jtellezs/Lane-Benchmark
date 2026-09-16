@@ -90,6 +90,19 @@ function historyTitle(lane) {
     : "";
 }
 
+/**
+ * The no rate tag (spec §7): the stored snapshot matched nothing (No match), or it matched rows
+ * but none priced in the lane's currency (Done with a blank median).
+ */
+function hasNoRate(lane) {
+  const median = lane.Hist_Median__c;
+  return (
+    lane.Hist_Status__c === "No match" ||
+    (lane.Hist_Status__c === "Done" &&
+      (median === null || median === undefined || median === ""))
+  );
+}
+
 /** The small tag after a lane's miles; billed History miles need none. */
 const MILES_TAGS = {
   History: "",
@@ -271,6 +284,7 @@ export default class RfpLaneTable extends LightningElement {
       equipment: l.Equipment_Type__c || l.Equipment_Category__c || "",
       histText: historyText(l),
       histTitle: historyTitle(l),
+      noRate: hasNoRate(l),
       ...milesCell(l, this.unit),
       costText: money(l.Cost__c),
       marginText:

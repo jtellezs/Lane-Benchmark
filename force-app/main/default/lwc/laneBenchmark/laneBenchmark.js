@@ -13,6 +13,7 @@ import DISTANCE_UNIT from "@salesforce/messageChannel/Distance_Unit__c";
 import { load, save, clear } from "c/laneBenchmarkStorage";
 import { DEFAULT_FILTERS, cloneDefaults } from "c/laneBenchmarkFilters";
 import { readUnit } from "c/distanceUnit";
+import { hasBothKeys, noRate } from "c/carrierLeadRules";
 
 const LONG_RADIUS_DAYS = 365;
 
@@ -49,6 +50,11 @@ export default class LaneBenchmark extends LightningElement {
   // the request as it was when the last successful search ran, so a margin-only
   // edit can be saved without persisting unapplied filter changes
   lastSearched = null;
+  // Phase 8: the exact request JSON the last successful search sent and the currency filter it
+  // ran with (null without one). Carriers to ask judges "no rate" in that currency (spec D2) and
+  // asks about the lane that was searched, never about filter edits made since.
+  lastRequestJson = null;
+  lastCurrency = null;
   // Phase 7: the truck route for the searched place pair (TripRouteView). Fetched after the
   // search, not awaited by it: a Mapbox route can take several seconds and the results must not wait.
   routeView = null;
@@ -119,6 +125,23 @@ export default class LaneBenchmark extends LightningElement {
       !!s &&
       (s.originPrecision === "RADIUS" || s.destinationPrecision === "RADIUS");
     return !this.hasRouteMap || radius;
+  }
+  /** Carriers to ask: after a search with both place keys and no priced rate in its currency. */
+  get showCarrierLeads() {
+    return (
+      this.hasResult &&
+      hasBothKeys(this.lastRequestJson) &&
+      noRate(this.statsByCurrency, this.lastCurrency)
+    );
+  }
+
+  /** Split-lane options need a place key on both ends of the search that ran (spec §4). */
+  get showSplitOptions() {
+    return this.hasResult && hasBothKeys(this.lastRequestJson);
+  }
+  /** The split card opens in the currency filter the search ran with, or in CAD without one. */
+  get splitStartCurrency() {
+    return this.lastCurrency === "USD" ? "USD" : "CAD";
   }
 
   async connectedCallback() {
@@ -265,10 +288,13 @@ export default class LaneBenchmark extends LightningElement {
       this.elapsedSeconds += 1;
     }, 1000);
     const svc = this.toServiceRequest();
+    const requestJson = JSON.stringify(svc);
     try {
-      this.result = await search({ requestJson: JSON.stringify(svc) });
+      this.result = await search({ requestJson });
       // the search succeeded: keep it even if the map preview below fails
       this.lastSearched = { ...this.request };
+      this.lastRequestJson = requestJson;
+      this.lastCurrency = svc.currencyIsoCode || null;
       save(this.request);
       // not awaited: the route runs beside the preview and never holds the results back
       this.loadRoute(svc.originKey, svc.destinationKey, false);

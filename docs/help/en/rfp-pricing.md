@@ -13,6 +13,7 @@ Click a lane to open its panel on the right. It stays in view while you scroll t
 - **Bid**: pick one of the carrier rates recorded for this lane. The cost is the bid's rate.
 - **History median**: the median from the last history run.
 - **Manual**: type the cost yourself.
+- **Split**: the total of a split-lane option, filled by **Use as cost** (see below). It is not a choice you can pick: it shows only while it is the lane's source, after **Use as cost** or on a lane saved with it, and choosing another source replaces it.
 
 ## Margin or sell
 
@@ -39,3 +40,15 @@ The Excel export carries Miles, Km, Miles source, Route hours, Cost per mile and
 ## Results
 
 Below the form, the lane's history rows are listed exactly as Lane Benchmark shows them, so you can see which quotes made the median.
+
+## Carriers to ask
+
+When the lane's history results have no priced carrier rate in the lane's currency, the panel shows **Carriers to ask** under them: carriers that quoted or moved the lane before, by name only, never with an amount. The heading reads "No carrier rate on this lane in USD. These carriers quoted or moved it before; amounts are not shown." It needs both ends resolved to places, and it runs when you open the lane, never during **Load history** (the table shows a **no rate** tag instead; see **Editing in the table**). The two steps (the same lane over 3 years, then the top 10 carriers on the state or province lane), the **Blacklisted** badge, the account link and **Retry** work as on Lane Benchmark (see **Reading the statistics**).
+
+## Split-lane options
+
+Under the history results (below **Carriers to ask** when it shows), click **Split-lane options** to see the lane's split history, or estimates through a handoff point, as described in **Reading the statistics**. The card starts in the lane's currency, and **Direct median** is the median of the panel's history results in the card's currency.
+
+## Use as cost
+
+While the card shows the lane's currency, each option with a total has **Use as cost**. A history option uses its median total per shipment; an estimate uses its **Estimate total**, so type its **Handoff cost** first (0 is allowed). **Use as cost** puts that total in **Cost**, sets **Cost source** to **Split** and clears any selected bid; the margin and the sell follow as for any other cost. Nothing is saved until you click **Save price**. When you switch the card to the other currency, the button gives way to "Switch to USD to use a split cost." (on a USD lane; "Switch to CAD…" on a CAD lane). The identical lanes bar copies a Split cost like any other cost.

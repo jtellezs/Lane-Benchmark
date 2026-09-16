@@ -238,7 +238,14 @@ public without sharing class LaneSearchService {
     r.carrier.contactPhone = q.Contact_Phone__c;
     r.carrier.risk = q.Carrier_Risk__c;
     r.carrier.loadCount = q.Nb_of_loads__c;
-    r.carrier.attention = q.Carrier_Att__c;
+    // Phase 8: the vendor account's blacklist flag and the profile's claim flag (spec D5); a quote
+    // with no vendor or no carrier service reads both as not set.
+    r.carrier.attention = CarrierWarning.text(
+      q.rtms__Vendor__r?.Black_List__c,
+      q.rtms__Carrier_Service__r
+        ?.rtms__Transportation_Profile__r
+        ?.Outstanding_Claim__c
+    );
     return r;
   }
 }

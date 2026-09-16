@@ -1,0 +1,160 @@
+<template>
+  <template lwc:if={opened}>
+    <lightning-card
+      data-id="split-card"
+      title="Split-lane options"
+      icon-name="standard:shipment"
+    >
+      <div
+        slot="actions"
+        class="slds-button-group"
+        role="group"
+        aria-label="Split-lane currency"
+      >
+        <button
+          type="button"
+          data-id="split-currency-cad"
+          class={cadClass}
+          aria-pressed={cadPressed}
+          onclick={handleCad}
+        >
+          CAD
+        </button>
+        <button
+          type="button"
+          data-id="split-currency-usd"
+          class={usdClass}
+          aria-pressed={usdPressed}
+          onclick={handleUsd}
+        >
+          USD
+        </button>
+      </div>
+      <div class="slds-p-horizontal_medium">
+        <template lwc:if={loading}>
+          <div class="slds-is-relative split-loading">
+            <lightning-spinner
+              data-id="split-loading"
+              size="small"
+              alternative-text="Loading the split-lane options"
+            ></lightning-spinner>
+          </div>
+        </template>
+        <template lwc:if={error}>
+          <p data-id="split-error" class="slds-text-color_error" role="alert">
+            {error}
+          </p>
+          <lightning-button
+            data-id="split-retry"
+            class="slds-m-top_x-small"
+            label="Retry"
+            onclick={handleRetry}
+          ></lightning-button>
+        </template>
+        <template lwc:if={rateNote}>
+          <p
+            data-id="split-rate-note"
+            class="slds-text-body_small slds-text-color_weak"
+          >
+            {rateNote}
+          </p>
+        </template>
+        <template lwc:if={message}>
+          <p data-id="split-message" class="slds-text-color_weak">{message}</p>
+        </template>
+        <template lwc:if={truncated}>
+          <p
+            data-id="split-truncated"
+            class="slds-text-body_small slds-text-color_weak"
+          >
+            The list may be incomplete.
+          </p>
+        </template>
+        <template lwc:if={useAsCostOff}>
+          <p
+            data-id="use-as-cost-off"
+            class="slds-text-body_small slds-text-color_weak"
+          >
+            {useAsCostOff}
+          </p>
+        </template>
+        <template for:each={options} for:item="option">
+          <div
+            key={option.key}
+            data-id="option"
+            class="slds-box slds-box_x-small slds-m-top_x-small"
+          >
+            <p data-id="option-title" class="slds-text-title_bold">
+              {option.title}
+            </p>
+            <template for:each={option.legs} for:item="leg">
+              <p key={leg.key} data-id="leg-line" class="slds-text-body_small">
+                <span class="leg-text">{leg.head}</span>
+                <template for:each={leg.carriers} for:item="carrier">
+                  <span key={carrier.key}>
+                    <span class="leg-text">{carrier.text}</span>
+                    <template lwc:if={carrier.blacklisted}>
+                      <span
+                        data-id="leg-blacklisted"
+                        class="slds-badge slds-theme_error slds-m-left_x-small"
+                        >Blacklisted</span
+                      >
+                    </template>
+                    <span class="leg-text">{carrier.separator}</span>
+                  </span>
+                </template>
+                <span class="leg-text">{leg.tail}</span>
+              </p>
+            </template>
+            <template lwc:if={option.isEstimate}>
+              <lightning-input
+                data-id="handoff-cost"
+                data-option={option.key}
+                type="number"
+                step="0.01"
+                min="0"
+                label={handoffLabel}
+                value={option.handoffText}
+                onchange={handleHandoff}
+              ></lightning-input>
+            </template>
+            <template lwc:if={option.totalText}>
+              <p
+                data-id="option-total"
+                class="slds-text-title_bold slds-m-top_xx-small"
+              >
+                {option.totalText}
+              </p>
+            </template>
+            <template lwc:if={directMedianText}>
+              <p
+                data-id="direct-median"
+                class="slds-text-body_small slds-text-color_weak"
+              >
+                {directMedianText}
+              </p>
+            </template>
+            <template lwc:if={option.canUse}>
+              <lightning-button
+                data-id="use-as-cost"
+                data-index={option.index}
+                class="slds-m-top_xx-small"
+                label="Use as cost"
+                title={option.useTitle}
+                onclick={handleUseAsCost}
+              ></lightning-button>
+            </template>
+          </div>
+        </template>
+      </div>
+    </lightning-card>
+  </template>
+  <template lwc:else>
+    <lightning-button
+      data-id="split-open"
+      class="slds-m-top_small"
+      label="Split-lane options"
+      onclick={handleOpen}
+    ></lightning-button>
+  </template>
+</template>

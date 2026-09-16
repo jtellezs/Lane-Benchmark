@@ -13,6 +13,10 @@
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>
+        <apexClass>CarrierLeadController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
         <apexClass>LaneBenchmarkController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
@@ -74,6 +78,10 @@
     </classAccesses>
     <classAccesses>
         <apexClass>RfpProjectController</apexClass>
+        <enabled>true</enabled>
+    </classAccesses>
+    <classAccesses>
+        <apexClass>SplitLaneController</apexClass>
         <enabled>true</enabled>
     </classAccesses>
     <classAccesses>

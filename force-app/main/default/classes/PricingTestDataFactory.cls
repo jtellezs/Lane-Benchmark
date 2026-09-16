@@ -246,7 +246,39 @@ public class PricingTestDataFactory {
     Account destination,
     Decimal miles
   ) {
-    return createLoad(g, origin, destination, false, g.customer, g.mode, miles);
+    return createLoad(
+      g,
+      origin,
+      destination,
+      false,
+      g.customer,
+      g.mode,
+      new rtms__Load__c(rtms__Distance_Miles__c = miles)
+    );
+  }
+
+  /**
+   * Phase 8: copies every field set on template onto the load before insert (a split leg's
+   * rtms__Carrier__c, rtms__Carrier_Quote_Total__c and rtms__Load_Status__c, see SplitTestData.legLoad),
+   * so the values ride the insert instead of a second Load DML (the governor budget in the class
+   * doc). A field the template sets replaces the factory's value, customer, mode and equipment
+   * included; only the lane keys, written after the copy, and the stops stay the factory's.
+   */
+  public static rtms__Load__c createLoad(
+    Graph g,
+    Account origin,
+    Account destination,
+    rtms__Load__c template
+  ) {
+    return createLoad(
+      g,
+      origin,
+      destination,
+      false,
+      g.customer,
+      g.mode,
+      template
+    );
   }
 
   /** Sets a customer other than the graph's at insert, for the Market Test exclusion scenario. */
@@ -300,10 +332,15 @@ public class PricingTestDataFactory {
     Boolean hazmat,
     Account customer,
     rtms__Mode__c mode,
-    Decimal miles
+    rtms__Load__c template
   ) {
     rtms__Load__c load = newLoad(g, customer, mode, hazmat);
-    load.rtms__Distance_Miles__c = miles;
+    if (template != null) {
+      Map<String, Object> preset = template.getPopulatedFieldsAsMap();
+      for (String field : preset.keySet()) {
+        load.put(field, preset.get(field));
+      }
+    }
     applyLaneKeys(load, origin, destination);
     String expectedCityLane = load.rtms__City_Lane__c;
     String expectedStateLane = load.rtms__State_Lane__c;
