@@ -140,7 +140,12 @@ else
   printf '[x] Mapbox key is set.\n'
 fi
 
-if [ -z "$PLACE_COUNT" ] || [ "$PLACE_COUNT" = "0" ]; then
+# --build-places is tested first: the batch has already been queued above, so an empty
+# dictionary is being dealt with and must not be reported as a step still to do.
+if [ "$BUILD_PLACES" = "true" ]; then
+  printf '[x] Place dictionary batch started (it held %s places). Watch Setup > Apex Jobs;\n' "${PLACE_COUNT:-0}"
+  printf '    the lane pickers fill in as it runs, which took about an hour in PostProduc.\n'
+elif [ -z "$PLACE_COUNT" ] || [ "$PLACE_COUNT" = "0" ]; then
   REMAINING=$((REMAINING + 1))
   cat <<EOF
 [ ] Place dictionary is empty. Build it:
@@ -148,8 +153,6 @@ if [ -z "$PLACE_COUNT" ] || [ "$PLACE_COUNT" = "0" ]; then
     or rerun this script with --build-places. It runs asynchronously (about an hour in
     PostProduc) and the lane pickers stay empty until it finishes.
 EOF
-elif [ "$BUILD_PLACES" = "true" ]; then
-  printf '[x] Place dictionary had %s places; a rebuild is now running.\n' "$PLACE_COUNT"
 else
   printf '[x] Place dictionary has %s places.\n' "$PLACE_COUNT"
 fi
