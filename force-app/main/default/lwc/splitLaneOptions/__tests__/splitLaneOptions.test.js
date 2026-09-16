@@ -368,6 +368,10 @@ describe("c-split-lane-options", () => {
     const handler = jest.fn();
     el.addEventListener("useascost", handler);
     await open(el);
+    // Every button reads "Use as cost"; its title names the option it uses.
+    expect(inOption(all(el, "option")[0], "use-as-cost").title).toBe(
+      "Use Via Laredo, TX · SFMN Park ITC Laredo yard as cost"
+    );
     inOption(all(el, "option")[0], "use-as-cost").click();
     expect(handler).toHaveBeenCalledTimes(1);
     expect(handler.mock.calls[0][0].detail).toEqual({
@@ -382,6 +386,9 @@ describe("c-split-lane-options", () => {
     const laredo = all(el, "option")[0];
     typeHandoff(laredo, "99.999");
     await flush();
+    expect(inOption(laredo, "use-as-cost").title).toBe(
+      "Use Estimate via Laredo, TX as cost"
+    );
     inOption(laredo, "use-as-cost").click();
     // 2400.10 + 99.999 = 2500.099, sent as 2500.10
     expect(handler.mock.calls[1][0].detail).toEqual({
@@ -410,9 +417,16 @@ describe("c-split-lane-options", () => {
   });
 
   it("offers no Use as cost where the host does not allow it", async () => {
-    const el = await mount({ allowUseAsCost: false, laneCurrency: undefined });
+    // A CAD lane and a CAD answer with a total: only allowUseAsCost keeps the button away.
+    splitOptions.mockResolvedValueOnce(HISTORY_CAD);
+    const el = await mount({
+      allowUseAsCost: false,
+      startCurrency: "CAD",
+      laneCurrency: "CAD"
+    });
     await open(el);
     expect(all(el, "option").length).toBe(1);
+    expect(field(el, "option-total")).not.toBeNull();
     expect(all(el, "use-as-cost").length).toBe(0);
     field(el, "split-currency-usd").click();
     await settle();

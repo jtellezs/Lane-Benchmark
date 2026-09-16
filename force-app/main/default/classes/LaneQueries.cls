@@ -1,8 +1,8 @@
 /**
- * The statements Carriers to ask runs (phase 8, spec sections 3 and 8), and from Task 8 the ones
- * Split-lane options runs: the lane conditions on a load (each end through LaneKeyMatcher, the way
- * the first search matched it, a radius end on its place's city key, R83), the state-lane
- * conditions with both stop countries (R102), the grouped carrier quote count and the freight-plan
+ * The statements Carriers to ask and Split-lane options run (phase 8, spec sections 3, 4 and 8): the
+ * lane conditions on a load (each end through LaneKeyMatcher, the way the first search matched it, a
+ * radius end on its place's city key, R83), the state-lane conditions with both stop countries
+ * (R102), the grouped carrier quote count and the COUNT() of the rows it reads, and the freight-plan
  * read with its carrier legs (R104). Pure: no query, no DML - strings and binds only, like
  * LaneSearchQueryBuilder. Only the request's place keys, precisions, postal prefixes and mode,
  * equipment and hazmat filters reach a condition; its lookback, currency, accepted and source
@@ -27,6 +27,7 @@ public with sharing class LaneQueries {
   private static final String QUOTE_COUNT_GROUP =
     ' GROUP BY rtms__Vendor__c, rtms__Vendor__r.Name, rtms__Vendor__r.Black_List__c' +
     ' ORDER BY COUNT_DISTINCT(rtms__Load__c) DESC LIMIT ';
+  private static final String QUOTE_TOTAL_SELECT = 'SELECT COUNT() FROM rtms__CarrierQuote__c WHERE ';
   // Names only (R106): no amount field unless withAmounts, which Carriers to ask never passes.
   private static final String LEG_FIELDS =
     'rtms__Type__c, rtms__Number__c, rtms__Load__c, rtms__Load__r.CreatedDate, ' +
@@ -141,6 +142,34 @@ public with sharing class LaneQueries {
     Boolean movedOnly,
     Map<String, Object> binds
   ) {
+    return QUOTE_COUNT_SELECT +
+      quoteWhere(onLane, days, movedOnly, binds) +
+      QUOTE_COUNT_GROUP +
+      String.valueOf(GROUP_LIMIT + 1);
+  }
+
+  /**
+   * SELECT COUNT() over exactly the quote rows quoteCountSoql aggregates for the same arguments: the
+   * same WHERE text, with the same binds put into binds. A COUNT() costs one query row, while the
+   * grouped count's COUNT_DISTINCT and MAX charge every row they read, so CarrierLeadService runs this
+   * first to decide whether the grouped count fits (spec §8). conditions is copied.
+   */
+  public static String quoteTotalSoql(
+    List<String> conditions,
+    Integer days,
+    Boolean moved,
+    Map<String, Object> binds
+  ) {
+    return QUOTE_TOTAL_SELECT + quoteWhere(conditions, days, moved, binds);
+  }
+
+  /** The WHERE text both quote statements share, without the keyword; puts their binds. onLane is copied. */
+  private static String quoteWhere(
+    List<String> onLane,
+    Integer days,
+    Boolean movedOnly,
+    Map<String, Object> binds
+  ) {
     List<String> conditions = new List<String>(onLane);
     conditions.add('CreatedDate = LAST_N_DAYS:' + String.valueOf(days)); // the caller's constant, never user text
     binds.put('excluded', LaneSearchExclusions.excludedContactIdSet());
@@ -153,10 +182,7 @@ public with sharing class LaneQueries {
     if (movedOnly == true) {
       conditions.add('rtms__Accepted__c = true');
     }
-    return QUOTE_COUNT_SELECT +
-      String.join(conditions, ' AND ') +
-      QUOTE_COUNT_GROUP +
-      String.valueOf(GROUP_LIMIT + 1);
+    return String.join(conditions, ' AND ');
   }
 
   /**

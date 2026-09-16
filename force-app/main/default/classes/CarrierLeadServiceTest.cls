@@ -1,7 +1,7 @@
 /**
- * Carriers to ask, stage 1 (phase 8, Task 5). Every freight plan goes through SplitTestData.plan,
- * so these tests hold whichever way Task 1 proved plans reach a test (inserted, or built in memory
- * for FreightPlanReader). PricingTestDataFactory's load automation is not bulkified (its class doc:
+ * Carriers to ask (phase 8): stage 1, then stage 2 below. Every freight plan goes through
+ * SplitTestData.plan, so these tests hold whether plans are inserted or built in memory for
+ * FreightPlanReader. PricingTestDataFactory's load automation is not bulkified (its class doc:
  * three createLoad() calls in one context passed 100 queries), so each test creates at most one load
  * before Test.startTest() - the one whose quotes or date Test.setCreatedDate moves, which works only
  * there - and at most two inside. Every test that expects a carrier to be left out keeps another
@@ -9,7 +9,8 @@
  *
  * Query budget (measured in PostProduc on 2026-09-15): the graph 33 queries, a load 35 to 37, the yard
  * 10 to 12, a carrier account 21 to 23 when it is not blacklisted but 6 to 8 when it is (the org's
- * Account flows), a quoter 3, the first quote insert 13 to 16, a plan 4 and find() at most 5. So only
+ * Account flows), a quoter 3, the first quote insert 13 to 16, a plan 4 and find() at most 7 with
+ * its two COUNT() pre-checks. So only
  * the tests that build legs make the yard, a carrier whose blacklist flag no assertion reads is made
  * blacklisted (it is still listed), and the graph's carrier is the one that both quotes and moves a leg.
  */
@@ -39,7 +40,7 @@ private class CarrierLeadServiceTest {
 
   /**
    * Legs end at a yard off the lane, as real legs do, so no quote the automation might give a leg
-   * can reach the lane's quote counts (Task 1 asserts the automation gives legs none).
+   * can reach the lane's quote counts (SplitTestDataTest asserts the automation gives legs none).
    */
   private static void addYard(Fx f) {
     f.yard = PricingTestDataFactory.createLocation(
@@ -262,13 +263,17 @@ private class CarrierLeadServiceTest {
     System.assertEquals(true, blackCarrier.canOpen);
   }
 
-  /** The graph's carrier quotes and moves a leg: a second unblacklisted carrier does not fit before Test.startTest(). */
+  /**
+   * The graph's carrier moves the customer load through its accepted quote and a leg of the same
+   * shipment, so loads moved adds the two. A second unblacklisted carrier does not fit before
+   * Test.startTest().
+   */
   @IsTest
   static void splitLegCarriersCountFromTheirPlanAndMergeWithTheirQuotes() {
     Fx f = fx();
     addYard(f);
     rtms__Load__c customer = laneLoad(f);
-    rtms__CarrierQuote__c graphQuote = quote(f, customer, null, false);
+    rtms__CarrierQuote__c graphQuote = quote(f, customer, null, true);
     insert graphQuote;
     Datetime tenDaysAgo = Datetime.now().addDays(-10);
     Test.setCreatedDate(customer.Id, tenDaysAgo);
@@ -292,11 +297,11 @@ private class CarrierLeadServiceTest {
     );
     System.assertEquals('Test Carrier', merged.name);
     System.assertEquals(
-      1,
+      2,
       merged.loadsMoved,
-      'its leg; its own quote was declined'
+      'its accepted quote load plus its leg load (R82)'
     );
-    System.assertEquals(1, merged.loadsQuoted);
+    System.assertEquals(1, merged.loadsQuoted, 'its one quote load');
     System.assertEquals(
       tenDaysAgo.date(),
       merged.lastSeen,
@@ -663,7 +668,7 @@ private class CarrierLeadServiceTest {
     System.assertEquals(CarrierLeadResult.NONE, new CarrierLeadResult().stage);
   }
 
-  // ---- Task 6: stage 2, the state or province lane ----
+  // ---- Stage 2: the state or province lane ----
 
   /** A carrier the way Revenova quotes it: account, quote contact, transportation profile, service. */
   private class StateLaneCarrier {
@@ -675,8 +680,7 @@ private class CarrierLeadServiceTest {
 
   /**
    * The stage 2 helpers. An inner class used through an instance, so its loops stay out of this
-   * class's PMD complexity total (Task 5's tests already use 28 of 40); no name here can clash with
-   * Task 5's helpers.
+   * class's PMD complexity total; no name here can clash with the stage 1 helpers above.
    */
   private class StateLaneFixtures {
     /** No excluded contact; the intercompany list is the test's (custom metadata cannot be inserted). */
@@ -688,7 +692,7 @@ private class CarrierLeadServiceTest {
     /**
      * Carriers keyed by name, one insert per object, each built like createGraph builds the graph's
      * vendor. A quote's rtms__Vendor__c is its carrier service's carrier on every recent PostProduc
-     * quote, so each carrier quotes through its own service and contact (as in Task 5's tests). One
+     * quote, so each carrier quotes through its own service and contact (as in the stage 1 tests). One
      * list per object keeps the Account and Revenova automation to one pass before Test.startTest().
      * Measured 2026-09-15: that pass costs 17 to 23 queries for carriers that are not blacklisted and
      * 6 to 8 for blacklisted ones, whether the list holds 2 or 51. So the carriers are blacklisted: no
@@ -1094,8 +1098,8 @@ private class CarrierLeadServiceTest {
 
   /**
    * Stage 2 counts the carrier legs of split shipments whose customer load is on the state lane,
-   * dated by the customer load (R84). Called through stateLaneLeads, because a plan built by
-   * SplitTestData in memory (Task 1, branch B) would also answer stage 1's plan read.
+   * dated by the customer load (R84). Called through stateLaneLeads, because a plan built in memory
+   * for FreightPlanReader would also answer stage 1's plan read.
    */
   @IsTest
   static void stateLaneCountsTheLegsOfSplitShipments() {
@@ -1120,7 +1124,7 @@ private class CarrierLeadServiceTest {
     );
     Account legCarrier = SplitTestData.carrier('Leg Carrier', true);
     // The leg ends at a Quebec yard (state lane QC:QC), off QC:ON, so no quote the automation might
-    // give a leg can reach the stage 2 quote counts (Task 1 asserts it gives legs none).
+    // give a leg can reach the stage 2 quote counts (SplitTestDataTest asserts it gives legs none).
     Account yard = PricingTestDataFactory.createLocation(
       'Drummondville Yard',
       'Drummondville',
@@ -1320,8 +1324,10 @@ private class CarrierLeadServiceTest {
   }
 
   /**
-   * Controller ruling 2026-09-15: a 51st carrier group marks only stage 1 incomplete, because stage
-   * 2's groups come back ordered by loads, so its top 10 is exact. 51 carriers each move the Montréal
+   * Controller ruling 2026-09-15: a 51st carrier group marks only stage 1 incomplete; stage 2's groups
+   * come back ordered by loads and it shows its top 10 without the note. That top 10 is not always
+   * exact: a carrier cut from the 50 largest quote movers counts only its split legs as loads moved
+   * and can fall out of it unnoted (spec §11, Known limits). 51 carriers each move the Montréal
    * to Toronto load. Searched as Montréal to Toronto, stage 1 reaches the group cap and says so;
    * searched as Laval to Toronto, stage 1 is empty and stage 2 keeps 10 without the note.
    */

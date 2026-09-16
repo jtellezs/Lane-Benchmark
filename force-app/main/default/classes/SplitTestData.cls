@@ -10,8 +10,8 @@
  * rtms__FreightPlanLoad__c, so plan() inserts real rows, FreightPlanReader runs the real query and
  * resetPlans() has nothing to clear.
  * LEG FIELDS: at insert, through PricingTestDataFactory.createLoad(g, origin, destination, template).
- * BUDGET: the query and DML counts of the probe (SplitTestDataTest's "budget" debug line) are in
- * the Task 1 report with the deploy id (0AfbZ00000Cqo9uSAB, 2026-09-15): before Test.startTest 88
+ * BUDGET: measured by the probe deploy 0AfbZ00000Cqo9uSAB (SplitTestDataTest's "budget" debug line,
+ * 2026-09-15): before Test.startTest 88
  * queries / 41 DML (createGraph, a yard, a carrier and the customer load; 12 queries left there);
  * legLoad 37 and 35 queries / 13 DML each; plan 4 queries / 3 DML; 24 queries / 121 DML left inside
  * Test.startTest. A test holds ONE real split shipment: its customer load before Test.startTest(),

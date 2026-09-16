@@ -198,7 +198,8 @@ export default class SplitLaneOptions extends LightningElement {
         legs: (option.legs || []).map((leg) => legView(leg, code)),
         handoffText,
         totalText,
-        canUse: this.canUseAsCost && total !== null
+        canUse: this.canUseAsCost && total !== null,
+        useTitle: `Use ${isEstimate ? "Estimate via" : "Via"} ${option.handoffLabel} as cost`
       };
     });
   }

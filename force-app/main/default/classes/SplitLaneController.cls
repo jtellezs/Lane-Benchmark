@@ -25,9 +25,7 @@ public with sharing class SplitLaneController {
       throw userError(e.getMessage());
     } catch (QueryException e) {
       throw userError(
-        'The search took too long or returned too much data. Narrow the lookback or the radius and try again. (' +
-          e.getMessage() +
-          ')'
+        'Split-lane options could not be read in time. Try again.'
       );
     }
   }

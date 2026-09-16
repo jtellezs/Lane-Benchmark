@@ -47,7 +47,7 @@ When the lane's history results have no priced carrier rate in the lane's curren
 
 ## Split-lane options
 
-Under the history results (below **Carriers to ask** when it shows), click **Split-lane options** to see how the lane has been moved in legs, or estimates through a handoff point, as described in **Reading the statistics**. The card starts in the lane's currency, and **Direct median** is the median of the panel's history results in the card's currency.
+Under the history results (below **Carriers to ask** when it shows), click **Split-lane options** to see the lane's split history, or estimates through a handoff point, as described in **Reading the statistics**. The card starts in the lane's currency, and **Direct median** is the median of the panel's history results in the card's currency.
 
 ## Use as cost
 

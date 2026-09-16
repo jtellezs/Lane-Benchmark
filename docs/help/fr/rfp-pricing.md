@@ -47,7 +47,7 @@ Quand les résultats d'historique de la voie n'ont aucun tarif de transporteur a
 
 ## Split-lane options
 
-Sous les résultats d'historique (après **Carriers to ask** quand il est affiché), cliquez sur **Split-lane options** pour voir comment la voie a été transportée en tronçons, ou des estimations par un point de transfert, comme l'explique **Lire les statistiques**. L'encadré s'ouvre dans la devise de la voie, et **Direct median** est la médiane des résultats d'historique du panneau dans la devise de l'encadré.
+Sous les résultats d'historique (après **Carriers to ask** quand il est affiché), cliquez sur **Split-lane options** pour voir l'historique fractionné de la voie, ou des estimations par un point de transfert, comme l'explique **Lire les statistiques**. L'encadré s'ouvre dans la devise de la voie, et **Direct median** est la médiane des résultats d'historique du panneau dans la devise de l'encadré.
 
 ## Use as cost
 

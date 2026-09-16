@@ -413,7 +413,7 @@ private class LaneSearchQueryBuilderTest {
   }
 
   /**
-   * Phase 8 (Task 4): the select reads the two flags CarrierWarning joins, right before
+   * Phase 8: the select reads the two flags CarrierWarning joins, right before
    * CreatedDate, and no longer the Carrier_Att__c formula.
    */
   @IsTest

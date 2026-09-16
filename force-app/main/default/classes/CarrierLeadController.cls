@@ -33,11 +33,7 @@ public with sharing class CarrierLeadController {
     } catch (LaneSearchException e) {
       throw userError(e.getMessage());
     } catch (QueryException e) {
-      throw userError(
-        'The search took too long or returned too much data. Narrow the lookback or the radius and try again. (' +
-          e.getMessage() +
-          ')'
-      );
+      throw userError('Carriers to ask could not be read in time. Try again.');
     }
   }
 

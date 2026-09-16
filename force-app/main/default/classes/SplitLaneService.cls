@@ -8,15 +8,15 @@
  * leg position its carriers (CarrierTally), its most frequent leg lane and the median of its priced
  * leg totals, and gives the group the median of the sums of the shipments whose legs are all priced,
  * not a sum of leg medians (R85). Leg totals are stored in CAD; in USD each one is converted at the
- * dated rate of its own load's CreatedDate before any median or sum (R109). Task 9 adds estimates
- * when history finds no group.
+ * dated rate of its own load's CreatedDate before any median or sum (R109). When history finds no
+ * group, SplitEstimates builds estimates through handoff points.
  *
  * The grouping lives in the inner classes HistoryGroups, ShipmentGroup and PositionTally, so their
  * branches stay out of this class's PMD complexity total (the phase 7 TripMilesService ruling).
  */
 // Runs without sharing on purpose, like LaneSearchService: freight plans, loads and carrier quotes
 // inherit Private load sharing, and a split benchmark reads every team's shipments. Access is gated
-// by the Lane Benchmark and RFP Tool permission sets through SplitLaneController (Task 9).
+// by the Lane Benchmark and RFP Tool permission sets through SplitLaneController.
 public without sharing class SplitLaneService {
   public static final String NO_OPTION_MESSAGE = 'No split shipment on this lane in the last 12 months, and no handoff point is close enough for an estimate.';
   private static final String USD = 'USD';
@@ -43,7 +43,7 @@ public without sharing class SplitLaneService {
     public String stopName;
   }
 
-  /** Distinct carriers of one leg position with the legs each moved; SplitEstimates (Task 9) uses it too. */
+  /** Distinct carriers of one leg position with the legs each moved; SplitEstimates uses it too. */
   public class CarrierTally {
     private final Map<Id, SplitLaneResult.LegCarrier> byCarrier = new Map<Id, SplitLaneResult.LegCarrier>();
 
@@ -80,7 +80,7 @@ public without sharing class SplitLaneService {
 
   /**
    * The split-lane card's history for a lane, in CAD or USD (SplitLaneController refuses other
-   * codes, Task 9). The request's place keys, precisions, postal prefixes and mode, equipment and
+   * codes). The request's place keys, precisions, postal prefixes and mode, equipment and
    * hazmat filters decide the lane (LaneQueries.laneConditions; a radius end uses its place's city
    * key); its lookback, currency, accepted and source filters are ignored (R101). A
    * blank key reads nothing; an unknown place reads only the places; USD without a dated rate reads

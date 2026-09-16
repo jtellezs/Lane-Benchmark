@@ -2,8 +2,8 @@
  * Phase 8 security (spec §8). Carriers to ask reads quotes, loads and freight plans in system mode,
  * so a restricted pricer still gets carriers from records they cannot read, while the link to a
  * carrier account shows only when the caller can read that account in user mode. Class access is
- * read out of the permission set metadata, because Apex calling Apex does not enforce it. Task 9
- * adds the Split-lane options tests here.
+ * read out of the permission set metadata, because Apex calling Apex does not enforce it. The
+ * Split-lane options tests are here too.
  */
 @IsTest
 private class CarrierSplitSecurityTest {
@@ -238,7 +238,7 @@ private class CarrierSplitSecurityTest {
   /**
    * Class security is not enforced Apex to Apex, so the grant is read out of the metadata: a
    * controller missing here is the "You do not have access to the Apex class named ..." error a
-   * pricer would hit in the browser. Task 9 checks SplitLaneController in its own test.
+   * pricer would hit in the browser. bothPermissionSetsOpenTheSplitController checks SplitLaneController.
    */
   @IsTest
   static void bothPermissionSetsGrantThePhaseEightControllers() {

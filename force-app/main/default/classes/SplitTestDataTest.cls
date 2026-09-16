@@ -3,7 +3,7 @@
  * status; a plan built by SplitTestData.plan comes back through FreightPlanReader with the Customer
  * row first and the Carrier rows in rtms__Number__c order; and one split shipment leaves query room
  * for the code under test. PLAN_SOQL is the parent-child query verified in PostProduc on 2026-09-15,
- * written out by hand because LaneQueries.planSoql arrives in Task 5.
+ * written out by hand, independent of LaneQueries.planSoql.
  */
 @IsTest
 private class SplitTestDataTest {

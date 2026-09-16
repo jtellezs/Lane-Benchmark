@@ -1022,5 +1022,37 @@ describe("c-rfp-lane-panel", () => {
       await flush();
       expect(field(el, "cost").value).toBe(5900);
     });
+
+    it("ignores Use as cost in another currency than the lane's (R88)", async () => {
+      getBids.mockResolvedValue([CHEAP_BID]);
+      const el = await mount({
+        lane: {
+          ...LANE,
+          Cost_Source__c: "Bid",
+          Selected_Bid__c: "a0B00000001",
+          Cost__c: 1800
+        }
+      });
+      const costBefore = field(el, "cost").value;
+      expect(costBefore).toBe(1800);
+      expect(field(el, "bid-select").value).toBe("a0B00000001");
+
+      split(el).dispatchEvent(
+        new CustomEvent("useascost", {
+          detail: { cost: 4671.51, currencyCode: "USD" }
+        })
+      );
+      await flush();
+      expect(field(el, "cost-source").value).toBe("Bid");
+      expect(field(el, "bid-select").value).toBe("a0B00000001");
+      expect(field(el, "cost").value).toBe(costBefore);
+
+      // The same card in the lane's currency still fills the editor.
+      useAsCost(el, 6453.25);
+      await flush();
+      expect(field(el, "cost-source").value).toBe("Split");
+      expect(field(el, "bid-select")).toBeNull();
+      expect(field(el, "cost").value).toBe(6453.25);
+    });
   });
 });

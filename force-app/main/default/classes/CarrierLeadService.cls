@@ -7,8 +7,12 @@
  * lane over the last 365 days, each end also in its place's country (R102), top 10 by loads moved
  * then last seen. Intercompany carriers are left out by the quote queries and while reading plan
  * legs; the excluded contacts apply to quotes only. No query here selects an amount (R106), and
- * CarrierLeadResult has no amount field. The per-carrier merge (Tally) and the ranking (LeadOrder)
- * are inner classes, so their branches stay out of this class's PMD complexity total.
+ * CarrierLeadResult has no amount field. A query-row guard (spec §8) stops a stage and marks the list
+ * incomplete once fewer than rowReserve query rows would be left: before each query, and before each
+ * grouped quote count after a COUNT() of the quote rows that count would read, because COUNT_DISTINCT
+ * and MAX charge every row they aggregate and one count cannot be stopped once it runs. The
+ * per-carrier merge (Tally) and the ranking (LeadOrder) are inner classes, so their branches stay out
+ * of this class's PMD complexity total.
  */
 // Runs without sharing on purpose: carrier quotes inherit Private load sharing, like LaneSearchService. Access is gated by the Lane Benchmark and RFP permission sets; the account link alone is decided in user mode.
 public without sharing class CarrierLeadService {
@@ -21,9 +25,12 @@ public without sharing class CarrierLeadService {
   @TestVisible
   private static final Integer STATE_LANE_TOP = 10;
   private static final String LOAD_PATH = 'rtms__Load__r.';
-  /** Query rows kept in reserve: before each query a stage stops once fewer remain (spec §8). */
+  /** Query rows kept in reserve: a stage stops once fewer remain, or would remain after a grouped count (spec §8). */
   @TestVisible
   private static Integer rowReserve = 5000;
+  /** A smaller query-row limit for tests, so the guard trips without 50,000 rows of fixtures; null uses the platform's. */
+  @TestVisible
+  private static Integer rowLimitOverride;
 
   public static CarrierLeadResult find(LaneSearchRequest req) {
     CarrierLeadResult result = new CarrierLeadResult();
@@ -65,7 +72,8 @@ public without sharing class CarrierLeadService {
   /**
    * Stage 2 on its own: the state or province lane over 365 days, top 10, labelled "QC to ON". find
    * calls it only when stage 1 has no carrier; tests call it directly, so a freight plan fixture
-   * (SplitTestData.plan) proves stage 2's leg count whichever way Task 1 proved plans are built.
+   * (SplitTestData.plan) proves stage 2's leg count even when its rows would also answer stage 1's
+   * plan read.
    */
   @TestVisible
   private static CarrierLeadResult stateLaneLeads(
@@ -154,10 +162,11 @@ public without sharing class CarrierLeadService {
     return sorted;
   }
 
-  /** The two grouped quote counts, then the plans with their legs; stops early near the row limit. */
-  @SuppressWarnings(
-    'PMD.ApexCRUDViolation'
-  ) // system mode by design (see class comment); Database.queryWithBinds also counts as CRUD for PMD
+  /**
+   * The two grouped quote counts (loads quoted, then loads moved), then the plans with their legs.
+   * The stage stops, marked incomplete, once fewer than rowReserve query rows are left before a query
+   * or would be left after a grouped count (countQuotes).
+   */
   private static Tally readStage(
     List<String> quoteConditions,
     List<String> planConditions,
@@ -166,54 +175,65 @@ public without sharing class CarrierLeadService {
     Map<String, Object> planBinds
   ) {
     Tally tally = new Tally();
-    String quotedSoql = LaneQueries.quoteCountSoql(
-      quoteConditions,
-      days,
-      false,
-      quoteBinds
-    );
-    String movedSoql = LaneQueries.quoteCountSoql(
-      quoteConditions,
-      days,
-      true,
-      quoteBinds
-    );
-    String plansSoql = LaneQueries.planSoql(
-      planConditions,
-      days,
-      PLAN_LIMIT,
-      false
-    );
     if (tally.outOfRows()) {
       return tally;
     }
-    tally.addGroups(
-      (List<AggregateResult>) Database.queryWithBinds(
-        quotedSoql,
-        quoteBinds,
-        AccessLevel.SYSTEM_MODE
-      ),
-      false
-    );
-    if (tally.outOfRows()) {
+    if (!countQuotes(tally, quoteConditions, days, false, quoteBinds)) {
       return tally;
     }
-    tally.addGroups(
-      (List<AggregateResult>) Database.queryWithBinds(
-        movedSoql,
-        quoteBinds,
-        AccessLevel.SYSTEM_MODE
-      ),
-      true
-    );
-    if (tally.outOfRows()) {
+    if (!countQuotes(tally, quoteConditions, days, true, quoteBinds)) {
       return tally;
     }
     tally.addPlans(
-      FreightPlanReader.read(plansSoql, planBinds),
+      FreightPlanReader.read(
+        LaneQueries.planSoql(planConditions, days, PLAN_LIMIT, false),
+        planBinds
+      ),
       IntercompanyCarriers.ids()
     );
     return tally;
+  }
+
+  /**
+   * One grouped quote count: loads moved when moved is true, loads quoted otherwise. A COUNT() of the
+   * quote rows it would aggregate runs first (LaneQueries.quoteTotalSoql, one query row); when those
+   * rows would leave fewer than rowReserve query rows, the stage stops without running the count.
+   * Returns false once the stage has stopped.
+   */
+  @SuppressWarnings(
+    'PMD.ApexCRUDViolation'
+  ) // system mode by design (see class comment); Database.countQueryWithBinds and queryWithBinds also count as CRUD for PMD
+  private static Boolean countQuotes(
+    Tally tally,
+    List<String> quoteConditions,
+    Integer days,
+    Boolean moved,
+    Map<String, Object> quoteBinds
+  ) {
+    Integer quoteRows = Database.countQueryWithBinds(
+      LaneQueries.quoteTotalSoql(quoteConditions, days, moved, quoteBinds),
+      quoteBinds,
+      AccessLevel.SYSTEM_MODE
+    );
+    if (tally.outOfRows(quoteRows)) {
+      return false;
+    }
+    tally.addGroups(
+      (List<AggregateResult>) Database.queryWithBinds(
+        LaneQueries.quoteCountSoql(quoteConditions, days, moved, quoteBinds),
+        quoteBinds,
+        AccessLevel.SYSTEM_MODE
+      ),
+      moved
+    );
+    return !tally.outOfRows();
+  }
+
+  /** The query-row limit the guard measures against: a test's rowLimitOverride, else the platform's. */
+  private static Integer rowLimit() {
+    return rowLimitOverride != null
+      ? rowLimitOverride
+      : Limits.getLimitQueryRows();
   }
 
   /** Ranks, cuts stage 2 to its top 10, and decides each account link with one user-mode read. */
@@ -237,7 +257,7 @@ public without sharing class CarrierLeadService {
     result.stage = stage;
     result.leads = leads;
     if (tally.outOfRows()) {
-      // The guard stopped before the account read: the list is marked incomplete, as in Task 5.
+      // The guard stopped before the account read: the list is marked incomplete, as a stopped stage is.
       result.truncated = true;
       return result;
     }
@@ -313,8 +333,11 @@ public without sharing class CarrierLeadService {
     Set<Id> quoteCarriers = new Set<Id>();
     Map<Id, Set<Id>> legLoads = new Map<Id, Set<Id>>();
     Boolean truncated = false;
-    // A 51st carrier group: marks stage 1 incomplete (it shows every carrier), never stage 2, whose
-    // groups come back ordered by loads, so its top 10 is already exact.
+    // A 51st carrier group marks stage 1 incomplete (it shows every carrier), never stage 2, which
+    // shows its top 10 without the note although that top 10 can be wrong: the moved count keeps the
+    // 50 carriers with the most accepted-quote loads, so a carrier cut from it counts only its split
+    // legs as loads moved and can fall out of the top 10; and on a lane with fewer than 10 movers the
+    // rest of the top 10 comes from the 50 carriers with the most loads quoted.
     Boolean groupCapped = false;
     Boolean stopped = false;
 
@@ -323,7 +346,12 @@ public without sharing class CarrierLeadService {
     }
 
     Boolean outOfRows() {
-      if (Limits.getQueryRows() > Limits.getLimitQueryRows() - rowReserve) {
+      return outOfRows(0);
+    }
+
+    /** Stops the stage, marked incomplete, when rowsAhead more query rows would leave fewer than rowReserve. */
+    Boolean outOfRows(Integer rowsAhead) {
+      if (Limits.getQueryRows() + rowsAhead > rowLimit() - rowReserve) {
         stopped = true;
         truncated = true;
       }
@@ -344,7 +372,7 @@ public without sharing class CarrierLeadService {
         Integer loads = (Integer) g.get('loads');
         // Every moved load is also a quoted load. The two counts are cut at 50 groups separately,
         // so a carrier the moved count found but the quoted count cut still shows at least as many
-        // loads quoted as quote loads moved (Task 5 review ruling).
+        // loads quoted as quote loads moved.
         if (moved) {
           entry.loadsMoved = loads;
         }

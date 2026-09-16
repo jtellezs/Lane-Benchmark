@@ -990,7 +990,7 @@ private class LaneSearchServiceTest {
 
   /**
    * Phase 8: builders for theWarningReadsTheVendorBlacklistAndTheProfileClaim. An inner class with
-   * instance methods, so they stay out of this test class's PMD complexity total (37 of 40 before
+   * instance methods, so they stay out of this test class's PMD complexity total (38 of 40 before
    * phase 8).
    */
   private class WarningFixture {

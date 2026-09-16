@@ -1,7 +1,7 @@
 /**
  * What the split-lane card shows (phase 8, spec section 4): the currency of every amount, the start
- * date of the latest USD dated rate used (null in CAD), one Option per history group (Task 8) or
- * estimate (Task 9), whether the plan read reached its limit, and a message when the card has
+ * date of the latest USD dated rate used (null in CAD), one Option per history group or estimate,
+ * whether the plan read reached its limit, and a message when the card has
  * nothing to show. Plain data, no logic. Every amount is at scale 2; the handoff cost is added on
  * the screen.
  */
@@ -46,7 +46,7 @@ public class SplitLaneResult {
     public Integer pricedCount = 0;
   }
 
-  /** A history group (kind History) or an estimate through a handoff point (kind Estimate, Task 9). */
+  /** A history group (kind History) or an estimate through a handoff point (kind Estimate). */
   public class Option {
     @AuraEnabled
     public String kind;

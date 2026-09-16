@@ -261,7 +261,8 @@ public class PricingTestDataFactory {
    * Phase 8: copies every field set on template onto the load before insert (a split leg's
    * rtms__Carrier__c, rtms__Carrier_Quote_Total__c and rtms__Load_Status__c, see SplitTestData.legLoad),
    * so the values ride the insert instead of a second Load DML (the governor budget in the class
-   * doc). Customer, mode, equipment, lane keys and stops stay the factory's.
+   * doc). A field the template sets replaces the factory's value, customer, mode and equipment
+   * included; only the lane keys, written after the copy, and the stops stay the factory's.
    */
   public static rtms__Load__c createLoad(
     Graph g,

@@ -323,6 +323,55 @@ private class LaneQueriesTest {
     );
   }
 
+  /**
+   * The COUNT() CarrierSplitLimitsTest's guard runs before each grouped count reads exactly that
+   * count's quote rows: the same WHERE text, with the same binds.
+   */
+  @IsTest
+  static void quoteTotalSoqlCountsTheRowsTheGroupedCountReads() {
+    LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
+    IntercompanyCarriers.idsOverride = new Set<Id>();
+    List<String> onLane = new List<String>{
+      'rtms__Load__r.rtms__City_Lane__c LIKE :oCity'
+    };
+    Map<String, Object> binds = new Map<String, Object>{
+      'oCity' => new List<String>{ 'Montreal, QC:%' }
+    };
+
+    String quotedTotal = LaneQueries.quoteTotalSoql(onLane, 1095, false, binds);
+
+    System.assertEquals(
+      'SELECT COUNT() FROM rtms__CarrierQuote__c ' +
+        'WHERE rtms__Load__r.rtms__City_Lane__c LIKE :oCity AND CreatedDate = LAST_N_DAYS:1095 ' +
+        'AND Contact_ID__c NOT IN :excluded AND (NOT Customer_Name__c LIKE :marketTest) AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany',
+      quotedTotal
+    );
+    System.assertEquals(
+      new Set<String>{ 'oCity', 'excluded', 'marketTest', 'intercompany' },
+      binds.keySet(),
+      'the binds the grouped count puts'
+    );
+    System.assertEquals(
+      LaneQueries.quoteCountSoql(onLane, 365, false, binds)
+        .substringBetween(' WHERE ', ' GROUP BY '),
+      LaneQueries.quoteTotalSoql(onLane, 365, false, binds)
+        .substringAfter(' WHERE '),
+      'loads quoted: the COUNT() has the grouped count\'s WHERE text'
+    );
+    String movedTotal = LaneQueries.quoteTotalSoql(onLane, 365, true, binds);
+    System.assertEquals(
+      LaneQueries.quoteCountSoql(onLane, 365, true, binds)
+        .substringBetween(' WHERE ', ' GROUP BY '),
+      movedTotal.substringAfter(' WHERE '),
+      'loads moved: the COUNT() has the grouped count\'s WHERE text'
+    );
+    System.assert(
+      movedTotal.endsWith(' AND rtms__Accepted__c = true'),
+      'the moved COUNT() reads accepted quotes only: ' + movedTotal
+    );
+    System.assertEquals(1, onLane.size(), 'the lane conditions are copied');
+  }
+
   @IsTest
   static void planSoqlReadsTheLegsOfCustomerLoadsOnTheLaneWithoutAmountsUnlessAsked() {
     List<String> customerOnLane = new List<String>{
@@ -374,13 +423,13 @@ private class LaneQueriesTest {
   /**
    * Tests see none of the org's quotes or plans, so each statement returns nothing: running them
    * proves the dynamic SOQL and its binds compile, the binds inside the plan read's semi-join
-   * included, whichever way Task 1 proved freight plans reach the tests.
+   * included.
    */
   @IsTest
   static void everyStatementRunsWithItsBinds() {
     LaneSearchExclusions.excludedContactIdsOverride = new Set<String>();
     IntercompanyCarriers.idsOverride = new Set<Id>();
-    // The real plan query, not Task 1's in-memory rows (this test builds no plan fixture).
+    // The real plan query, not in-memory rows (this test builds no plan fixture).
     FreightPlanReader.rowsOverride = null;
     Map<String, Object> laneBinds = new Map<String, Object>();
     List<String> onLane = LaneQueries.laneConditions(
@@ -411,6 +460,11 @@ private class LaneQueriesTest {
       stateBinds,
       AccessLevel.SYSTEM_MODE
     );
+    Integer movedOnLaneTotal = Database.countQueryWithBinds(
+      LaneQueries.quoteTotalSoql(onLane, 1095, true, laneBinds),
+      laneBinds,
+      AccessLevel.SYSTEM_MODE
+    );
     List<rtms__FreightPlan__c> lanePlans = FreightPlanReader.read(
       LaneQueries.planSoql(onLane, 1095, 500, false),
       lanePlanBinds
@@ -426,6 +480,7 @@ private class LaneQueriesTest {
       movedOnStateLane.size(),
       'the state-lane moved count ran'
     );
+    System.assertEquals(0, movedOnLaneTotal, 'the lane moved COUNT() ran');
     System.assertEquals(0, lanePlans.size(), 'the lane plan read ran');
     System.assertEquals(
       0,

@@ -585,11 +585,16 @@ export default class RfpLanePanel extends LightningElement {
   /**
    * A split-lane option's total becomes the cost, as choosing a bid does: the
    * source turns Split, any selected bid is cleared, and Save price stores it.
+   * A total in another currency than the lane's is ignored (R88).
    */
   handleUseAsCost(event) {
+    const detail = event.detail || {};
+    if (detail.currencyCode !== this.currency) {
+      return;
+    }
     this.costSource = "Split";
     this.selectedBidId = null;
-    this.splitCost = event.detail.cost;
+    this.splitCost = detail.cost;
   }
   handleRefreshRoute() {
     this.loadRoute(true);
