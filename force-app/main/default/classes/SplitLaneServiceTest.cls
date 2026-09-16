@@ -1,5 +1,5 @@
 /**
- * Split-lane history (phase 8, Task 8). End-to-end tests build one shipment each through
+ * Split-lane history (phase 8). End-to-end tests build one shipment each through
  * SplitTestData (a customer load and two leg loads; three createLoad() calls do not fit one governor
  * window, see PricingTestDataFactory's class doc, so one load is made before Test.startTest() and two
  * inside it). The graph's own carrier (Test Carrier, not blacklisted) moves leg 1 and the blacklisted
@@ -373,7 +373,7 @@ private class SplitLaneServiceTest {
   }
 
   /**
-   * The plan read the history runs, whichever way Task 1 builds plan rows: customer loads on the lane
+   * The plan read the history runs, whether plan rows are inserted or built in memory: customer loads on the lane
    * over 365 days, at most 1000 plans, with each leg's amount, lane, status and last stop account.
    */
   @IsTest
