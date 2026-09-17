@@ -658,14 +658,15 @@ private class LaneSearchServiceTest {
     System.assertEquals(1, rh.rows.size());
     System.assertEquals(1, ra.rows.size());
     System.assertEquals(1000, ra.rows[0].carrierTotal);
-    List<Integer> declined = new List<Integer>();
-    for (LaneSearchResult.Row r : rd.rows) {
-      declined.add(r.carrierTotal.intValue());
-    }
-    declined.sort();
+    // A set from the two rows, not a loop: one more loop in this class tips its PMD total
+    // cyclomatic complexity from 39 to 40, and the phase 8 ruling says split rather than suppress.
+    System.assertEquals(2, rd.rows.size(), 'the declined rows are two now');
     System.assertEquals(
-      new List<Integer>{ 2000, 3000 },
-      declined,
+      new Set<Integer>{ 2000, 3000 },
+      new Set<Integer>{
+        rd.rows[0].carrierTotal.intValue(),
+        rd.rows[1].carrierTotal.intValue()
+      },
       'the declined Market Test quote counts too'
     );
     System.assertEquals(
