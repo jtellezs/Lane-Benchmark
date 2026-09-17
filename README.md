@@ -101,6 +101,35 @@ sf org login web -a sandbox -r https://test.salesforce.com
 Then regenerate the CI secret in the TPLM repository (see CI section). A refresh changes
 the org id and appends `.invalid` to every user email.
 
+Reinstalling the app is one command, and rerunning it is safe:
+
+```bash
+scripts/install-sandbox.sh                # deploy, assign the permission sets, report
+scripts/install-sandbox.sh --dry-run      # validate only, change nothing
+scripts/install-sandbox.sh --build-places # also start the place dictionary batch
+scripts/install-sandbox.sh --org other    # a sandbox other than `sandbox`
+```
+
+It deploys the whole manifest with `NoTestRun` (about two minutes), assigns
+`Lane_Benchmark_User` and `RFP_Tool_User`, treating an existing assignment as success,
+and then reports the two pieces of **data** a metadata deploy cannot carry: the Mapbox
+key in `TPRO_KPI__c.Mapbox_Api_Key__c` and the `Pricing_Place__c` dictionary. It prints
+whether the key is set without ever selecting it, so the token stays out of terminals
+and CI logs. The CSP trusted site and the remote site are metadata and ride along in the
+manifest, so they need no manual step.
+
+Before deploying it checks `Organization.IsSandbox` and refuses a production org — the
+alias is not what protects you, the org's own answer is. Production goes live through
+the runbook under "Retired: Pricing Department page (phase 4)", which runs the test
+roster and the one-time destructive manifest.
+
+A full refresh inherits the key and the dictionary from production, so the expected
+result is "Nothing left to do by hand". Verified in PostProduc on 2026-09-16: deploy
+`0AfbZ00000Crdh4SAB`, 326/326 components, 0 errors, both permission sets already
+assigned, 10,554 places.
+
+The commands it wraps, should you prefer to run them one at a time:
+
 ```bash
 # Re-pull everything in the manifest
 sf project retrieve start -x manifest/package.xml -o sandbox
