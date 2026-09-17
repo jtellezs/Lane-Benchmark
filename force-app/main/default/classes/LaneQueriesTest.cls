@@ -57,7 +57,7 @@ private class LaneQueriesTest {
         NOT_CANCELLED
       },
       conditions,
-      'both ends, the mode, equipment and hazmat filters and a load that is not cancelled; no currency or accepted condition (quoteCountSoql adds the Market Test exclusion)'
+      'both ends, the mode, equipment and hazmat filters and a load that is not cancelled; no currency or accepted condition'
     );
     System.assertEquals(
       new Set<String>{ 'oCity', 'dCity', 'modes', 'cats', 'types' },
@@ -282,7 +282,7 @@ private class LaneQueriesTest {
       'SELECT rtms__Vendor__c, rtms__Vendor__r.Name vname, rtms__Vendor__r.Black_List__c bl, ' +
         'COUNT_DISTINCT(rtms__Load__c) loads, MAX(CreatedDate) lastSeen FROM rtms__CarrierQuote__c ' +
         'WHERE rtms__Load__r.rtms__City_Lane__c LIKE :oCity AND CreatedDate = LAST_N_DAYS:1095 ' +
-        'AND Contact_ID__c NOT IN :excluded AND (NOT Customer_Name__c LIKE :marketTest) AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany ' +
+        'AND Contact_ID__c NOT IN :excluded AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany ' +
         'GROUP BY rtms__Vendor__c, rtms__Vendor__r.Name, rtms__Vendor__r.Black_List__c ' +
         'ORDER BY COUNT_DISTINCT(rtms__Load__c) DESC LIMIT 51',
       quoted
@@ -291,7 +291,7 @@ private class LaneQueriesTest {
       'SELECT rtms__Vendor__c, rtms__Vendor__r.Name vname, rtms__Vendor__r.Black_List__c bl, ' +
         'COUNT_DISTINCT(rtms__Load__c) loads, MAX(CreatedDate) lastSeen FROM rtms__CarrierQuote__c ' +
         'WHERE rtms__Load__r.rtms__City_Lane__c LIKE :oCity AND CreatedDate = LAST_N_DAYS:365 ' +
-        'AND Contact_ID__c NOT IN :excluded AND (NOT Customer_Name__c LIKE :marketTest) AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany ' +
+        'AND Contact_ID__c NOT IN :excluded AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany ' +
         'AND rtms__Accepted__c = true ' +
         'GROUP BY rtms__Vendor__c, rtms__Vendor__r.Name, rtms__Vendor__r.Black_List__c ' +
         'ORDER BY COUNT_DISTINCT(rtms__Load__c) DESC LIMIT 51',
@@ -303,7 +303,7 @@ private class LaneQueriesTest {
       'the lane conditions are copied, so both counts share them'
     );
     System.assertEquals(
-      new Set<String>{ 'oCity', 'excluded', 'marketTest', 'intercompany' },
+      new Set<String>{ 'oCity', 'excluded', 'intercompany' },
       binds.keySet()
     );
     System.assertEquals(
@@ -311,7 +311,6 @@ private class LaneQueriesTest {
       binds.get('excluded')
     );
     System.assertEquals(IntercompanyCarriers.ids(), binds.get('intercompany'));
-    System.assertEquals('%Market Test%', binds.get('marketTest'));
     System.assert(
       ((Set<Id>) binds.get('intercompany')).contains(intercompanyCarrier),
       'the intercompany list is bound as it is'
@@ -343,11 +342,11 @@ private class LaneQueriesTest {
     System.assertEquals(
       'SELECT COUNT() FROM rtms__CarrierQuote__c ' +
         'WHERE rtms__Load__r.rtms__City_Lane__c LIKE :oCity AND CreatedDate = LAST_N_DAYS:1095 ' +
-        'AND Contact_ID__c NOT IN :excluded AND (NOT Customer_Name__c LIKE :marketTest) AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany',
+        'AND Contact_ID__c NOT IN :excluded AND rtms__Vendor__c != null AND rtms__Vendor__c NOT IN :intercompany',
       quotedTotal
     );
     System.assertEquals(
-      new Set<String>{ 'oCity', 'excluded', 'marketTest', 'intercompany' },
+      new Set<String>{ 'oCity', 'excluded', 'intercompany' },
       binds.keySet(),
       'the binds the grouped count puts'
     );

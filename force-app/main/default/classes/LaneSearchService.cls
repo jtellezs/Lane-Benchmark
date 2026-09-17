@@ -5,7 +5,7 @@
  * row sources by CreatedDate descending, then dedupe and compute per-currency statistics. See
  * LaneSearchQueryBuilder for how precisions map onto Revenova's lane keys on the Load (CITY,
  * PROVINCE, ZIP3) or DISTANCE() through the stops (RADIUS), and for the
- * currency/mode/equipment/hazmat/accepted filters and the Market Test exclusion; BidSearchQueryBuilder mirrors that
+ * currency/mode/equipment/hazmat/accepted filters; BidSearchQueryBuilder mirrors that
  * for bids. BidSearchService lives in its own class so this stays an orchestrator (already split
  * twice for PMD).
  */

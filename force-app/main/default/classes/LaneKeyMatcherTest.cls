@@ -249,7 +249,7 @@ private class LaneKeyMatcherTest {
         'rtms__Hazardous_Materials__c = true'
       },
       conditions,
-      'currency and accepted are quote filters, and the Market Test exclusion a quote condition: never load filters'
+      'currency and accepted are quote filters: never load filters'
     );
     System.assertEquals(
       new Set<String>{ 'modes', 'cats', 'types' },

@@ -590,7 +590,7 @@ private class LaneSearchServiceTest {
   }
 
   @IsTest
-  static void hazmatAcceptedAndExcludedContactFiltersNeverReturnMarketTestQuotes() {
+  static void hazmatAcceptedAndExcludedContactFiltersNarrowTheRowsAndMarketTestQuotesCount() {
     Fixture f = fixture();
     Account marketTest = f.g.customer.clone(false, true, false, false);
     marketTest.Name = 'Market Test';
@@ -650,20 +650,24 @@ private class LaneSearchServiceTest {
     }
     totals.sort();
     System.assertEquals(
-      new List<Integer>{ 1000, 2000 },
+      new List<Integer>{ 1000, 2000, 3000 },
       totals,
-      'a quote whose customer is a Market Test account never shows in a lane search'
+      'a quote whose customer is a Market Test account counts like any other (owner, 2026-09-17)'
     );
     System.assertEquals(2000, rh.rows[0].carrierTotal);
     System.assertEquals(1, rh.rows.size());
     System.assertEquals(1, ra.rows.size());
     System.assertEquals(1000, ra.rows[0].carrierTotal);
+    List<Integer> declined = new List<Integer>();
+    for (LaneSearchResult.Row r : rd.rows) {
+      declined.add(r.carrierTotal.intValue());
+    }
+    declined.sort();
     System.assertEquals(
-      1,
-      rd.rows.size(),
-      'the declined Market Test quote is left out as well'
+      new List<Integer>{ 2000, 3000 },
+      declined,
+      'the declined Market Test quote counts too'
     );
-    System.assertEquals(2000, rd.rows[0].carrierTotal);
     System.assertEquals(
       0,
       none.rows.size(),

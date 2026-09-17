@@ -1,7 +1,7 @@
 ---
 title: Filters and lookback
 order: 30
-hint: Lookback is how many days back to search. Currency, mode, equipment, hazmat, source and quote status narrow the results. Market Test quotes are never included.
+hint: Lookback is how many days back to search. Currency, mode, equipment, hazmat, source and quote status narrow the results.
 ---
 
 ## Lookback
@@ -13,7 +13,6 @@ The number of days back to search, counted from when the quote or bid was create
 - **Currency**: All, or one currency. Statistics are always per currency.
 - **Modes** and **Equipment types**: move the ones you want into the Selected list. **Equipment categories**: tick one or more; the types list then shows only those categories. Nothing selected means no filter.
 - **Hazmat only**: keep only hazmat quotes.
-- Market Test quotes (a customer named Market Test) are never included, whatever the filters.
 - **Source**: **All** (loads and bids), **Loads only**, or **Bids only**. Under All, expired bids are left out; under Bids only they are listed with their expiry so you can see what was quoted.
 - **Quote status**: All, Accepted or Declined quotes on loads.
 
