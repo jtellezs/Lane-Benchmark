@@ -141,12 +141,12 @@ copy of the matching rules.
 - Rates recorded here move the medians every other screen shows (D3). That is
   the intent, and the help page says it in plain words.
 
-## 8. Open decisions for the owner's review
+## 8. Decisions taken at review (2026-09-17)
 
-| #   | Question                                                                                                                                                                                                                                                                                                                                                                      |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| O1  | **The name.** Lane Benchmark's help says, in EN and FR, "Market Test quotes are never included" — those are Revenova quotes under a customer named Market Test, excluded since phase 7. A tab called Market Test whose rates _are_ counted contradicts that sentence in four help files. Recommendation: call the feature **Rate check** and leave the phase 7 wording alone. |
-| O2  | **Who may record a rate.** `Lane_Benchmark_User` has read-only on bids today, so only `RFP_Tool_User` holders could add one. The go-live assigns both sets to the pricing team, so nothing changes in practice, and no permission set is widened. Recommendation: leave the permissions alone and hide **Add rate** when the user cannot create.                              |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| O1  | **The name is Market Test.** The collision this spec worried about is gone: the owner removed the Market Test exclusion from every lane search and from Carriers to ask on 2026-09-17, so no help page claims those quotes are left out. The Revenova customer account named Market Test and a market test as an activity are separate things, and the app now treats neither specially.                                           |
+| O2  | **Anyone may record a rate.** `Lane_Benchmark_User` gains create, edit and delete on `Benchmark_Rate__c`, beside the grant `RFP_Tool_User` already has. The object stays `Private`, so a user sees and edits only the rates they recorded, and §5's write path still refuses any record carrying an RFP lane, so this is not a route into an RFP bid. The owner's reasoning: open it to everyone, and withdraw it if it is abused. |
 
 ## 9. Testing
 
