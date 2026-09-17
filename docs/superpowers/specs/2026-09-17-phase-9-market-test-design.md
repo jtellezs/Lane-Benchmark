@@ -16,15 +16,15 @@ only; production is not deployed from this branch. PostProduc was refreshed on
 
 ## 1. Decisions (brainstorm with the owner, 2026-09-16)
 
-| #   | Decision                                                                                                                                                                                                                                                                                                                                                      |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | **A dedicated tab.** The owner chose a Market Test tab of its own over a card inside Lane Benchmark or a hidden one-lane RFP project. It is the larger build, and it is the home phase 10's chart will share.                                                                                                                                                 |
-| D2  | **Rates only, no ask tracking.** The page records what carriers answered. It does not track who was asked, who declined, or response rates. Phase 8's Carriers to ask already names who to contact; pairing the two is a later phase if the team wants it.                                                                                                    |
-| D3  | **Counted like any other bid.** A market-test rate is not flagged and not separated. It joins the lane's count, median and min/avg/max wherever the app shows them, exactly as an RFP bid does.                                                                                                                                                               |
-| D4  | **No project, no RFP lane.** A market-test rate is a `Benchmark_Rate__c` with `RFP_Project__c` and `RFP_Lane__c` both null. That absence is what distinguishes it from an RFP bid, so no new field is needed, and a later phase can still separate the two without a schema change or a backfill.                                                             |
-| D5  | **The controller stamps the lane keys.** `BenchmarkRateService.applyLanes` copies lane keys from an RFP lane, so a rate with no lane gets none — and a rate with no keys never matches a lane search, so it would never reach the median D3 requires. The new controller sets the places and calls the already-public `cityLane`, `stateLane` and `zip3Lane`. |
-| D6  | **Read shared, write owned.** The page reads a lane's market-test rates in system mode, gated on the permission set, so the team sees the same rates it already sees in the median. Editing and deleting are restricted to whoever recorded the rate.                                                                                                         |
-| D7  | **Reuse the existing parts.** `laneBenchmarkPlacePicker` for both ends, `rfpBidForm` for the carrier-and-rate entry, `LaneBenchmarkController.search` unchanged for the history half.                                                                                                                                                                         |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | **A dedicated tab.** The owner chose a Market Test tab of its own over a card inside Lane Benchmark or a hidden one-lane RFP project. It is the larger build, and it is the home phase 10's chart will share.                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D2  | **Rates only, no ask tracking.** The page records what carriers answered. It does not track who was asked, who declined, or response rates. Phase 8's Carriers to ask already names who to contact; pairing the two is a later phase if the team wants it.                                                                                                                                                                                                                                                                                                                                                                                  |
+| D3  | **Counted like any other bid.** A market-test rate is not flagged and not separated. It joins the lane's count, median and min/avg/max wherever the app shows them, exactly as an RFP bid does.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| D4  | **A `Market_Test__c` marker, not an absence.** A market-test rate is a `Benchmark_Rate__c` with `RFP_Project__c` and `RFP_Lane__c` null **and `Market_Test__c` true**. The absence alone is not safe: both lookups are `SetNull`, and deleting a customer account deletes its RFPs and lanes while their bids survive with the lookups cleared (README) — so every orphaned bid of every deleted customer has exactly the shape of a market-test rate. The marker is written only by this page, so an orphan can never carry it. Counting is untouched: no lane search filters on the marker, so these rates still reach every median (D3). |
+| D5  | **The controller stamps the lane keys.** `BenchmarkRateService.applyLanes` copies lane keys from an RFP lane, so a rate with no lane gets none — and a rate with no keys never matches a lane search, so it would never reach the median D3 requires. The new controller sets the places and calls the already-public `cityLane`, `stateLane` and `zip3Lane`.                                                                                                                                                                                                                                                                               |
+| D6  | **Read shared, write owned.** The page reads a lane's market-test rates in system mode, gated on the permission set, so the team sees the same rates it already sees in the median. Editing and deleting are restricted to whoever recorded the rate.                                                                                                                                                                                                                                                                                                                                                                                       |
+| D7  | **Reuse the existing parts.** `laneBenchmarkPlacePicker` for both ends, `rfpBidForm` for the carrier-and-rate entry, `LaneBenchmarkController.search` unchanged for the history half.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## 2. Today (read in the repo, 2026-09-17)
 
@@ -82,10 +82,11 @@ against the history on the left without doing arithmetic.
 
 ## 4. Data
 
-No new object and no new field. A market-test rate is a `Benchmark_Rate__c`
+No new object, and one new field. A market-test rate is a `Benchmark_Rate__c`
 with:
 
-- `RFP_Project__c` = null, `RFP_Lane__c` = null (D4)
+- `Market_Test__c` = true — the marker this page owns (D4)
+- `RFP_Project__c` = null, `RFP_Lane__c` = null
 - `Origin_Place__c` / `Destination_Place__c` = the chosen places
 - `Origin_City__c` … `Destination_Country__c` copied from those places
 - `City_Lane__c`, `State_Lane__c`, `Zip3_Lane__c` from
@@ -97,21 +98,29 @@ with:
   form
 - `Valid_From__c` / `Expires_On__c` defaulted by the trigger when left blank
 
+`Market_Test__c` is a Checkbox defaulting to false, written true only by §5's
+save path. Both permission sets need field read, and any set that can create a
+rate needs field edit. Nothing else writes it and no lane search reads it, which
+is why adding it changes no median.
+
 ## 5. Apex behaviour
 
 A new `MarketTestController` and a `MarketTestService`. The controller is the
 only new Apex surface the LWC calls.
 
 - `getRates(String laneJson)` — the lane's market-test rates: bids matching the
-  lane keys with both lookups null. Runs in system mode (D6) so the team sees
-  the same rates the median already counts, after asserting
-  `Benchmark_Rate__c.isAccessible()` for the running user.
-- `saveRate(String rateJson)` — builds the record per §4, asserts
-  `isCreateable()`, inserts through `Security.stripInaccessible`, returns the
+  lane keys with `Market_Test__c = true`. The marker, not the absence of the
+  lookups, is what scopes this read (D4); an orphaned RFP bid never carries it.
+  Runs in system mode (D6) so the team sees the same rates the median already
+  counts, after asserting `Benchmark_Rate__c.isAccessible()` for the running
+  user.
+- `saveRate(String rateJson)` — builds the record per §4 with `Market_Test__c`
+  true, asserts `isCreateable()`, inserts through `Security.stripInaccessible`, returns the
   saved rate.
 - `updateRate(String rateJson)` / `deleteRate(Id rateId)` — assert the running
-  user owns the record (`OwnerId == UserInfo.getUserId()`), and that the record
-  has no RFP lane, so this path can never edit or delete an RFP bid. Anything
+  user owns the record (`OwnerId == UserInfo.getUserId()`), that it carries
+  `Market_Test__c`, and that it has no RFP lane, so this path can never edit or
+  delete an RFP bid or an orphan. Anything
   else throws the page's "That rate is not yours to change."
 
 The lane match reuses `LaneQueries`' condition builders rather than a second
@@ -140,12 +149,24 @@ copy of the matching rules.
   The delete confirmation says so when the rate is referenced.
 - Rates recorded here move the medians every other screen shows (D3). That is
   the intent, and the help page says it in plain words.
+- **Orphaned RFP bids are why D4 uses a marker.** Both lookups are `SetNull`, so
+  deleting a customer account leaves its bids with no project and no lane. Lane
+  Benchmark already counts those orphans in its medians — phase 6's D2, and
+  deliberate, because a median discloses nothing about whose bid it was. This
+  page is different in kind: it lists carrier, rate and contact per row. The
+  marker is what keeps an orphan out of that list.
+- `Benchmark_Rate__c` has no sharing rules, and `RfpBidAccess` refuses a
+  caller-set `OwnerId`. The object permissions O2 grants `Lane_Benchmark_User`
+  are therefore object-level only: with `Private` OWD a user still sees, edits
+  and deletes only the records they own, so the Salesforce UI is not a way round
+  this page.
 
 ## 8. Decisions taken at review (2026-09-17)
 
 | #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | O1  | **The name is Market Test.** The collision this spec worried about is gone: the owner removed the Market Test exclusion from every lane search and from Carriers to ask on 2026-09-17, so no help page claims those quotes are left out. The Revenova customer account named Market Test and a market test as an activity are separate things, and the app now treats neither specially.                                           |
+| O3  | **Bids stay hidden from anyone without access to the account their RFP is for (owner, 2026-09-17).** Phase 6's rule is unchanged, and D4's marker is what makes it hold here: without it, this page would have listed every orphaned bid of every deleted customer account to everyone holding the permission set.                                                                                                                 |
 | O2  | **Anyone may record a rate.** `Lane_Benchmark_User` gains create, edit and delete on `Benchmark_Rate__c`, beside the grant `RFP_Tool_User` already has. The object stays `Private`, so a user sees and edits only the rates they recorded, and §5's write path still refuses any record carrying an RFP lane, so this is not a route into an RFP bid. The owner's reasoning: open it to everyone, and withdraw it if it is abused. |
 
 ## 9. Testing
