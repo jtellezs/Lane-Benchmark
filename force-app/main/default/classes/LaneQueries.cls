@@ -6,7 +6,7 @@
  * read with its carrier legs (R104). Pure: no query, no DML - strings and binds only, like
  * LaneSearchQueryBuilder. Only the request's place keys, precisions, postal prefixes and mode,
  * equipment and hazmat filters reach a condition; its lookback, currency, accepted and source
- * filters are ignored on purpose (R101), and quote counts leave out Market Test quotes as every
+ * filters are ignored on purpose (R101), and quote counts include Market Test quotes as every
  * lane search does (phase 7, R110). loadPath is 'rtms__Load__r.' on
  * rtms__CarrierQuote__c and rtms__FreightPlanLoad__c rows and '' on rtms__Load__c rows.
  */
@@ -132,8 +132,8 @@ public with sharing class LaneQueries {
    * Carrier quotes on the lane grouped by vendor, with the vendor's name and blacklist flag, the
    * distinct loads quoted (or moved, when movedOnly adds rtms__Accepted__c = true) and the latest
    * quote date, most loads first, GROUP_LIMIT + 1 groups at most. Adds the window, the excluded
-   * contacts (quotes only, R89), the Market Test exclusion every lane search carries (phase 7, R110)
-   * and the intercompany carriers (D6); binds 'excluded', 'marketTest' and 'intercompany'. onLane is
+   * contacts (quotes only, R89) and the intercompany carriers (D6); binds 'excluded' and
+   * 'intercompany'. onLane is
    * copied, so both counts can share it.
    */
   public static String quoteCountSoql(
@@ -174,8 +174,6 @@ public with sharing class LaneQueries {
     conditions.add('CreatedDate = LAST_N_DAYS:' + String.valueOf(days)); // the caller's constant, never user text
     binds.put('excluded', LaneSearchExclusions.excludedContactIdSet());
     conditions.add('Contact_ID__c NOT IN :excluded');
-    binds.put('marketTest', '%Market Test%');
-    conditions.add('(NOT Customer_Name__c LIKE :marketTest)');
     conditions.add('rtms__Vendor__c != null');
     binds.put('intercompany', IntercompanyCarriers.ids());
     conditions.add('rtms__Vendor__c NOT IN :intercompany');

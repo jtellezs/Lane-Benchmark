@@ -1,7 +1,7 @@
 ---
 title: Filtres et période
 order: 30
-hint: La période est le nombre de jours à remonter. Devise, mode, équipement, matières dangereuses, source et statut de cotation resserrent les résultats. Les cotations Market Test ne sont jamais incluses.
+hint: La période est le nombre de jours à remonter. Devise, mode, équipement, matières dangereuses, source et statut de cotation resserrent les résultats.
 ---
 
 ## Période (lookback)
@@ -13,7 +13,6 @@ Le nombre de jours à remonter, compté depuis la création de la cotation ou de
 - **Devise** : toutes, ou une seule. Les statistiques sont toujours par devise.
 - **Modes** et **types d'équipement** : déplacez ceux voulus dans la liste Selected. **Catégories d'équipement** : cochez-en une ou plusieurs; la liste des types ne montre alors que ces catégories. Rien de sélectionné veut dire aucun filtre.
 - **Hazmat only** : ne garder que les cotations de matières dangereuses.
-- Les cotations Market Test (un client nommé Market Test) ne sont jamais incluses, quels que soient les filtres.
 - **Source** : **All** (chargements et soumissions), **Loads only**, ou **Bids only**. Sous All, les soumissions expirées sont exclues; sous Bids only elles sont listées avec leur expiration.
 - **Quote status** : toutes, acceptées ou refusées.
 

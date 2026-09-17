@@ -281,7 +281,7 @@ public class PricingTestDataFactory {
     );
   }
 
-  /** Sets a customer other than the graph's at insert, for the Market Test exclusion scenario. */
+  /** Sets a customer other than the graph's at insert, for the Market Test customer scenario. */
   public static rtms__Load__c createLoad(
     Graph g,
     Account origin,

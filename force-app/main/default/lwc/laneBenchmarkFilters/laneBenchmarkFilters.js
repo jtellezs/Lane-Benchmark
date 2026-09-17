@@ -44,7 +44,7 @@ export default class LaneBenchmarkFilters extends LightningElement {
     { label: "Loads only", value: "LOADS" },
     { label: "Bids only", value: "BIDS" }
   ];
-  // Market Test quotes are left out of every lane search (LaneSearchFilters), so the only flag is Hazmat.
+  // Market test is not a filter: those quotes count like any other, so the only flag is Hazmat.
   flagOptions = [{ label: "Hazmat only", value: "hazmatOnly" }];
 
   get lookbackDays() {

@@ -590,7 +590,7 @@ private class LaneSearchServiceTest {
   }
 
   @IsTest
-  static void hazmatAcceptedAndExcludedContactFiltersNeverReturnMarketTestQuotes() {
+  static void hazmatAcceptedAndExcludedContactFiltersNarrowTheRowsAndMarketTestQuotesCount() {
     Fixture f = fixture();
     Account marketTest = f.g.customer.clone(false, true, false, false);
     marketTest.Name = 'Market Test';
@@ -650,20 +650,25 @@ private class LaneSearchServiceTest {
     }
     totals.sort();
     System.assertEquals(
-      new List<Integer>{ 1000, 2000 },
+      new List<Integer>{ 1000, 2000, 3000 },
       totals,
-      'a quote whose customer is a Market Test account never shows in a lane search'
+      'a quote whose customer is a Market Test account counts like any other (owner, 2026-09-17)'
     );
     System.assertEquals(2000, rh.rows[0].carrierTotal);
     System.assertEquals(1, rh.rows.size());
     System.assertEquals(1, ra.rows.size());
     System.assertEquals(1000, ra.rows[0].carrierTotal);
+    // A set from the two rows, not a loop: one more loop in this class tips its PMD total
+    // cyclomatic complexity from 39 to 40, and the phase 8 ruling says split rather than suppress.
+    System.assertEquals(2, rd.rows.size(), 'the declined rows are two now');
     System.assertEquals(
-      1,
-      rd.rows.size(),
-      'the declined Market Test quote is left out as well'
+      new Set<Integer>{ 2000, 3000 },
+      new Set<Integer>{
+        rd.rows[0].carrierTotal.intValue(),
+        rd.rows[1].carrierTotal.intValue()
+      },
+      'the declined Market Test quote counts too'
     );
-    System.assertEquals(2000, rd.rows[0].carrierTotal);
     System.assertEquals(
       0,
       none.rows.size(),

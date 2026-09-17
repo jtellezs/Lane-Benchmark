@@ -1,6 +1,6 @@
 /**
  * Characterization of LaneSearchQueryBuilder.buildSoql: the exact SOQL string and bind names for
- * every lane precision and every filter, including the Market Test exclusion phase 7 added to every search. Phase 8 wrote it before moving the lane-key conditions
+ * every lane precision and every filter . Phase 8 wrote it before moving the lane-key conditions
  * into LaneKeyMatcher and the mode, equipment and hazmat conditions into LaneLoadFilters, and ran it
  * green on the code as it was then, so the move is proved not to change the lane search by one
  * character (spec D10, R103). buildSoql is pure: the places live only in memory, no record is
@@ -19,8 +19,6 @@ private class LaneSearchQueryBuilderTest {
   private static final String WINDOW_90 = ' WHERE CreatedDate = LAST_N_DAYS:90 AND Contact_ID__c NOT IN :excluded';
   private static final String ORDER_AND_LIMIT = ' ORDER BY CreatedDate DESC LIMIT :rowLimitPlusOne';
   private static final String CITY_BOTH_ENDS = ' AND rtms__Load__r.rtms__City_Lane__c LIKE :oCity AND rtms__Load__r.rtms__City_Lane__c LIKE :dCity';
-  // Every lane search leaves out Market Test quotes (phase 7); the condition sits between hazmat and accepted.
-  private static final String NO_MARKET_TEST = ' AND (NOT Customer_Name__c LIKE :marketTest)';
 
   private static Map<String, Pricing_Place__c> places() {
     return new Map<String, Pricing_Place__c>{
@@ -69,21 +67,11 @@ private class LaneSearchQueryBuilderTest {
     Map<String, Object> binds = new Map<String, Object>();
     String soql = build(req(), binds);
     System.assertEquals(
-      SELECT_CLAUSE +
-        WINDOW_90 +
-        CITY_BOTH_ENDS +
-        NO_MARKET_TEST +
-        ORDER_AND_LIMIT,
+      SELECT_CLAUSE + WINDOW_90 + CITY_BOTH_ENDS + ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{
-        'excluded',
-        'oCity',
-        'dCity',
-        'marketTest',
-        'rowLimitPlusOne'
-      },
+      new Set<String>{ 'excluded', 'oCity', 'dCity', 'rowLimitPlusOne' },
       binds.keySet()
     );
     System.assertEquals(
@@ -97,7 +85,6 @@ private class LaneSearchQueryBuilderTest {
     );
     System.assertEquals(new Set<String>(), binds.get('excluded'));
     System.assertEquals(2001, binds.get('rowLimitPlusOne'));
-    System.assertEquals('%Market Test%', binds.get('marketTest'));
   }
 
   @IsTest
@@ -113,18 +100,11 @@ private class LaneSearchQueryBuilderTest {
       SELECT_CLAUSE +
         ' WHERE CreatedDate = LAST_N_DAYS:30 AND Contact_ID__c NOT IN :excluded' +
         ' AND rtms__Load__r.rtms__State_Lane__c LIKE :oProv AND rtms__Load__r.rtms__State_Lane__c LIKE :dProv' +
-        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{
-        'excluded',
-        'oProv',
-        'dProv',
-        'marketTest',
-        'rowLimitPlusOne'
-      },
+      new Set<String>{ 'excluded', 'oProv', 'dProv', 'rowLimitPlusOne' },
       binds.keySet()
     );
     System.assertEquals('QC:%', binds.get('oProv'));
@@ -145,18 +125,11 @@ private class LaneSearchQueryBuilderTest {
       SELECT_CLAUSE +
         WINDOW_90 +
         ' AND rtms__Load__r.rtms__Zip3_Lane__c LIKE :oZip3 AND rtms__Load__r.rtms__Zip3_Lane__c LIKE :dZip3' +
-        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{
-        'excluded',
-        'oZip3',
-        'dZip3',
-        'marketTest',
-        'rowLimitPlusOne'
-      },
+      new Set<String>{ 'excluded', 'oZip3', 'dZip3', 'rowLimitPlusOne' },
       binds.keySet()
     );
     System.assertEquals('H2X:%', binds.get('oZip3'));
@@ -207,12 +180,11 @@ private class LaneSearchQueryBuilderTest {
       SELECT_CLAUSE +
         WINDOW_90 +
         ' AND rtms__Load__r.rtms__City_Lane__c LIKE :dCity' +
-        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{ 'excluded', 'dCity', 'marketTest', 'rowLimitPlusOne' },
+      new Set<String>{ 'excluded', 'dCity', 'rowLimitPlusOne' },
       binds.keySet()
     );
 
@@ -224,12 +196,11 @@ private class LaneSearchQueryBuilderTest {
       SELECT_CLAUSE +
         WINDOW_90 +
         ' AND rtms__Load__r.rtms__City_Lane__c LIKE :oCity' +
-        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
     System.assertEquals(
-      new Set<String>{ 'excluded', 'oCity', 'marketTest', 'rowLimitPlusOne' },
+      new Set<String>{ 'excluded', 'oCity', 'rowLimitPlusOne' },
       binds.keySet()
     );
   }
@@ -250,7 +221,6 @@ private class LaneSearchQueryBuilderTest {
         ' OR DISTANCE(rtms__Load__r.rtms__First_Stop__r.rtms__Geolocation__c, GEOLOCATION(:oLat, :oLng), \'mi\') < :oRadius)' +
         ' AND (DISTANCE(rtms__Load__r.rtms__Last_Stop__r.rtms__Location2__r.ShippingAddress, GEOLOCATION(:dLat, :dLng), \'mi\') < :dRadius' +
         ' OR DISTANCE(rtms__Load__r.rtms__Last_Stop__r.rtms__Geolocation__c, GEOLOCATION(:dLat, :dLng), \'mi\') < :dRadius)' +
-        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
@@ -263,7 +233,6 @@ private class LaneSearchQueryBuilderTest {
         'dLat',
         'dLng',
         'dRadius',
-        'marketTest',
         'rowLimitPlusOne'
       },
       binds.keySet()
@@ -292,7 +261,6 @@ private class LaneSearchQueryBuilderTest {
         WINDOW_90 +
         ' AND DISTANCE(rtms__Load__r.rtms__First_Stop__r.rtms__Location2__r.ShippingAddress, GEOLOCATION(:oLat, :oLng), \'km\') < :oRadius' +
         ' AND DISTANCE(rtms__Load__r.rtms__Last_Stop__r.rtms__Location2__r.ShippingAddress, GEOLOCATION(:dLat, :dLng), \'km\') < :dRadius' +
-        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
@@ -305,7 +273,6 @@ private class LaneSearchQueryBuilderTest {
         'dLat',
         'dLng',
         'dRadius',
-        'marketTest',
         'rowLimitPlusOne'
       },
       binds.keySet()
@@ -331,7 +298,6 @@ private class LaneSearchQueryBuilderTest {
         ' AND rtms__Load__r.rtms__Mode__r.Name IN :modes' +
         ' AND (rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c IN :cats OR rtms__Load__r.rtms__Equipment_Type__r.Name IN :types)' +
         ' AND rtms__Load__r.rtms__Hazardous_Materials__c = true' +
-        NO_MARKET_TEST +
         ' AND rtms__Accepted__c = true' +
         ORDER_AND_LIMIT,
       soql
@@ -345,7 +311,6 @@ private class LaneSearchQueryBuilderTest {
         'modes',
         'cats',
         'types',
-        'marketTest',
         'rowLimitPlusOne'
       },
       binds.keySet()
@@ -354,7 +319,6 @@ private class LaneSearchQueryBuilderTest {
     System.assertEquals(r.modes, binds.get('modes'));
     System.assertEquals(r.equipmentCategories, binds.get('cats'));
     System.assertEquals(r.equipmentTypes, binds.get('types'));
-    System.assertEquals('%Market Test%', binds.get('marketTest'));
   }
 
   @IsTest
@@ -369,7 +333,6 @@ private class LaneSearchQueryBuilderTest {
         WINDOW_90 +
         CITY_BOTH_ENDS +
         ' AND rtms__Load__r.rtms__Equipment_Type__r.rtms__Category__c IN :cats' +
-        NO_MARKET_TEST +
         ' AND rtms__Accepted__c = false' +
         ORDER_AND_LIMIT,
       soql
@@ -380,7 +343,6 @@ private class LaneSearchQueryBuilderTest {
         'oCity',
         'dCity',
         'cats',
-        'marketTest',
         'rowLimitPlusOne'
       },
       binds.keySet()
@@ -395,7 +357,6 @@ private class LaneSearchQueryBuilderTest {
         WINDOW_90 +
         CITY_BOTH_ENDS +
         ' AND rtms__Load__r.rtms__Equipment_Type__r.Name IN :types' +
-        NO_MARKET_TEST +
         ORDER_AND_LIMIT,
       soql
     );
@@ -405,7 +366,6 @@ private class LaneSearchQueryBuilderTest {
         'oCity',
         'dCity',
         'types',
-        'marketTest',
         'rowLimitPlusOne'
       },
       binds.keySet()

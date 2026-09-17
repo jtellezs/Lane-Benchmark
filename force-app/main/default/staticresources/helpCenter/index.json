@@ -32,8 +32,8 @@
         "fr": "Filtres et période"
       },
       "hint": {
-        "en": "Lookback is how many days back to search. Currency, mode, equipment, hazmat, source and quote status narrow the results. Market Test quotes are never included.",
-        "fr": "La période est le nombre de jours à remonter. Devise, mode, équipement, matières dangereuses, source et statut de cotation resserrent les résultats. Les cotations Market Test ne sont jamais incluses."
+        "en": "Lookback is how many days back to search. Currency, mode, equipment, hazmat, source and quote status narrow the results.",
+        "fr": "La période est le nombre de jours à remonter. Devise, mode, équipement, matières dangereuses, source et statut de cotation resserrent les résultats."
       }
     },
     {

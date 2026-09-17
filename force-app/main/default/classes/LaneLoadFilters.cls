@@ -7,7 +7,7 @@
  *
  * loadPath is the relationship path from the queried row to its load: 'rtms__Load__r.' on
  * rtms__CarrierQuote__c and rtms__FreightPlanLoad__c rows, '' on rtms__Load__c rows. The bind names
- * (modes, cats, types) are the same whatever the path. Currency, accepted and the Market Test
+ * (modes, cats, types) are the same whatever the path. Currency and accepted
  * exclusion stay in LaneSearchFilters: they read quote fields, not load fields.
  */
 public with sharing class LaneLoadFilters {
