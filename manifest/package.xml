@@ -349,6 +349,7 @@
         <members>Benchmark_Rate__c.FSC_Included__c</members>
         <members>Benchmark_Rate__c.Fuel_Surcharge__c</members>
         <members>Benchmark_Rate__c.Hazmat__c</members>
+        <members>Benchmark_Rate__c.Market_Test__c</members>
         <members>Benchmark_Rate__c.Mode__c</members>
         <members>Benchmark_Rate__c.Notes__c</members>
         <members>Benchmark_Rate__c.Origin_City__c</members>

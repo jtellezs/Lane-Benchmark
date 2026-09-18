@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Market_Test__c</fullName>
+    <label>Market test</label>
+    <type>Checkbox</type>
+    <defaultValue>false</defaultValue>
+    <description
+  >True when the Market Test page recorded this rate. An RFP bid whose account was deleted keeps no project and no lane either, so the absence of those lookups cannot identify a market-test rate; this marker can, because only MarketTestService writes it. No lane search reads or filters it, so a marked rate still counts in every median like any other bid.</description>
+</CustomField>
