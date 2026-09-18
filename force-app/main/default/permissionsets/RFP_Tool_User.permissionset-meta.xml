@@ -706,6 +706,10 @@
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>
+        <tab>Market_Test</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
         <tab>RFP_Tool</tab>
         <visibility>Visible</visibility>
     </tabSettings>

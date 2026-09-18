@@ -20,10 +20,10 @@ public without sharing class MarketTestService {
   private static final Integer RATE_LIMIT = 200;
 
   public static List<Benchmark_Rate__c> ratesOfLane(
-    Id originId,
-    Id destinationId
+    String originKey,
+    String destinationKey
   ) {
-    String lane = cityLaneOf(originId, destinationId);
+    String lane = cityLaneOf(originKey, destinationKey);
     return [
       SELECT
         Id,
@@ -54,19 +54,22 @@ public without sharing class MarketTestService {
 
   public static Benchmark_Rate__c save(
     Benchmark_Rate__c posted,
-    Id originId,
-    Id destinationId
+    String originKey,
+    String destinationKey
   ) {
     if (!Schema.SObjectType.Benchmark_Rate__c.isCreateable()) {
       throw new LaneSearchException('You cannot record a rate.');
     }
-    Map<Id, Pricing_Place__c> places = placesById(originId, destinationId);
+    Map<String, Pricing_Place__c> places = placesByKey(
+      originKey,
+      destinationKey
+    );
     Benchmark_Rate__c rate = new Benchmark_Rate__c();
     copySettable(posted, rate);
     rate.Market_Test__c = true;
     rate.RFP_Project__c = null;
     rate.RFP_Lane__c = null;
-    applyPlaces(rate, places.get(originId), places.get(destinationId));
+    applyPlaces(rate, places.get(originKey), places.get(destinationKey));
     insert rate;
     return rate;
   }
@@ -158,36 +161,42 @@ public without sharing class MarketTestService {
     rate.Zip3_Lane__c = BenchmarkRateService.zip3Lane(origin, destination);
   }
 
-  private static String cityLaneOf(Id originId, Id destinationId) {
-    Map<Id, Pricing_Place__c> places = placesById(originId, destinationId);
+  private static String cityLaneOf(String originKey, String destinationKey) {
+    Map<String, Pricing_Place__c> places = placesByKey(
+      originKey,
+      destinationKey
+    );
     return BenchmarkRateService.cityLane(
-      places.get(originId),
-      places.get(destinationId)
+      places.get(originKey),
+      places.get(destinationKey)
     );
   }
 
-  private static Map<Id, Pricing_Place__c> placesById(
-    Id originId,
-    Id destinationId
+  /** Keyed by Key__c, the same place key the picker emits and every lane search speaks. */
+  private static Map<String, Pricing_Place__c> placesByKey(
+    String originKey,
+    String destinationKey
   ) {
-    if (originId == null || destinationId == null) {
+    if (String.isBlank(originKey) || String.isBlank(destinationKey)) {
       throw new LaneSearchException(NO_PLACES);
     }
-    Map<Id, Pricing_Place__c> places = new Map<Id, Pricing_Place__c>(
-      [
-        SELECT
-          Id,
-          City__c,
-          Province__c,
-          Country__c,
-          Postal_Prefix__c,
-          Geolocation__Latitude__s,
-          Geolocation__Longitude__s
-        FROM Pricing_Place__c
-        WHERE Id IN (:originId, :destinationId)
-      ]
-    );
-    if (places.get(originId) == null || places.get(destinationId) == null) {
+    Map<String, Pricing_Place__c> places = new Map<String, Pricing_Place__c>();
+    for (Pricing_Place__c place : [
+      SELECT
+        Id,
+        Key__c,
+        City__c,
+        Province__c,
+        Country__c,
+        Postal_Prefix__c,
+        Geolocation__Latitude__s,
+        Geolocation__Longitude__s
+      FROM Pricing_Place__c
+      WHERE Key__c IN (:originKey, :destinationKey)
+    ]) {
+      places.put(place.Key__c, place);
+    }
+    if (places.get(originKey) == null || places.get(destinationKey) == null) {
       throw new LaneSearchException(NO_PLACES);
     }
     return places;

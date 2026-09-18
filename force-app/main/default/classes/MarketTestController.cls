@@ -7,11 +7,11 @@
 public with sharing class MarketTestController {
   @AuraEnabled
   public static List<Benchmark_Rate__c> getRates(
-    Id originPlaceId,
-    Id destinationPlaceId
+    String originKey,
+    String destinationKey
   ) {
     try {
-      return MarketTestService.ratesOfLane(originPlaceId, destinationPlaceId);
+      return MarketTestService.ratesOfLane(originKey, destinationKey);
     } catch (LaneSearchException e) {
       throw RfpUserError.of(e.getMessage());
     } catch (Exception e) {
@@ -22,14 +22,14 @@ public with sharing class MarketTestController {
   @AuraEnabled
   public static Benchmark_Rate__c saveRate(
     String rateJson,
-    Id originPlaceId,
-    Id destinationPlaceId
+    String originKey,
+    String destinationKey
   ) {
     try {
       return MarketTestService.save(
         (Benchmark_Rate__c) JSON.deserialize(rateJson, Benchmark_Rate__c.class),
-        originPlaceId,
-        destinationPlaceId
+        originKey,
+        destinationKey
       );
     } catch (LaneSearchException e) {
       throw RfpUserError.of(e.getMessage());

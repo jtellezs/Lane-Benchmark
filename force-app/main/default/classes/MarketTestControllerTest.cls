@@ -43,12 +43,12 @@ private class MarketTestControllerTest {
     Test.startTest();
     Benchmark_Rate__c saved = MarketTestController.saveRate(
       rateJson(2400),
-      origin.Id,
-      destination.Id
+      origin.Key__c,
+      destination.Key__c
     );
     List<Benchmark_Rate__c> rates = MarketTestController.getRates(
-      origin.Id,
-      destination.Id
+      origin.Key__c,
+      destination.Key__c
     );
     Test.stopTest();
     System.assertEquals(1, rates.size());
@@ -62,7 +62,11 @@ private class MarketTestControllerTest {
     String message = '';
     Test.startTest();
     try {
-      MarketTestController.saveRate('{not json', origin.Id, destination.Id);
+      MarketTestController.saveRate(
+        '{not json',
+        origin.Key__c,
+        destination.Key__c
+      );
     } catch (Exception e) {
       message = e.getMessage();
     }
@@ -79,7 +83,7 @@ private class MarketTestControllerTest {
     String message = '';
     Test.startTest();
     try {
-      MarketTestController.getRates(origin.Id, null);
+      MarketTestController.getRates(origin.Key__c, null);
     } catch (Exception e) {
       message = e.getMessage();
     }
@@ -102,8 +106,8 @@ private class MarketTestControllerTest {
           Rate__c = 2000,
           CurrencyIsoCode = 'CAD'
         ),
-        origin.Id,
-        destination.Id
+        origin.Key__c,
+        destination.Key__c
       );
     }
     String message = '';
@@ -126,8 +130,8 @@ private class MarketTestControllerTest {
     lane();
     Benchmark_Rate__c saved = MarketTestController.saveRate(
       rateJson(2400),
-      origin.Id,
-      destination.Id
+      origin.Key__c,
+      destination.Key__c
     );
     Test.startTest();
     Benchmark_Rate__c changed = MarketTestController.updateRate(
@@ -176,8 +180,8 @@ private class MarketTestControllerTest {
     lane();
     Benchmark_Rate__c saved = MarketTestController.saveRate(
       rateJson(2000),
-      origin.Id,
-      destination.Id
+      origin.Key__c,
+      destination.Key__c
     );
     // Carrier__c looks up an Account, so a place id makes the DML fail rather than the guard.
     String badCarrier = JSON.serialize(
@@ -192,12 +196,16 @@ private class MarketTestControllerTest {
     String updateMessage = '';
     Test.startTest();
     try {
-      MarketTestController.getRates(saved.Id, destination.Id);
+      MarketTestController.getRates(saved.Id, destination.Key__c);
     } catch (Exception e) {
       wrongEnd = e.getMessage();
     }
     try {
-      MarketTestController.saveRate(badCarrier, origin.Id, destination.Id);
+      MarketTestController.saveRate(
+        badCarrier,
+        origin.Key__c,
+        destination.Key__c
+      );
     } catch (Exception e) {
       saveMessage = e.getMessage();
     }

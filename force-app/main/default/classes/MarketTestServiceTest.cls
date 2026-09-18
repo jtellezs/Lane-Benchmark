@@ -54,8 +54,8 @@ private class MarketTestServiceTest {
     Test.startTest();
     Benchmark_Rate__c saved = MarketTestService.save(
       posted(2500),
-      origin.Id,
-      destination.Id
+      origin.Key__c,
+      destination.Key__c
     );
     Test.stopTest();
     Benchmark_Rate__c stored = [
@@ -94,14 +94,14 @@ private class MarketTestServiceTest {
     lane();
     Benchmark_Rate__c mine = MarketTestService.save(
       posted(2500),
-      origin.Id,
-      destination.Id
+      origin.Key__c,
+      destination.Key__c
     );
     Benchmark_Rate__c hidden = orphan();
     Test.startTest();
     List<Benchmark_Rate__c> rates = MarketTestService.ratesOfLane(
-      origin.Id,
-      destination.Id
+      origin.Key__c,
+      destination.Key__c
     );
     Test.stopTest();
     System.assertEquals(
@@ -122,12 +122,16 @@ private class MarketTestServiceTest {
     }
     Benchmark_Rate__c theirs;
     System.runAs(other) {
-      theirs = MarketTestService.save(posted(2100), origin.Id, destination.Id);
+      theirs = MarketTestService.save(
+        posted(2100),
+        origin.Key__c,
+        destination.Key__c
+      );
     }
     Test.startTest();
     List<Benchmark_Rate__c> rates = MarketTestService.ratesOfLane(
-      origin.Id,
-      destination.Id
+      origin.Key__c,
+      destination.Key__c
     );
     Test.stopTest();
     System.assertEquals(
@@ -147,7 +151,11 @@ private class MarketTestServiceTest {
     }
     Benchmark_Rate__c theirs;
     System.runAs(other) {
-      theirs = MarketTestService.save(posted(2100), origin.Id, destination.Id);
+      theirs = MarketTestService.save(
+        posted(2100),
+        origin.Key__c,
+        destination.Key__c
+      );
     }
     String message = '';
     Test.startTest();
@@ -238,7 +246,7 @@ private class MarketTestServiceTest {
     String message = '';
     Test.startTest();
     try {
-      MarketTestService.ratesOfLane(origin.Id, null);
+      MarketTestService.ratesOfLane(origin.Key__c, null);
     } catch (LaneSearchException e) {
       message = e.getMessage();
     }

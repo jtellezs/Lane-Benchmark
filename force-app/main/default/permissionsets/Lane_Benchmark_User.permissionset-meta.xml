@@ -455,6 +455,10 @@
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>
+        <tab>Market_Test</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
         <tab>Help_Center</tab>
         <visibility>Visible</visibility>
     </tabSettings>
