@@ -4,6 +4,7 @@ import getProject from "@salesforce/apex/RfpProjectController.getProject";
 import saveProject from "@salesforce/apex/RfpProjectController.saveProject";
 import columnMappingFor from "@salesforce/apex/RfpProjectController.columnMappingFor";
 import getLanes from "@salesforce/apex/RfpLaneController.getLanes";
+import similarLanes from "@salesforce/apex/RfpLaneController.similarLanes";
 import importLanes from "@salesforce/apex/RfpLaneController.importLanes";
 import saveLanePricing from "@salesforce/apex/RfpLaneController.saveLanePricing";
 import resolveLaneEnd from "@salesforce/apex/RfpLaneController.resolveLaneEnd";
@@ -483,6 +484,36 @@ export default class RfpTool extends LightningElement {
       };
     } finally {
       this.pendingIds = this.pendingIds.filter((id) => id !== laneId);
+    }
+  }
+
+  /**
+   * Phase 12: grow the selection to the lanes the same rate plausibly covers. It never applies
+   * anything - the pricer sees the lanes selected and uses the bulk action as before.
+   */
+  async handleSelectSimilar(event) {
+    const anchor = this.selectedIds[0];
+    if (!anchor) {
+      return;
+    }
+    this.busy = true;
+    try {
+      const found = await similarLanes({
+        laneId: anchor,
+        radiusMiles: event.detail.radiusMiles
+      });
+      const merged = new Set([...this.selectedIds, ...(found || [])]);
+      this.selectedIds = [...merged];
+      this.bulkResult = {
+        message:
+          found && found.length
+            ? `${found.length} similar ${found.length === 1 ? "lane" : "lanes"} added to the selection. Check them before applying a rate.`
+            : "No other lane in this project is that close with the same mode and equipment."
+      };
+    } catch (e) {
+      this.error = e?.body?.message || "The similar lanes could not be read.";
+    } finally {
+      this.busy = false;
     }
   }
 

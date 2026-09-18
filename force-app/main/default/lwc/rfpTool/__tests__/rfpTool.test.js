@@ -8,6 +8,7 @@ import getLanes from "@salesforce/apex/RfpLaneController.getLanes";
 import importLanes from "@salesforce/apex/RfpLaneController.importLanes";
 import saveLanePricing from "@salesforce/apex/RfpLaneController.saveLanePricing";
 import resolveLaneEnd from "@salesforce/apex/RfpLaneController.resolveLaneEnd";
+import similarLanes from "@salesforce/apex/RfpLaneController.similarLanes";
 import loadHistory from "@salesforce/apex/RfpHistoryController.loadHistory";
 import getBids from "@salesforce/apex/RfpBidController.getBids";
 import applyMedian from "@salesforce/apex/RfpBulkController.applyMedian";
@@ -48,6 +49,11 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/RfpLaneController.getLanes",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/RfpLaneController.similarLanes",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -1054,5 +1060,27 @@ describe("c-rfp-tool", () => {
       await settle();
       expect(child(el, "c-rfp-lane-table").rowErrors.a0L1).toContain("Boom");
     });
+  });
+
+  it("adds the similar lanes to the selection without applying anything", async () => {
+    similarLanes.mockResolvedValue(["a0L2", "a0L3"]);
+    const el = await openFromUrl(lanes(3));
+    const table = el.shadowRoot.querySelector("c-rfp-lane-table");
+    table.dispatchEvent(
+      new CustomEvent("selectionchange", { detail: { laneIds: ["a0L1"] } })
+    );
+    await settle();
+    el.shadowRoot
+      .querySelector("c-rfp-bulk-bar")
+      .dispatchEvent(
+        new CustomEvent("selectsimilar", { detail: { radiusMiles: 50 } })
+      );
+    await settle();
+    expect(similarLanes).toHaveBeenCalledWith({
+      laneId: "a0L1",
+      radiusMiles: 50
+    });
+    const ids = el.shadowRoot.querySelector("c-rfp-lane-table").selectedIds;
+    expect(ids).toEqual(expect.arrayContaining(["a0L1", "a0L2", "a0L3"]));
   });
 });
