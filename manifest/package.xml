@@ -125,6 +125,8 @@
         <members>RfpImportService</members>
         <members>RfpImportServiceTest</members>
         <members>RfpLaneController</members>
+        <members>RfpLaneSimilarityTest</members>
+        <members>RfpLaneSimilarity</members>
         <members>RfpLaneControllerTest</members>
         <members>RfpUserError</members>
         <members>RfpHistoryController</members>

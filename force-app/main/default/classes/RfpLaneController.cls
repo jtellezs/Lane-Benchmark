@@ -290,4 +290,17 @@ public with sharing class RfpLaneController {
       )
     );
   }
+
+  /**
+   * Phase 12: the other lanes of this lane's project that the same carrier rate plausibly covers,
+   * for the pricer to confirm before anything is applied.
+   */
+  @AuraEnabled
+  public static List<Id> similarLanes(Id laneId, Decimal radiusMiles) {
+    try {
+      return RfpLaneSimilarity.similarTo(laneId, radiusMiles);
+    } catch (Exception e) {
+      throw RfpUserError.of('The similar lanes could not be read.');
+    }
+  }
 }
