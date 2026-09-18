@@ -69,6 +69,12 @@ public with sharing class RfpProjectController {
           p.put(f, posted.get(f));
         }
       }
+      // The owner's rule (2026-09-18): a project created without a customer is a market test,
+      // and lands on the Market Test account. Customer__c is a master-detail, so there is no
+      // such thing as a project without one - this is what "no customer" means here.
+      if (p.Id == null && p.Customer__c == null) {
+        p.Customer__c = MarketTestSetting.accountId();
+      }
       SObject clean = Security.stripInaccessible(
           p.Id == null ? AccessType.CREATABLE : AccessType.UPDATABLE,
           new List<RFP_Project__c>{ p }
