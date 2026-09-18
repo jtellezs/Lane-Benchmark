@@ -2,25 +2,10 @@ import { LightningElement, api } from "lwc";
 import attachFile from "@salesforce/apex/RfpProjectController.attachFile";
 import { parse, csvCodepage, MAX_ROWS } from "c/rfpSheet";
 import { ensureSheetJs } from "c/rfpSheetLoader";
-import { TARGETS } from "c/rfpHeaderGuess";
 
 const MAX_BYTES = 3 * 1024 * 1024;
 /** Text files SheetJS decodes with a codepage rather than reading as a zip. */
 const TEXT_FILE = /\.(csv|txt)$/i;
-const XLSX_MIME = "application/octet-stream";
-/** One filled row so the shape is obvious; it resolves to no place, so an upload skips it. */
-const EXAMPLE = {
-  originCity: "Toronto",
-  originProvince: "ON",
-  originCountry: "CA",
-  destinationCity: "Montreal",
-  destinationProvince: "QC",
-  destinationCountry: "CA",
-  mode: "Truckload",
-  equipmentCategory: "Van",
-  equipmentType: "Dry Van 53'",
-  shipmentsPerYear: 12
-};
 
 export default class RfpUpload extends LightningElement {
   @api projectId;
@@ -29,49 +14,6 @@ export default class RfpUpload extends LightningElement {
 
   get accept() {
     return ".xlsx,.xlsm,.xls,.csv";
-  }
-
-  /**
-   * An empty workbook whose headers are the column mapper's own labels, so a file filled in
-   * from it maps without a single column to match by hand. One example row shows the shape and
-   * is ignored on upload, because its origin and destination resolve to nothing.
-   */
-  async handleTemplate() {
-    this.error = null;
-    try {
-      this.status = "Building the template…";
-      await ensureSheetJs(this);
-      const XLSX = window.XLSX;
-      const headers = TARGETS.map((t) => t.label);
-      const example = TARGETS.map((t) => EXAMPLE[t.key] ?? "");
-      const book = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(
-        book,
-        XLSX.utils.aoa_to_sheet([headers, example]),
-        "Lanes"
-      );
-      const out = XLSX.write(book, { bookType: "xlsx", type: "array" });
-      this.download(new Blob([out], { type: XLSX_MIME }), "lane-template.xlsx");
-    } catch (e) {
-      this.error =
-        e?.body?.message || e?.message || "The template could not be built.";
-    } finally {
-      this.status = "";
-    }
-  }
-
-  /** Safari drops the download unless the anchor is in the document when it is clicked. */
-  download(blob, name) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    // Safari drops the download if the object URL is revoked before it has started.
-    // eslint-disable-next-line @lwc/lwc/no-async-operation
-    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   async handleFile(event) {

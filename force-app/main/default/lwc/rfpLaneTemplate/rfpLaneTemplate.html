@@ -1,0 +1,15 @@
+<template>
+  <lightning-button
+    data-id="template"
+    variant={variant}
+    label={label}
+    title="An empty sheet with the columns an upload expects"
+    disabled={busy}
+    onclick={handleDownload}
+  ></lightning-button>
+  <template lwc:if={error}>
+    <p data-id="error" class="slds-text-color_error slds-text-body_small">
+      {error}
+    </p>
+  </template>
+</template>

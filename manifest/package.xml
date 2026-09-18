@@ -52,6 +52,7 @@
         <members>rfpUpload</members>
         <members>rfpWorkbook</members>
         <members>rfpLaneFilter</members>
+        <members>rfpLaneTemplate</members>
         <members>rfpBulk</members>
         <members>rfpBulkBar</members>
         <members>distanceUnit</members>

@@ -11,13 +11,7 @@
       <input id="file" type="file" accept={accept} onchange={handleFile} />
     </div>
     <div class="slds-m-top_xx-small">
-      <lightning-button
-        data-id="template"
-        variant="base"
-        label="Download template"
-        title="An empty sheet with the columns this upload expects"
-        onclick={handleTemplate}
-      ></lightning-button>
+      <c-rfp-lane-template></c-rfp-lane-template>
     </div>
     <template lwc:if={status}
       ><p data-id="status" class="slds-text-color_weak slds-m-top_xx-small">

@@ -244,27 +244,4 @@ describe("c-rfp-upload", () => {
     expect(loadScript).toHaveBeenCalledTimes(2);
     expect(el.shadowRoot.querySelector('[data-id="error"]')).toBeNull();
   });
-
-  it("downloads a template whose headers are the mapper's own labels", async () => {
-    const { TARGETS } = require("c/rfpHeaderGuess");
-    const aoa = jest.fn(() => ({}));
-    window.XLSX.utils.book_new = jest.fn(() => ({}));
-    window.XLSX.utils.aoa_to_sheet = aoa;
-    window.XLSX.utils.book_append_sheet = jest.fn();
-    window.XLSX.write = jest.fn(() => new Uint8Array([1]));
-    const created = jest.fn(() => "blob:x");
-    URL.createObjectURL = created;
-    URL.revokeObjectURL = jest.fn();
-    const el = mount("a0P1");
-    el.shadowRoot.querySelector('[data-id="template"]').click();
-    await flush();
-    await flush();
-    const rows = aoa.mock.calls[0][0];
-    expect(rows[0]).toEqual(TARGETS.map((t) => t.label));
-    // a header the guesser cannot map would make the template useless
-    expect(rows[0]).toContain("Origin city");
-    expect(rows[0]).toContain("Equipment type");
-    expect(rows[1]).toHaveLength(rows[0].length);
-    expect(created).toHaveBeenCalled();
-  });
 });

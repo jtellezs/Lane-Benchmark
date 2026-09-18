@@ -32,6 +32,16 @@ Everyone on the pricing team sees every rate recorded for a lane. If two of you 
 
 Bids recorded on a customer's RFP are never shown or touched here. They stay under that RFP's access rules, where only people who can see the customer's account can reach them.
 
+## Testing many lanes at once
+
+One lane at a time does not scale past a handful. For a list of lanes, use the RFP Tool:
+
+- **Download lane template** on the project list, fill in the lanes, and create a project. **Leave the customer empty** — the project goes to the Market Test account, where the whole pricing team can work it.
+- Upload the file, and the lanes appear in the workbench.
+- When a carrier quotes you, select the lane they quoted, set a radius and click **Select similar lanes**: the lanes whose pick-ups and deliveries are close to it, with the same mode and equipment, join the selection. Check them, then use **Add carrier rate** to record the rate against all of them at once.
+
+Nothing is applied until you confirm the selection.
+
 ## What it does not do
 
 It does not track who you asked or who did not answer — only the rates that came back. Use **Carriers to ask** on the same page to decide who to contact.
