@@ -148,6 +148,11 @@
     </objectPermissions>
     <fieldPermissions>
         <editable>true</editable>
+        <field>Benchmark_Rate__c.Market_Test__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
         <field>RFP_Project__c.Column_Mapping__c</field>
         <readable>true</readable>
     </fieldPermissions>
@@ -698,6 +703,10 @@
     </fieldPermissions>
     <tabSettings>
         <tab>Lane_Benchmark</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>Market_Test</tab>
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>

@@ -68,9 +68,9 @@
         <viewAllRecords>true</viewAllRecords>
     </objectPermissions>
     <objectPermissions>
-        <allowCreate>false</allowCreate>
-        <allowDelete>false</allowDelete>
-        <allowEdit>false</allowEdit>
+        <allowCreate>true</allowCreate>
+        <allowDelete>true</allowDelete>
+        <allowEdit>true</allowEdit>
         <allowRead>true</allowRead>
         <modifyAllRecords>false</modifyAllRecords>
         <object>Benchmark_Rate__c</object>
@@ -85,6 +85,11 @@
         <object>Truck_Route__c</object>
         <viewAllRecords>false</viewAllRecords>
     </objectPermissions>
+    <fieldPermissions>
+        <editable>true</editable>
+        <field>Benchmark_Rate__c.Market_Test__c</field>
+        <readable>true</readable>
+    </fieldPermissions>
     <fieldPermissions>
         <editable>false</editable>
         <field>rtms__CarrierQuote__c.Carrier_Att__c</field>
@@ -447,6 +452,10 @@
     </fieldPermissions>
     <tabSettings>
         <tab>Lane_Benchmark</tab>
+        <visibility>Visible</visibility>
+    </tabSettings>
+    <tabSettings>
+        <tab>Market_Test</tab>
         <visibility>Visible</visibility>
     </tabSettings>
     <tabSettings>

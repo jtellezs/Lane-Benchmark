@@ -169,6 +169,18 @@
       }
     },
     {
+      "slug": "market-test",
+      "order": 145,
+      "title": {
+        "en": "Market test",
+        "fr": "Test de marché"
+      },
+      "hint": {
+        "en": "Pick a lane, record what carriers quote for it now, and read it beside what the lane has done. The rates count in the lane's median like any other bid.",
+        "fr": "Choisissez une voie, notez les tarifs que les transporteurs proposent maintenant et comparez-les à l'historique de la voie. Ces tarifs comptent dans la médiane comme n'importe quelle offre."
+      }
+    },
+    {
       "slug": "faq",
       "order": 150,
       "title": {

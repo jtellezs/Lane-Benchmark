@@ -5,12 +5,14 @@
         <members>Help_Center</members>
         <members>Lane_Benchmark</members>
         <members>RFP_Tool</members>
+        <members>Market_Test</members>
         <name>FlexiPage</name>
     </types>
     <types>
         <members>Help_Center</members>
         <members>Lane_Benchmark</members>
         <members>RFP_Tool</members>
+        <members>Market_Test</members>
         <name>CustomTab</name>
     </types>
     <types>
@@ -59,6 +61,7 @@
         <members>carrierLeadRules</members>
         <members>carrierLeads</members>
         <members>splitLaneOptions</members>
+        <members>marketTest</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>
@@ -94,6 +97,10 @@
         <members>LaneSearchServiceTest</members>
         <members>MapboxException</members>
         <members>MapboxGeocoder</members>
+        <members>MarketTestServiceTest</members>
+        <members>MarketTestService</members>
+        <members>MarketTestControllerTest</members>
+        <members>MarketTestController</members>
         <members>MapboxGeocoderTest</members>
         <members>MapboxResponseParser</members>
         <members>MapboxHttp</members>
@@ -349,6 +356,7 @@
         <members>Benchmark_Rate__c.FSC_Included__c</members>
         <members>Benchmark_Rate__c.Fuel_Surcharge__c</members>
         <members>Benchmark_Rate__c.Hazmat__c</members>
+        <members>Benchmark_Rate__c.Market_Test__c</members>
         <members>Benchmark_Rate__c.Mode__c</members>
         <members>Benchmark_Rate__c.Notes__c</members>
         <members>Benchmark_Rate__c.Origin_City__c</members>
