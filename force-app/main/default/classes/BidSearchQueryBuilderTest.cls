@@ -229,4 +229,34 @@ private class BidSearchQueryBuilderTest {
     LaneSearchResult.Row row = new LaneSearchResult.Row();
     System.assertEquals(null, row.bid, 'loads carry no bid detail');
   }
+
+  /** A bid is market test by the phase 9 marker or by sitting on the Market Test account. */
+  @IsTest
+  static void marketTestFiltersBidsByTheMarkerOrTheAccount() {
+    LaneSearchRequest include = req();
+    Map<String, Object> binds = new Map<String, Object>();
+    String soql = BidSearchQueryBuilder.buildSoql(include, binds, places());
+    System.assert(!soql.contains('Market_Test__c'), soql);
+
+    LaneSearchRequest only = req();
+    only.marketTestFilter = LaneSearchRequest.MarketTest.ONLY;
+    Map<String, Object> onlyBinds = new Map<String, Object>();
+    String onlySoql = BidSearchQueryBuilder.buildSoql(
+      only,
+      onlyBinds,
+      places()
+    );
+    System.assert(onlySoql.contains('Market_Test__c = true'), onlySoql);
+
+    LaneSearchRequest without = req();
+    without.marketTestFilter = LaneSearchRequest.MarketTest.EXCLUDE;
+    Map<String, Object> withoutBinds = new Map<String, Object>();
+    String withoutSoql = BidSearchQueryBuilder.buildSoql(
+      without,
+      withoutBinds,
+      places()
+    );
+    System.assert(withoutSoql.contains('NOT'), withoutSoql);
+    System.assert(withoutSoql.contains('Market_Test__c = true'), withoutSoql);
+  }
 }

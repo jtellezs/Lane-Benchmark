@@ -393,4 +393,55 @@ private class LaneSearchQueryBuilderTest {
     );
     System.assert(!soql.contains('Carrier_Att__c'), soql);
   }
+
+  /**
+   * Market test three ways (owner, 2026-09-18). INCLUDE adds nothing at all, which is why every
+   * other expectation in this class stayed byte-identical when the filter arrived.
+   */
+  @IsTest
+  static void marketTestIncludesExcludesOrShowsOnlyTheCustomersQuotes() {
+    LaneSearchRequest include = req();
+    Map<String, Object> includeBinds = new Map<String, Object>();
+    String includeSoql = LaneSearchQueryBuilder.buildSoql(
+      include,
+      includeBinds,
+      places()
+    );
+    System.assert(
+      !includeSoql.contains('Customer_Name__c'),
+      'INCLUDE constrains nothing: ' + includeSoql
+    );
+    System.assert(!includeBinds.containsKey('marketTest'));
+
+    LaneSearchRequest without = req();
+    without.marketTestFilter = LaneSearchRequest.MarketTest.EXCLUDE;
+    Map<String, Object> withoutBinds = new Map<String, Object>();
+    String withoutSoql = LaneSearchQueryBuilder.buildSoql(
+      without,
+      withoutBinds,
+      places()
+    );
+    System.assert(
+      withoutSoql.contains('(NOT Customer_Name__c LIKE :marketTest)'),
+      withoutSoql
+    );
+    System.assertEquals('%Market Test%', withoutBinds.get('marketTest'));
+
+    LaneSearchRequest only = req();
+    only.marketTestFilter = LaneSearchRequest.MarketTest.ONLY;
+    Map<String, Object> onlyBinds = new Map<String, Object>();
+    String onlySoql = LaneSearchQueryBuilder.buildSoql(
+      only,
+      onlyBinds,
+      places()
+    );
+    System.assert(
+      onlySoql.contains('Customer_Name__c LIKE :marketTest'),
+      onlySoql
+    );
+    System.assert(
+      !onlySoql.contains('NOT Customer_Name__c'),
+      'ONLY keeps them rather than dropping them: ' + onlySoql
+    );
+  }
 }

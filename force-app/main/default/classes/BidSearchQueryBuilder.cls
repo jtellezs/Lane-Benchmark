@@ -50,6 +50,7 @@ public with sharing class BidSearchQueryBuilder {
       binds.put('bExcludeProject', req.excludeProjectId);
       conditions.add('RFP_Project__c != :bExcludeProject');
     }
+    addMarketTest(req, conditions, binds);
     addEnd(conditions, binds, req, originEnd(req), places);
     addEnd(conditions, binds, req, destinationEnd(req), places);
     addFilters(req, conditions, binds);
@@ -58,6 +59,30 @@ public with sharing class BidSearchQueryBuilder {
       ' WHERE ' +
       String.join(conditions, ' AND ') +
       ' ORDER BY CreatedDate DESC LIMIT :bRowLimitPlusOne';
+  }
+
+  /**
+   * A bid is market test when it carries the phase 9 marker, or when it sits on a project of the
+   * Market Test account - the two ways a rate is recorded without a customer behind it.
+   */
+  private static void addMarketTest(
+    LaneSearchRequest req,
+    List<String> conditions,
+    Map<String, Object> binds
+  ) {
+    if (req.marketTestFilter == LaneSearchRequest.MarketTest.INCLUDE) {
+      return;
+    }
+    Id house = MarketTestSetting.accountId();
+    binds.put('bMarketTestAccount', house);
+    String isMarketTest = house == null
+      ? 'Market_Test__c = true'
+      : '(Market_Test__c = true OR RFP_Project__r.Customer__c = :bMarketTestAccount)';
+    conditions.add(
+      req.marketTestFilter == LaneSearchRequest.MarketTest.ONLY
+        ? isMarketTest
+        : 'NOT ' + isMarketTest
+    );
   }
 
   /** Bids have no accepted/declined state, so that filter excludes every bid. */

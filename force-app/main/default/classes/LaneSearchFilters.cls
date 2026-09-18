@@ -20,6 +20,7 @@ public with sharing class LaneSearchFilters {
   ) {
     addCurrencyFilter(req, conditions, binds);
     LaneLoadFilters.add(req, 'rtms__Load__r.', conditions, binds);
+    addMarketTestFilter(req, conditions, binds);
     addAcceptedFilter(req, conditions);
   }
 
@@ -32,6 +33,27 @@ public with sharing class LaneSearchFilters {
       binds.put('currencyCode', req.currencyIsoCode);
       conditions.add('CurrencyIsoCode = :currencyCode');
     }
+  }
+
+  /**
+   * A quote is market test when its customer is the Market Test account. Matched on the customer
+   * name, as phase 7 did: the quote carries the name, and the same 206 rows over 90 days answer
+   * to it either way.
+   */
+  private static void addMarketTestFilter(
+    LaneSearchRequest req,
+    List<String> conditions,
+    Map<String, Object> binds
+  ) {
+    if (req.marketTestFilter == LaneSearchRequest.MarketTest.INCLUDE) {
+      return;
+    }
+    binds.put('marketTest', '%Market Test%');
+    conditions.add(
+      req.marketTestFilter == LaneSearchRequest.MarketTest.ONLY
+        ? 'Customer_Name__c LIKE :marketTest'
+        : '(NOT Customer_Name__c LIKE :marketTest)'
+    );
   }
 
   private static void addAcceptedFilter(
