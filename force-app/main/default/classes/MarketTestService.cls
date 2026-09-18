@@ -19,12 +19,22 @@ public without sharing class MarketTestService {
   private static final String NO_PLACES = 'Pick both ends of the lane first.';
   private static final Integer RATE_LIMIT = 200;
 
+  /**
+   * System mode on purpose (D6): a lane's market-test rates are shared knowledge, the same rates
+   * Lane Benchmark already counts in its median, so this query is not user-mode. The running user
+   * still has to be able to read the object at all, and the rows are stripped of any field they
+   * cannot see before they leave this class.
+   */
+  @SuppressWarnings('PMD.ApexCRUDViolation')
   public static List<Benchmark_Rate__c> ratesOfLane(
     String originKey,
     String destinationKey
   ) {
+    if (!Schema.SObjectType.Benchmark_Rate__c.isAccessible()) {
+      throw new LaneSearchException('You cannot read rates.');
+    }
     String lane = cityLaneOf(originKey, destinationKey);
-    return [
+    List<Benchmark_Rate__c> rates = [
       SELECT
         Id,
         Name,
@@ -50,6 +60,7 @@ public without sharing class MarketTestService {
       ORDER BY CreatedDate DESC
       LIMIT :RATE_LIMIT
     ];
+    return Security.stripInaccessible(AccessType.READABLE, rates).getRecords();
   }
 
   public static Benchmark_Rate__c save(
@@ -70,11 +81,20 @@ public without sharing class MarketTestService {
     rate.RFP_Project__c = null;
     rate.RFP_Lane__c = null;
     applyPlaces(rate, places.get(originKey), places.get(destinationKey));
+    // No stripInaccessible here on purpose. copySettable is already the whitelist - only the
+    // fields the form owns are taken from the caller - and everything else on this record is
+    // computed by the service. Stripping by CREATABLE would drop the lane keys applyPlaces just
+    // stamped, because a pricer can read City_Lane__c but not edit it (the trigger maintains it
+    // for RFP bids), and a rate with no lane keys matches no lane search and never reaches the
+    // median it exists to join. A test caught exactly that.
     insert rate;
     return rate;
   }
 
   public static Benchmark_Rate__c updateRate(Benchmark_Rate__c posted) {
+    if (!Schema.SObjectType.Benchmark_Rate__c.isUpdateable()) {
+      throw new LaneSearchException('You cannot change a rate.');
+    }
     Benchmark_Rate__c stored = ownRate(posted.Id);
     copySettable(posted, stored);
     update stored;
@@ -82,6 +102,9 @@ public without sharing class MarketTestService {
   }
 
   public static void deleteRate(Id rateId) {
+    if (!Schema.SObjectType.Benchmark_Rate__c.isDeletable()) {
+      throw new LaneSearchException('You cannot delete a rate.');
+    }
     delete ownRate(rateId);
   }
 
@@ -90,6 +113,7 @@ public without sharing class MarketTestService {
    * belongs to the running user. Anything else is refused with the same sentence, so a probe
    * cannot tell a colleague's rate from an RFP bid from a record that is not there.
    */
+  @SuppressWarnings('PMD.ApexCRUDViolation')
   private static Benchmark_Rate__c ownRate(Id rateId) {
     List<Benchmark_Rate__c> stored = [
       SELECT Id, OwnerId, Market_Test__c, RFP_Lane__c, RFP_Project__c
@@ -172,7 +196,11 @@ public without sharing class MarketTestService {
     );
   }
 
-  /** Keyed by Key__c, the same place key the picker emits and every lane search speaks. */
+  /**
+   * Keyed by Key__c, the same place key the picker emits and every lane search speaks. System
+   * mode like every other read of the dictionary: it is reference data, not customer data.
+   */
+  @SuppressWarnings('PMD.ApexCRUDViolation')
   private static Map<String, Pricing_Place__c> placesByKey(
     String originKey,
     String destinationKey
