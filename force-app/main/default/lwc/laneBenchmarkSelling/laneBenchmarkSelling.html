@@ -1,0 +1,83 @@
+<template>
+  <template lwc:if={hasStats}>
+    <template lwc:if={open}>
+      <lightning-card title="Selling" icon-name="standard:opportunity">
+        <lightning-button
+          slot="actions"
+          data-id="selling-toggle"
+          label={toggleLabel}
+          onclick={handleToggle}
+        ></lightning-button>
+        <div class="slds-p-horizontal_medium">
+          <div
+            class="slds-grid slds-gutters_small slds-wrap slds-grid_vertical-align-end slds-m-bottom_small"
+          >
+            <div class="slds-col slds-size_1-of-3">
+              <lightning-input
+                data-id="margin"
+                type="text"
+                label="Margin %"
+                value={marginPct}
+                onchange={handleMarginInput}
+              ></lightning-input>
+              <template lwc:if={marginError}>
+                <div class="slds-text-color_error slds-text-body_small">
+                  {marginError}
+                </div>
+              </template>
+            </div>
+            <div class="slds-col">
+              <lightning-button
+                data-id="margin-15"
+                label="15%"
+                onclick={handleMargin15}
+              ></lightning-button>
+              <lightning-button
+                data-id="margin-20"
+                label="20%"
+                class="slds-m-left_x-small"
+                onclick={handleMargin20}
+              ></lightning-button>
+            </div>
+          </div>
+          <div class="slds-grid slds-gutters_small slds-wrap">
+            <template for:each={cards} for:item="c">
+              <div
+                key={c.currency}
+                data-currency={c.currency}
+                class="slds-col slds-size_1-of-1 slds-large-size_1-of-2 slds-m-bottom_small"
+              >
+                <div class="slds-box slds-box_small">
+                  <h3 class="slds-text-heading_small">{c.currency}</h3>
+                  <dl class="slds-dl_horizontal slds-m-top_x-small">
+                    <dt class="slds-dl_horizontal__label slds-text-title_bold">
+                      Sell (median)
+                    </dt>
+                    <dd class="slds-dl_horizontal__detail slds-text-title_bold">
+                      {c.sellMedian}
+                    </dd>
+                    <dt class="slds-dl_horizontal__label">Sell (average)</dt>
+                    <dd class="slds-dl_horizontal__detail">{c.sellAvg}</dd>
+                    <dt class="slds-dl_horizontal__label">{rateLabel}</dt>
+                    <dd data-id="sell-rate" class="slds-dl_horizontal__detail">
+                      {c.sellRate}
+                    </dd>
+                  </dl>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </lightning-card>
+    </template>
+    <template lwc:else>
+      <div class="slds-m-bottom_small">
+        <lightning-button
+          data-id="selling-toggle"
+          label={toggleLabel}
+          onclick={handleToggle}
+        ></lightning-button>
+      </div>
+    </template>
+  </template>
+</template>

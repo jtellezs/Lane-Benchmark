@@ -28,6 +28,7 @@
         <members>laneBenchmarkStorage</members>
         <members>laneBenchmarkPlacePicker</members>
         <members>laneBenchmarkFilters</members>
+        <members>laneBenchmarkSelling</members>
         <members>laneBenchmarkStats</members>
         <members>laneBenchmarkResults</members>
         <members>laneBenchmarkMap</members>
