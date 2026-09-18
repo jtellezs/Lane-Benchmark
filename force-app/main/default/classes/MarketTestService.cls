@@ -63,6 +63,8 @@ public without sharing class MarketTestService {
     return Security.stripInaccessible(AccessType.READABLE, rates).getRecords();
   }
 
+  /** Gated by isCreateable at the top; PMD only recognises a check adjacent to the DML. */
+  @SuppressWarnings('PMD.ApexCRUDViolation')
   public static Benchmark_Rate__c save(
     Benchmark_Rate__c posted,
     String originKey,
@@ -91,6 +93,8 @@ public without sharing class MarketTestService {
     return rate;
   }
 
+  /** Gated by isUpdateable at the top, and by ownRate on the record itself. */
+  @SuppressWarnings('PMD.ApexCRUDViolation')
   public static Benchmark_Rate__c updateRate(Benchmark_Rate__c posted) {
     if (!Schema.SObjectType.Benchmark_Rate__c.isUpdateable()) {
       throw new LaneSearchException('You cannot change a rate.');
