@@ -1147,4 +1147,54 @@ describe("c-rfp-tool", () => {
       el.shadowRoot.querySelector("c-rfp-bulk-bar").lastResult
     ).not.toEqual(expect.objectContaining({ message: expect.any(String) }));
   });
+
+  it("drops the similar note once the selection it describes has changed", async () => {
+    similarLanes.mockResolvedValue(["a0L2", "a0L3"]);
+    const el = await openFromUrl(lanes(3));
+    const table = el.shadowRoot.querySelector("c-rfp-lane-table");
+    table.dispatchEvent(
+      new CustomEvent("selectionchange", { detail: { laneIds: ["a0L1"] } })
+    );
+    await settle();
+    el.shadowRoot
+      .querySelector("c-rfp-bulk-bar")
+      .dispatchEvent(
+        new CustomEvent("selectsimilar", { detail: { radiusMiles: 50 } })
+      );
+    await settle();
+    expect(
+      el.shadowRoot.querySelector('[data-id="similar-note"]')
+    ).not.toBeNull();
+
+    // The pricer unticks everything. The note still claims lanes are selected, and it sits
+    // directly above the bulk bar's Apply - a sentence asserting a selection that is gone.
+    table.dispatchEvent(
+      new CustomEvent("selectionchange", { detail: { laneIds: [] } })
+    );
+    await settle();
+    expect(el.shadowRoot.querySelector('[data-id="similar-note"]')).toBeNull();
+  });
+
+  it("announces the similar note, which grows a selection the reader cannot see", async () => {
+    similarLanes.mockResolvedValue(["a0L2"]);
+    const el = await openFromUrl(lanes(3));
+    el.shadowRoot
+      .querySelector("c-rfp-lane-table")
+      .dispatchEvent(
+        new CustomEvent("selectionchange", { detail: { laneIds: ["a0L1"] } })
+      );
+    await settle();
+    el.shadowRoot
+      .querySelector("c-rfp-bulk-bar")
+      .dispatchEvent(
+        new CustomEvent("selectsimilar", { detail: { radiusMiles: 50 } })
+      );
+    await settle();
+    // the twin-offer banner in this same file carries role="status" for the same reason
+    expect(
+      el.shadowRoot
+        .querySelector('[data-id="similar-note"]')
+        .getAttribute("role")
+    ).toBe("status");
+  });
 });

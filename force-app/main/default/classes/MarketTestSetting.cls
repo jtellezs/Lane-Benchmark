@@ -19,6 +19,13 @@ public with sharing class MarketTestSetting {
    */
   @TestVisible
   private static Boolean suppressSetting = false;
+  @TestVisible
+  private static String accountNameOverride;
+  /** 'Market Test' is the answer when nothing is configured, as phase 7 matched it. */
+  @TestVisible
+  private static final String DEFAULT_NAME = 'Market Test';
+  private static String cachedName;
+  private static Boolean nameResolved = false;
 
   public static Id accountId() {
     if (suppressSetting == true) {
@@ -27,15 +34,48 @@ public with sharing class MarketTestSetting {
     if (accountIdOverride != null) {
       return accountIdOverride;
     }
-    List<Pricing_Department_Setting__mdt> settings = [
-      SELECT Market_Test_Account_Id__c
-      FROM Pricing_Department_Setting__mdt
-      WHERE DeveloperName = 'Default'
-      LIMIT 1
-    ];
-    String value = settings.isEmpty()
-      ? null
-      : settings[0].Market_Test_Account_Id__c;
+    // getInstance rather than SOQL, as LaneSearchExclusions reads the same record: custom
+    // metadata is not subject to CRUD, and the typed accessor costs no query against the limit.
+    Pricing_Department_Setting__mdt setting = Pricing_Department_Setting__mdt.getInstance(
+      'Default'
+    );
+    String value = setting == null ? null : setting.Market_Test_Account_Id__c;
     return String.isBlank(value) ? null : (Id) value;
+  }
+
+  /**
+   * The house account's current name, for the one place that has to match on a name:
+   * rtms__CarrierQuote__c carries Customer_Name__c and no account lookup, so the quote half of the
+   * Lane Benchmark market-test filter has nothing else to match on (phase 12 review, finding #3).
+   *
+   * Read from the account the setting points at rather than written as a literal, so renaming the
+   * account moves the quote half with the bid half instead of leaving the two disagreeing. Falls
+   * back to the literal when nothing is configured or the account cannot be read, because a quote
+   * has no marker to fall back to and an id would match nothing. Cached: the filter asks once per
+   * search, and one name costs one query per transaction at most.
+   */
+  public static String accountName() {
+    if (accountNameOverride != null) {
+      return accountNameOverride;
+    }
+    if (nameResolved) {
+      return cachedName;
+    }
+    nameResolved = true;
+    cachedName = DEFAULT_NAME;
+    Id house = accountId();
+    if (house != null) {
+      List<Account> found = [
+        SELECT Name
+        FROM Account
+        WHERE Id = :house
+        WITH USER_MODE
+        LIMIT 1
+      ];
+      if (!found.isEmpty() && String.isNotBlank(found[0].Name)) {
+        cachedName = found[0].Name;
+      }
+    }
+    return cachedName;
   }
 }

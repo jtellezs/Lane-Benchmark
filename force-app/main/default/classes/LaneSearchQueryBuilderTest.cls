@@ -444,4 +444,57 @@ private class LaneSearchQueryBuilderTest {
       'ONLY keeps them rather than dropping them: ' + onlySoql
     );
   }
+
+  /**
+   * Review finding #3: the two halves of one control disagreed on what "market test" means. The
+   * bid half resolves the house account by id from the custom metadata; the quote half matched the
+   * literal '%Market Test%', because rtms__CarrierQuote__c carries only Customer_Name__c and has
+   * no account lookup to match on. So renaming the account left Exclude still dropping quotes by
+   * the old name while the bid half followed the new one. The name now comes from the configured
+   * account, so both halves move together.
+   */
+  @IsTest
+  static void theQuoteHalfFollowsTheHouseAccountWhenItIsRenamed() {
+    Account renamed = new Account(
+      Name = 'Market Probe 2026',
+      RecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName()
+        .get('Customer')
+        ?.getRecordTypeId(),
+      rtms__TMS_Type__c = 'Customer',
+      Industry = 'Other',
+      BillingStreet = '1 Test St',
+      BillingCity = 'Montreal',
+      BillingState = 'Quebec',
+      BillingPostalCode = 'H1A 1A1',
+      BillingCountry = 'Canada',
+      CurrencyIsoCode = 'CAD'
+    );
+    insert renamed;
+    MarketTestSetting.accountIdOverride = renamed.Id;
+    MarketTestSetting.accountNameOverride = null;
+
+    LaneSearchRequest without = req();
+    without.marketTestFilter = LaneSearchRequest.MarketTest.EXCLUDE;
+    Map<String, Object> binds = new Map<String, Object>();
+    LaneSearchQueryBuilder.buildSoql(without, binds, places());
+
+    System.assertEquals(
+      '%Market Probe 2026%',
+      binds.get('marketTest'),
+      'the quote half matches the account the setting points at, not a literal'
+    );
+  }
+
+  /** With nothing configured the literal is still the answer, so an unset org keeps working. */
+  @IsTest
+  static void anUnconfiguredOrgStillMatchesTheLiteralName() {
+    MarketTestSetting.suppressSetting = true;
+
+    LaneSearchRequest without = req();
+    without.marketTestFilter = LaneSearchRequest.MarketTest.EXCLUDE;
+    Map<String, Object> binds = new Map<String, Object>();
+    LaneSearchQueryBuilder.buildSoql(without, binds, places());
+
+    System.assertEquals('%Market Test%', binds.get('marketTest'));
+  }
 }

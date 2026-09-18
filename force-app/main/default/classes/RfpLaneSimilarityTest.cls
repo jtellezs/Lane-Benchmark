@@ -192,4 +192,54 @@ private class RfpLaneSimilarityTest {
     Test.stopTest();
     System.assertEquals(0, found.size());
   }
+
+  /**
+   * Review findings #4/#9: the project scan takes a 2,000-lane window, and the workbench takes
+   * its own window ordered by Row_Number__c. Unordered, the two windows are different sets on a
+   * project past the cap, so a lane the pricer never saw could be handed to a bulk apply and
+   * priced. The lanes below are inserted out of row order on purpose: unordered, the window
+   * would take them in Id order and pick up the wrong two.
+   */
+  @IsTest
+  static void scansTheProjectInTheSameOrderTheWorkbenchLoadsIt() {
+    fixture();
+    // One pair of places for every lane: the places are unique per city, and here only the row
+    // number and the insert order are meant to differ.
+    Pricing_Place__c origin = place('Montreal', 'QC', 45.5, -73.57);
+    Pricing_Place__c destination = place('Toronto', 'ON', 43.65, -79.38);
+    RFP_Lane__c anchor = similarLane(origin, destination, 1);
+    RFP_Lane__c fourth = similarLane(origin, destination, 4);
+    RFP_Lane__c second = similarLane(origin, destination, 2);
+    RFP_Lane__c third = similarLane(origin, destination, 3);
+    RfpLaneSimilarity.laneLimit = 2;
+
+    Test.startTest();
+    List<Id> found = RfpLaneSimilarity.similarTo(anchor.Id, 50);
+    Test.stopTest();
+
+    System.assert(
+      found.contains(second.Id) && found.contains(third.Id),
+      'the window is the first rows by Row_Number__c, as the workbench loads them'
+    );
+    System.assert(
+      !found.contains(fourth.Id),
+      'a row past the window is never offered: the pricer cannot see it to uncheck it'
+    );
+  }
+
+  /** Same lane every time, so only Row_Number__c and the insert order distinguish them. */
+  private static RFP_Lane__c similarLane(
+    Pricing_Place__c origin,
+    Pricing_Place__c destination,
+    Integer rowNumber
+  ) {
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      project,
+      origin,
+      destination
+    );
+    lane.Row_Number__c = rowNumber;
+    update lane;
+    return lane;
+  }
 }

@@ -97,6 +97,7 @@
         <members>LaneSearchServiceTest</members>
         <members>MapboxException</members>
         <members>MapboxGeocoder</members>
+        <members>MarketTestFilter</members>
         <members>MarketTestSetting</members>
         <members>MarketTestSettingTest</members>
         <members>MarketTestServiceTest</members>
@@ -127,6 +128,7 @@
         <members>RfpImportServiceTest</members>
         <members>RfpLaneController</members>
         <members>RfpLaneSimilarityTest</members>
+        <members>RfpLaneRouteService</members>
         <members>RfpLaneSimilarity</members>
         <members>RfpLaneControllerTest</members>
         <members>RfpUserError</members>

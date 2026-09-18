@@ -807,7 +807,7 @@ private class RfpLaneControllerTest {
       Route_Hours__c = null
     );
     Integer dmlBefore = Limits.getDmlStatements();
-    RFP_Lane__c written = RfpLaneController.writeLaneMiles(f.lane.Id, view);
+    RFP_Lane__c written = RfpLaneRouteService.writeLaneMiles(f.lane.Id, view);
     System.assertEquals(
       dmlBefore,
       Limits.getDmlStatements(),

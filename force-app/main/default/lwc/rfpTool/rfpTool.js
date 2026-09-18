@@ -191,6 +191,11 @@ export default class RfpTool extends LightningElement {
    */
   handleSelectionChange(event) {
     this.selectedIds = event.detail.laneIds || [];
+    // The note names a count of lanes it just added; once the pricer changes the selection by
+    // hand the sentence describes a selection that is gone, and it sits directly above Apply.
+    // Safe here because the table dispatches selectionchange only from a checkbox, never from
+    // its own @api setter, so the merge handleSelectSimilar performs does not clear its own note.
+    this.similarNote = "";
   }
   handleTwinDismiss() {
     this.twinOffer = null;
@@ -270,7 +275,7 @@ export default class RfpTool extends LightningElement {
     }
   }
 
-  /** A reload is a fresh sheet: the selection, the row errors and any offer go. */
+  /** A reload is a fresh sheet: the selection, the row errors, any offer and any note go. */
   async loadLanes() {
     this.lanes = (await getLanes({ projectId: this.projectId })) || [];
     this.selectedIds = [];
@@ -278,6 +283,7 @@ export default class RfpTool extends LightningElement {
     this.rowErrors = {};
     this.twinOffer = null;
     this.bulkResult = null;
+    this.similarNote = "";
   }
 
   handleParsed(event) {

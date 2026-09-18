@@ -11,10 +11,24 @@
  *
  * Nothing here applies a rate. It answers which lanes to offer, and the pricer confirms the
  * selection - a rate spread across lanes nobody looked at is a rate nobody can defend.
+ *
+ * The project scan is ordered by Row_Number__c because the workbench loads its own 2,000-lane
+ * window that way. Unordered, the two windows are different sets on a project past the cap, and
+ * an offered lane the table never rendered cannot be unticked - only submitted.
+ *
+ * Both queries bind through Database.queryWithBinds rather than Database.query: only the field
+ * list and the row cap are ever concatenated, but the bound form is what the rest of the app uses
+ * (RfpLaneController.one, .lanesByIds) and it is what keeps the SOQL-injection rule satisfied
+ * without a suppression.
  */
 public with sharing class RfpLaneSimilarity {
+  /**
+   * The row cap, camelCase and not final because it is overridable: a test shrinks the window to
+   * prove the scan is ordered without inserting 2,001 lanes. Same shape as
+   * MarketTestSetting.accountIdOverride.
+   */
   @TestVisible
-  private static final Integer LANE_LIMIT = 2000;
+  private static Integer laneLimit = 2000;
 
   private static final String LANE_FIELDS =
     'Id, RFP_Project__c, Mode__c, Equipment_Category__c, Equipment_Type__c, ' +
@@ -29,10 +43,10 @@ public with sharing class RfpLaneSimilarity {
       return found;
     }
     Decimal radius = radiusMiles == null || radiusMiles <= 0 ? 50 : radiusMiles;
-    List<RFP_Lane__c> anchors = Database.query(
-      'SELECT ' +
-        LANE_FIELDS +
-        ' FROM RFP_Lane__c WHERE Id = :laneId WITH USER_MODE LIMIT 1'
+    List<RFP_Lane__c> anchors = (List<RFP_Lane__c>) Database.queryWithBinds(
+      'SELECT ' + LANE_FIELDS + ' FROM RFP_Lane__c WHERE Id = :laneId LIMIT 1',
+      new Map<String, Object>{ 'laneId' => laneId },
+      AccessLevel.USER_MODE
     );
     if (anchors.isEmpty()) {
       return found;
@@ -40,12 +54,16 @@ public with sharing class RfpLaneSimilarity {
     RFP_Lane__c anchor = anchors[0];
     Id projectId = anchor.RFP_Project__c;
     for (
-      RFP_Lane__c lane : (List<RFP_Lane__c>) Database.query(
+      RFP_Lane__c lane : (List<RFP_Lane__c>) Database.queryWithBinds(
         'SELECT ' +
           LANE_FIELDS +
-          ' FROM RFP_Lane__c ' +
-          'WHERE RFP_Project__c = :projectId AND Id != :laneId WITH USER_MODE LIMIT ' +
-          String.valueOf(LANE_LIMIT)
+          ' FROM RFP_Lane__c' +
+          ' WHERE RFP_Project__c = :projectId AND Id != :laneId' +
+          ' ORDER BY Row_Number__c' +
+          ' LIMIT ' +
+          String.valueOf(laneLimit),
+        new Map<String, Object>{ 'projectId' => projectId, 'laneId' => laneId },
+        AccessLevel.USER_MODE
       )
     ) {
       if (covers(anchor, lane, radius)) {

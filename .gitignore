@@ -50,3 +50,4 @@ $RECYCLE.BIN/
 
 # SDD controller workspace (scratch)
 .superpowers/
+pmd-bin-*/
