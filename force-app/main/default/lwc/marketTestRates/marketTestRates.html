@@ -1,0 +1,83 @@
+<template>
+  <template lwc:if={hasLane}>
+    <lightning-card title="Market test" icon-name="standard:pricebook">
+      <div class="slds-var-p-horizontal_medium">
+        <p class="slds-text-body_small">
+          What carriers quote for this lane now. Each rate counts in the lane's
+          median above, like any other bid, and you edit or delete only your
+          own.
+        </p>
+
+        <template lwc:if={summary}>
+          <p class="slds-text-body_small slds-var-m-top_x-small">
+            <strong>{summary.count}</strong> rates · median
+            <strong>{summary.median}</strong> · {summary.min}–{summary.max}
+          </p>
+        </template>
+
+        <template lwc:if={error}>
+          <div
+            class="slds-var-m-top_x-small slds-text-color_error"
+            role="alert"
+          >
+            {error}
+          </div>
+        </template>
+
+        <div class="slds-var-m-top_small">
+          <template lwc:if={adding}>
+            <c-rfp-bid-form
+              currency={currencyCode}
+              onsave={handleSave}
+              oncancel={handleCancel}
+            ></c-rfp-bid-form>
+          </template>
+          <template lwc:else>
+            <lightning-button
+              variant="brand"
+              label="Add rate"
+              onclick={handleAdd}
+              class="add-rate"
+            ></lightning-button>
+          </template>
+        </div>
+
+        <template lwc:if={hasRates}>
+          <table
+            class="slds-table slds-table_bordered slds-var-m-top_small"
+            aria-label="Rates recorded for this lane"
+          >
+            <thead>
+              <tr class="slds-line-height_reset">
+                <th scope="col">Carrier</th>
+                <th scope="col">Rate</th>
+                <th scope="col">Transit</th>
+                <th scope="col"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <template for:each={rows} for:item="row">
+                <tr key={row.Id}>
+                  <td>{row.carrier}</td>
+                  <td>{row.rateText}</td>
+                  <td>{row.Transit_Days__c}</td>
+                  <td>
+                    <template lwc:if={row.mine}>
+                      <lightning-button-icon
+                        icon-name="utility:delete"
+                        alternative-text="Delete this rate"
+                        data-id={row.Id}
+                        onclick={handleDelete}
+                        class="delete-rate"
+                      ></lightning-button-icon>
+                    </template>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </template>
+      </div>
+    </lightning-card>
+  </template>
+</template>

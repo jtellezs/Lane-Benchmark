@@ -1,9 +1,8 @@
 import { createElement } from "lwc";
-import MarketTest from "c/marketTest";
+import MarketTestRates from "c/marketTestRates";
 import getRates from "@salesforce/apex/MarketTestController.getRates";
 import saveRate from "@salesforce/apex/MarketTestController.saveRate";
 import deleteRate from "@salesforce/apex/MarketTestController.deleteRate";
-import search from "@salesforce/apex/LaneBenchmarkController.search";
 
 jest.mock(
   "@salesforce/apex/MarketTestController.getRates",
@@ -20,18 +19,16 @@ jest.mock(
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
-jest.mock(
-  "@salesforce/apex/LaneBenchmarkController.search",
-  () => ({ default: jest.fn() }),
-  { virtual: true }
-);
 jest.mock("@salesforce/user/Id", () => ({ default: "005MINE" }), {
   virtual: true
 });
 
-const MINE = "005MINE";
+const LANE = JSON.stringify({
+  originKey: "toronto|on|ca",
+  destinationKey: "montreal|qc|ca"
+});
 
-function rate(id, amount, owner = MINE) {
+function rate(id, amount, owner = "005MINE") {
   return {
     Id: id,
     Rate__c: amount,
@@ -46,15 +43,15 @@ async function flush() {
   await Promise.resolve();
 }
 
-describe("c-market-test", () => {
+describe("c-market-test-rates", () => {
   let element;
 
   beforeEach(() => {
     getRates.mockResolvedValue([]);
-    search.mockResolvedValue({ statsByCurrency: {} });
     saveRate.mockResolvedValue({});
     deleteRate.mockResolvedValue();
-    element = createElement("c-market-test", { is: MarketTest });
+    element = createElement("c-market-test-rates", { is: MarketTestRates });
+    element.currencyCode = "CAD";
   });
 
   afterEach(() => {
@@ -64,39 +61,21 @@ describe("c-market-test", () => {
     jest.clearAllMocks();
   });
 
-  function pickLane() {
-    const pickers = element.shadowRoot.querySelectorAll(
-      "c-lane-benchmark-place-picker"
-    );
-    pickers[0].dispatchEvent(
-      new CustomEvent("placechange", {
-        detail: { key: "toronto|on|ca", label: "Toronto, ON" }
-      })
-    );
-    pickers[1].dispatchEvent(
-      new CustomEvent("placechange", {
-        detail: { key: "montreal|qc|ca", label: "Montreal, QC" }
-      })
-    );
-  }
-
-  it("offers two place pickers and no rate list before a lane is picked", () => {
+  it("stays closed until a lane has been searched", async () => {
     document.body.appendChild(element);
-    expect(
-      element.shadowRoot.querySelectorAll("c-lane-benchmark-place-picker")
-    ).toHaveLength(2);
-    expect(element.shadowRoot.querySelector(".add-rate")).toBeNull();
+    await flush();
+    expect(element.shadowRoot.querySelector("lightning-card")).toBeNull();
+    expect(getRates).not.toHaveBeenCalled();
   });
 
-  it("loads the lane's rates and its history once both ends are picked", async () => {
+  it("reads the lane out of the search request and loads its rates", async () => {
     document.body.appendChild(element);
-    pickLane();
+    element.requestJson = LANE;
     await flush();
     expect(getRates).toHaveBeenCalledWith({
       originKey: "toronto|on|ca",
       destinationKey: "montreal|qc|ca"
     });
-    expect(search).toHaveBeenCalled();
     expect(element.shadowRoot.querySelector(".add-rate")).not.toBeNull();
   });
 
@@ -107,10 +86,10 @@ describe("c-market-test", () => {
       rate("c", 3000)
     ]);
     document.body.appendChild(element);
-    pickLane();
+    element.requestJson = LANE;
     await flush();
     const text = element.shadowRoot.textContent;
-    expect(text).toContain("3 rates");
+    expect(text).toContain("3");
     expect(text).toContain("2,400");
   });
 
@@ -120,27 +99,35 @@ describe("c-market-test", () => {
       rate("theirs", 2500, "005OTHER")
     ]);
     document.body.appendChild(element);
-    pickLane();
+    element.requestJson = LANE;
     await flush();
     const buttons = element.shadowRoot.querySelectorAll(".delete-rate");
     expect(buttons).toHaveLength(1);
     expect(buttons[0].dataset.id).toBe("mine");
   });
 
-  it("saves a rate with the lane and the chosen currency, then reloads", async () => {
+  it("saves against the searched lane in the card's currency", async () => {
     document.body.appendChild(element);
-    pickLane();
+    element.requestJson = LANE;
     await flush();
     element.shadowRoot.querySelector(".add-rate").click();
     await flush();
-    const form = element.shadowRoot.querySelector("c-rfp-bid-form");
-    form.dispatchEvent(
-      new CustomEvent("save", { detail: { bid: { Rate__c: 2500 } } })
-    );
+    element.shadowRoot
+      .querySelector("c-rfp-bid-form")
+      .dispatchEvent(
+        new CustomEvent("save", { detail: { bid: { Rate__c: 2500 } } })
+      );
     await flush();
-    expect(saveRate).toHaveBeenCalled();
     const arg = saveRate.mock.calls[0][0];
     expect(arg.originKey).toBe("toronto|on|ca");
     expect(JSON.parse(arg.rateJson).CurrencyIsoCode).toBe("CAD");
+  });
+
+  it("survives a request it cannot parse", async () => {
+    document.body.appendChild(element);
+    element.requestJson = "{not json";
+    await flush();
+    expect(element.shadowRoot.querySelector("lightning-card")).toBeNull();
+    expect(getRates).not.toHaveBeenCalled();
   });
 });

@@ -131,6 +131,13 @@
           origin-label={request.originLabel}
           destination-label={request.destinationLabel}
         ></c-lane-benchmark-results>
+        <div class="slds-m-top_small">
+          <c-market-test-rates
+            data-id="market-test"
+            request-json={lastRequestJson}
+            currency-code={lastCurrency}
+          ></c-market-test-rates>
+        </div>
         <template lwc:if={showSplitOptions}>
           <div class="slds-m-top_small">
             <c-split-lane-options
