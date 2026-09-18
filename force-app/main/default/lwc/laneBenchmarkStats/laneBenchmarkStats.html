@@ -30,33 +30,6 @@
         <div
           class="slds-grid slds-gutters_small slds-wrap slds-m-bottom_small slds-grid_vertical-align-end"
         >
-          <div class="slds-col slds-size_1-of-3">
-            <lightning-input
-              data-id="margin"
-              type="text"
-              label="Margin %"
-              value={marginPct}
-              onchange={handleMarginInput}
-            ></lightning-input>
-            <template lwc:if={marginError}>
-              <div class="slds-text-color_error slds-text-body_small">
-                {marginError}
-              </div>
-            </template>
-          </div>
-          <div class="slds-col">
-            <lightning-button
-              data-id="margin-15"
-              label="15%"
-              onclick={handleMargin15}
-            ></lightning-button>
-            <lightning-button
-              data-id="margin-20"
-              label="20%"
-              class="slds-m-left_x-small"
-              onclick={handleMargin20}
-            ></lightning-button>
-          </div>
           <div
             data-id="summary"
             class="slds-col slds-text-align_right slds-text-color_weak slds-text-body_small"
@@ -93,14 +66,6 @@
                   <dd class="slds-dl_horizontal__detail">{c.avg}</dd>
                   <dt class="slds-dl_horizontal__label">Max</dt>
                   <dd class="slds-dl_horizontal__detail">{c.max}</dd>
-                  <dt class="slds-dl_horizontal__label slds-text-title_bold">
-                    Sell (median)
-                  </dt>
-                  <dd class="slds-dl_horizontal__detail slds-text-title_bold">
-                    {c.sellMedian}
-                  </dd>
-                  <dt class="slds-dl_horizontal__label">Sell (average)</dt>
-                  <dd class="slds-dl_horizontal__detail">{c.sellAvg}</dd>
                   <dt class="slds-dl_horizontal__label">{rateLabel}</dt>
                   <dd data-id="rate" class="slds-dl_horizontal__detail">
                     {c.rate}

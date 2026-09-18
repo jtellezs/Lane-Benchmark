@@ -1,11 +1,10 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <!--
-      PricingDepartmentControllerTest3 and PricingDepartmentController_TGN_TEST were
-      deleted from PostProduc by the Task 11 deploy (deploy request 0AfbZ00000CnJYrSAN,
-      2026-09-09). Both are gone from the org now, so re-listing them here would make
-      every subsequent validate/deploy fail with "No ApexClass named ... found" instead
-      of a no-op. Left empty on purpose; add future retirements here the same way.
+      Left empty on purpose. Phase 9's standalone Market Test tab, its page and its bundle were
+      retired by deploy 0AfAs00000XJiojKAD on 2026-09-18; re-listing them here would make every
+      later validate or deploy fail with "not found" instead of a no-op. Add future retirements
+      here the same way: deploy once, then empty it again.
     -->
     <version>64.0</version>
 </Package>

@@ -926,16 +926,19 @@ and the new picklist value needs none. Production is not deployed (owner decisio
 
 ## Market test (phase 9)
 
-A tab of its own: pick a lane, record what carriers quote for it now, and read
-those rates beside what the lane has done over the last 90 days. No RFP and no
-customer are involved.
+A card on the Lane Benchmark page, under the results: record what carriers quote
+for the lane you have just searched, beside what that lane has done. No RFP and
+no customer are involved. It began as a tab of its own; the owner's point on
+2026-09-18 was that the market test is part of Lane Benchmark rather than a
+destination beside it, and moving it in removed the half of the page that
+duplicated the statistics card.
 
-| Piece                                                          | Purpose                                                                                                                                                              |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tabs/Market_Test`, `flexipages/Market_Test`, `lwc/marketTest` | The page. Two `laneBenchmarkPlacePicker` ends, the history half from `LaneBenchmarkController.search` unchanged, the capture half through the existing `rfpBidForm`. |
-| `classes/MarketTestController`                                 | The page's only Apex surface: `getRates`, `saveRate`, `updateRate`, `deleteRate`. Nothing is cacheable - the page mutates this list and re-reads it.                 |
-| `classes/MarketTestService`                                    | `without sharing`, like `LaneSearchService`. Stamps the lane keys, scopes every read on the marker, and gates every write on ownership.                              |
-| `objects/Benchmark_Rate__c/fields/Market_Test__c`              | The marker.                                                                                                                                                          |
+| Piece                                             | Purpose                                                                                                                                                                                                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `lwc/marketTestRates`                             | The card. Reads the searched lane out of `lastRequestJson`, like `carrierLeads` does, and captures rates through the existing `rfpBidForm`. It carries no history half: the statistics card above it already shows what the lane has done. |
+| `classes/MarketTestController`                    | The card's only Apex surface: `getRates`, `saveRate`, `updateRate`, `deleteRate`. Nothing is cacheable - the page mutates this list and re-reads it.                                                                                       |
+| `classes/MarketTestService`                       | `without sharing`, like `LaneSearchService`. Stamps the lane keys, scopes every read on the marker, and gates every write on ownership.                                                                                                    |
+| `objects/Benchmark_Rate__c/fields/Market_Test__c` | The marker.                                                                                                                                                                                                                                |
 
 **A market-test rate is a `Benchmark_Rate__c`** with `RFP_Project__c` and
 `RFP_Lane__c` null and `Market_Test__c` true. It counts in the lane's median

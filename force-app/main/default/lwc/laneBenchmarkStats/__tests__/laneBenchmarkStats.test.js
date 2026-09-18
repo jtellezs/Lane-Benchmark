@@ -63,39 +63,22 @@ describe("c-lane-benchmark-stats", () => {
       document.body.removeChild(document.body.firstChild);
   });
 
-  it("renders one card per currency with suggested sell at the default 15%", async () => {
+  it("renders one card per currency showing the lane's own cost, not selling", async () => {
     const el = await mount();
     const cards = el.shadowRoot.querySelectorAll("[data-currency]");
     expect(Array.from(cards).map((c) => c.dataset.currency)).toEqual([
       "CAD",
       "USD"
     ]);
-    expect(text(el)).toContain("2,300.00"); // CAD median 2000 * 1.15
-    expect(text(el)).toContain("1,150.00"); // USD median 1000 * 1.15
+    expect(text(el)).toContain("2,000.00"); // the CAD median itself
     expect(text(el)).toContain("4 duplicates removed");
     expect(text(el)).toContain("0.4 s");
-  });
-
-  it("20% button and free entry change the suggestion and emit marginchange", async () => {
-    const el = await mount();
-    const handler = jest.fn();
-    el.addEventListener("marginchange", handler);
-    el.shadowRoot.querySelector('[data-id="margin-20"]').click();
-    await flush();
-    expect(text(el)).toContain("2,400.00");
-    expect(handler.mock.calls[0][0].detail).toEqual({ marginPct: 20 });
-    const input = el.shadowRoot.querySelector('[data-id="margin"]');
-    input.dispatchEvent(
-      new CustomEvent("change", { detail: { value: "12.5" } })
-    );
-    await flush();
-    expect(text(el)).toContain("2,250.00");
-    input.dispatchEvent(
-      new CustomEvent("change", { detail: { value: "250" } })
-    );
-    await flush();
-    expect(text(el)).toContain("2,250.00"); // invalid input keeps the last margin
-    expect(text(el)).toMatch(/0 and 100/);
+    // selling lives in its own card now: this one answers what the lane costs
+    expect(text(el)).not.toContain("Sell (median)");
+    expect(el.shadowRoot.querySelector('[data-id="margin"]')).toBeNull();
+    expect(
+      el.shadowRoot.querySelector('[data-id="selling-toggle"]')
+    ).toBeNull();
   });
 
   it("shows the truncation notice and an empty state", async () => {

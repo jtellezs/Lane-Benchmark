@@ -1,21 +1,20 @@
 ---
 title: Test de marché
 order: 145
-hint: Choisissez une voie, notez les tarifs que les transporteurs proposent maintenant et comparez-les à l'historique de la voie. Ces tarifs comptent dans la médiane comme n'importe quelle offre.
+hint: Sur la page Lane Benchmark, sous les résultats : notez les tarifs que les transporteurs proposent pour la voie cherchée. Chaque tarif compte dans la médiane de cette voie comme n'importe quelle offre.
 ---
 
 ## Quand faire un test de marché
 
-Vous voulez savoir ce que coûte une voie aujourd'hui alors que l'historique est mince ou ancien, ou vous voulez simplement vérifier le marché avant de coter. Un test de marché n'exige ni appel d'offres ni client : choisissez la voie, appelez des transporteurs et notez leurs réponses.
+Vous voulez savoir ce que coûte une voie aujourd'hui alors que l'historique est mince ou ancien, ou vous voulez simplement vérifier le marché avant de coter. Un test de marché n'exige ni appel d'offres ni client : cherchez la voie, appelez des transporteurs et notez leurs réponses.
 
-## Choisir la voie
+## Où il se trouve
 
-L'origine et la destination utilisent les mêmes sélecteurs que Lane Benchmark : les noms de lieux se comportent donc de la même façon. Choisissez la devise dans laquelle vous recueillez les tarifs. Dès que les deux extrémités sont définies, la page se remplit.
+Cherchez une voie dans **Lane Benchmark** comme d'habitude. Sous les résultats se trouve l'encadré **Market test** de cette voie. Il n'y a rien de séparé à ouvrir et aucune voie à choisir deux fois : l'encadré suit la recherche.
 
-## Ce que montrent les deux moitiés
+## Le lire face à l'historique
 
-- **Ce que cette voie a fait** : le nombre, la médiane et l'écart sur les 90 derniers jours, lus directement depuis Lane Benchmark, de sorte que les chiffres concordent avec cette page par construction.
-- **Ce que vous recueillez** : les tarifs déjà notés pour cette voie, avec leur nombre, leur médiane et l'écart du plus bas au plus haut.
+L'encadré de statistiques en haut de la page montre déjà ce que la voie a fait : le nombre, la médiane et l'écart. L'encadré du test de marché montre ce que vous recueillez maintenant, avec son propre nombre, sa médiane et son écart du plus bas au plus haut.
 
 Comparer l'un à l'autre est tout l'intérêt : cela indique si le marché du jour se situe au-dessus ou au-dessous de l'historique de la voie.
 
@@ -25,12 +24,14 @@ Comparer l'un à l'autre est tout l'intérêt : cela indique si le marché du jo
 
 Chaque tarif est enregistré comme une offre de transporteur pour la voie, sans appel d'offres rattaché : il compte donc dans la médiane de cette voie partout ailleurs dans l'application, exactement comme une offre notée sur un appel d'offres.
 
-## Qui voit et modifie quoi
+## Travailler sur la même voie qu'un collègue
 
-Toute l'équipe de tarification voit tous les tarifs notés pour une voie, de la même façon que la médiane de la voie les inclut déjà. **Vous ne pouvez modifier ou supprimer que les tarifs que vous avez notés** ; ceux d'un collègue sont en lecture seule.
+Toute l'équipe de tarification voit tous les tarifs notés pour une voie. Si vous appelez chacun des transporteurs différents pour la même voie, les deux ensembles de tarifs apparaissent pour vous deux, et le nombre et la médiane les couvrent tous.
+
+**Vous ne pouvez modifier ou supprimer que les tarifs que vous avez notés** ; ceux d'un collègue sont en lecture seule.
 
 Les offres notées sur l'appel d'offres d'un client ne sont jamais affichées ni modifiées ici. Elles restent soumises aux règles d'accès de cet appel d'offres, où seules les personnes qui voient le compte du client peuvent les atteindre.
 
 ## Ce qu'il ne fait pas
 
-Il ne suit pas qui vous avez sollicité ni qui n'a pas répondu, seulement les tarifs reçus. Utilisez **Carriers to ask** dans Lane Benchmark pour décider qui contacter.
+Il ne suit pas qui vous avez sollicité ni qui n'a pas répondu, seulement les tarifs reçus. Utilisez **Carriers to ask** sur la même page pour décider qui contacter.

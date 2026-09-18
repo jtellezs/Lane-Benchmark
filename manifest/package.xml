@@ -5,14 +5,12 @@
         <members>Help_Center</members>
         <members>Lane_Benchmark</members>
         <members>RFP_Tool</members>
-        <members>Market_Test</members>
         <name>FlexiPage</name>
     </types>
     <types>
         <members>Help_Center</members>
         <members>Lane_Benchmark</members>
         <members>RFP_Tool</members>
-        <members>Market_Test</members>
         <name>CustomTab</name>
     </types>
     <types>
@@ -30,6 +28,7 @@
         <members>laneBenchmarkStorage</members>
         <members>laneBenchmarkPlacePicker</members>
         <members>laneBenchmarkFilters</members>
+        <members>laneBenchmarkSelling</members>
         <members>laneBenchmarkStats</members>
         <members>laneBenchmarkResults</members>
         <members>laneBenchmarkMap</members>
@@ -61,7 +60,7 @@
         <members>carrierLeadRules</members>
         <members>carrierLeads</members>
         <members>splitLaneOptions</members>
-        <members>marketTest</members>
+        <members>marketTestRates</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>

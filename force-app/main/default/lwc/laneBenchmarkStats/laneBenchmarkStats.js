@@ -1,5 +1,4 @@
 import { LightningElement, api } from "lwc";
-import { parseMargin, suggestedSell } from "c/marginMath";
 import { formatDistance, perDistance } from "c/distanceUnit";
 
 function fmt(n) {
@@ -30,14 +29,6 @@ export default class LaneBenchmarkStats extends LightningElement {
   @api routeView = null;
   @api routeLoading = false;
   @api unit = "mi";
-  _marginPct = 15;
-  @api get marginPct() {
-    return this._marginPct;
-  }
-  set marginPct(v) {
-    this._marginPct = v;
-  }
-  marginError = null;
 
   get hasStats() {
     return Object.keys(this.statsByCurrency || {}).length > 0;
@@ -107,8 +98,6 @@ export default class LaneBenchmarkStats extends LightningElement {
           max: fmt(s.max),
           avg: fmt(s.avg),
           median: fmt(s.median),
-          sellMedian: fmt(suggestedSell(s.median, this._marginPct)),
-          sellAvg: fmt(suggestedSell(s.avg, this._marginPct)),
           // a rate per mile over a trip of one mile is the rate per unit of distance
           rate: fmt(
             rate === null || rate === undefined
@@ -117,27 +106,5 @@ export default class LaneBenchmarkStats extends LightningElement {
           )
         };
       });
-  }
-
-  setMargin(n) {
-    this._marginPct = n;
-    this.marginError = null;
-    this.dispatchEvent(
-      new CustomEvent("marginchange", { detail: { marginPct: n } })
-    );
-  }
-  handleMargin15() {
-    this.setMargin(15);
-  }
-  handleMargin20() {
-    this.setMargin(20);
-  }
-  handleMarginInput(event) {
-    const n = parseMargin(event.detail.value);
-    if (n === null) {
-      this.marginError = "Enter a margin between 0 and 100";
-      return;
-    }
-    this.setMargin(n);
   }
 }

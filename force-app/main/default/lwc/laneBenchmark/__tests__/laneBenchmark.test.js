@@ -410,7 +410,7 @@ describe("c-lane-benchmark", () => {
     await flush();
     await flush();
     el.shadowRoot
-      .querySelector("c-lane-benchmark-stats")
+      .querySelector("c-lane-benchmark-selling")
       .dispatchEvent(
         new CustomEvent("marginchange", { detail: { marginPct: 20 } })
       );
@@ -435,7 +435,7 @@ describe("c-lane-benchmark", () => {
     expect(origin.precision).toBe("RADIUS");
     expect(origin.radius).toBe(100);
     expect(
-      el.shadowRoot.querySelector("c-lane-benchmark-stats").marginPct
+      el.shadowRoot.querySelector("c-lane-benchmark-selling").marginPct
     ).toBe(20);
     expect(
       el.shadowRoot.querySelector("c-lane-benchmark-filters").value

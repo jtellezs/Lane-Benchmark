@@ -13,7 +13,6 @@
     <navType>Standard</navType>
     <tabs>Lane_Benchmark</tabs>
     <tabs>RFP_Tool</tabs>
-    <tabs>Market_Test</tabs>
     <tabs>Help_Center</tabs>
     <uiType>Lightning</uiType>
 </CustomApplication>
