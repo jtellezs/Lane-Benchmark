@@ -11,16 +11,26 @@ This phase does not depend on phase 9. The quote history it plots already
 exists; phase 9 only adds more points to it. Phase 9 is built first because it
 is smaller and because it gives the chart somewhere to live.
 
+**Amended 2026-09-18, after phases 9 and 12 shipped.** Two things this spec
+assumed have changed, and the decisions taken at the amendment are D7 and the
+revised section 3. First, "the phase 9 page" no longer exists: PR #38 moved the
+market test onto the Lane Benchmark page, so there is one page to site the chart
+on, and it now carries a statistics card, a selling card and a market test card
+before the results table. Second, phase 12 added `marketTestFilter`
+(Include / Exclude / Only) to `LaneSearchRequest`, which did not exist when D2
+was written - so "reuse the lane match" now has a concrete extra obligation.
+
 ## 1. Decisions
 
-| #   | Decision                                                                                                                                                                                                                                                                                                                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| D1  | **Server-side buckets, not raw rows.** The controller returns one point per month — count, median, min, max, per currency — rather than shipping rows to the browser to bucket there. A three-year window on a busy lane exceeds the 2,000-row `rowLimit`, and a truncated chart is a chart that lies without saying so. |
-| D2  | **Reuse the lane match.** Bucketing runs over the same conditions `LaneQueries` builds for a search, so a trend and a search of the same lane agree about which quotes belong to it.                                                                                                                                     |
-| D3  | **A row guard before reading.** The window is longer than a search's, so the phase 8 lesson applies: count the rows with `SELECT COUNT()` before reading them, and stop with a "the trend may be incomplete" note rather than risk an uncatchable `System.LimitException`.                                               |
-| D4  | **Hand-drawn SVG, no charting library.** Salesforce will not load a script from a CDN, so a library means vendoring a static resource the app carries forever. A monthly series is a few hundred lines of SVG. `sheetJs` stays the only vendored library.                                                                |
-| D5  | **Show n, and say when n is thin.** Every point carries its count. A month with fewer than three rates is drawn hollow and excluded from the trend line, because three quotes do not make a market.                                                                                                                      |
-| D6  | **One currency at a time.** The chart plots the currency the pricer selected, as the stats card already does. Mixing CAD and USD on one axis would be meaningless.                                                                                                                                                       |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| D1  | **Server-side buckets, not raw rows.** The controller returns one point per month — count, median, min, max, per currency — rather than shipping rows to the browser to bucket there. A three-year window on a busy lane exceeds the 2,000-row `rowLimit`, and a truncated chart is a chart that lies without saying so.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| D2  | **Reuse the lane match.** Bucketing runs over the same conditions `LaneQueries` builds for a search, so a trend and a search of the same lane agree about which quotes belong to it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| D3  | **A row guard before reading.** The window is longer than a search's, so the phase 8 lesson applies: count the rows with `SELECT COUNT()` before reading them, and stop with a "the trend may be incomplete" note rather than risk an uncatchable `System.LimitException`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| D4  | **Hand-drawn SVG, no charting library.** Salesforce will not load a script from a CDN, so a library means vendoring a static resource the app carries forever. A monthly series is a few hundred lines of SVG. `sheetJs` stays the only vendored library.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| D5  | **Show n, and say when n is thin.** Every point carries its count. A month with fewer than three rates is drawn hollow and excluded from the trend line, because three quotes do not make a market.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| D6  | **One currency at a time.** The chart plots the currency the pricer selected, as the stats card already does. Mixing CAD and USD on one axis would be meaningless.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| D7  | **The trend honors the market-test filter** (owner, 2026-09-18). Whatever Include / Exclude / Only the pricer set on Lane Benchmark, the trend plots the same rows the stats card counted. This is D2 carried to its conclusion: a chart that describes a different row set than the median printed directly above it is the chart D1 refuses to draw - one that lies without saying so. It costs nothing, because the request the page already holds carries the filter, so routing the trend through the same condition assembly inherits it; and because the request JSON is the cacheable key, flipping the filter redraws rather than serving the previous answer. Deliberately **not** extended: a month leaning mostly on market-test rates is not marked differently, because D5's hollow point already means "do not trust this month" and giving one visual two meanings muddies both. |
 
 ## 2. Today (read in the repo, 2026-09-17)
 
@@ -40,10 +50,31 @@ is smaller and because it gives the chart somewhere to live.
 - There is no charting library in the repo; the static resources are
   `helpCenter` and `sheetJs`.
 
+Read again at the amendment (2026-09-18):
+
+- `LaneSearchRequest.marketTestFilter` exists, and `MarketTestFilter.forQuotes`
+  and `.forBids` build the two halves of its condition - the quote half on the
+  house account's current name, the bid half on the phase 9 marker or the
+  account id.
+- Bid rows are `Benchmark_Rate__c` dated on `Valid_From__c`, which
+  `BidSearchService` already treats as the quote date; quote rows are
+  `rtms__CarrierQuote__c`, whose only customer field is the text
+  `Customer_Name__c`.
+- The Lane Benchmark page composes eight cards today, in this order: statistics,
+  selling, market test rates, carriers to ask, route map, map preview, results,
+  split-lane options.
+
 ## 3. What people see
 
-A card under the lane's stats, on the Lane Benchmark results page and on the
-phase 9 page, showing the same lane the pricer already chose.
+Its own card directly under the statistics card on the Lane Benchmark page,
+showing the same lane the pricer already chose - so the page reads in the order a
+pricer thinks: what is the median, then how did it move. The card pushes selling,
+market test and carriers down one slot each, which is the cost of the placement
+and was accepted for it (owner, 2026-09-18). The second home this spec named,
+"the phase 9 page", is gone; PR #38 retired it.
+
+The chart reads the searched lane out of `lastRequestJson`, as `marketTestRates`
+and `carrierLeads` already do, so it follows the lane with no new plumbing.
 
 - A horizontal axis of months, a vertical axis of rate, and a line through the
   monthly medians.
@@ -65,8 +96,21 @@ A new `LaneTrendController.getTrend(String requestJson)` over a
 
 - Takes the same `LaneSearchRequest` the page already holds, with
   `lookbackDays` set from the window control.
-- Builds conditions through `LaneQueries` (D2), runs `SELECT COUNT()` first
-  (D3), and stops with `truncated = true` when the count exceeds the rows left.
+- Builds conditions through `LaneQueries` **and** the same `MarketTestFilter`
+  halves the search uses (D2, D7), runs `SELECT COUNT()` first (D3), and stops
+  with `truncated = true` above a cap of **10,000 rows**.
+- Why 10,000 against the search's 2,000: a three-year window legitimately holds
+  more than a 90-day search, `getTrend` is its own transaction with its own
+  50,000 query-row budget, and 10,000 rows of three small fields sits far inside
+  the 6 MB synchronous heap. Over the cap the chart is still drawn from what was
+  read, with the note - a drawn-and-flagged chart beats a refused one.
+- Two sources, one series: quotes from `rtms__CarrierQuote__c` and bids from
+  `Benchmark_Rate__c` dated on `Valid_From__c`, each narrowed to the selected
+  currency (D6), merged before bucketing.
+- Bucketing is Apex, not `GROUP BY CALENDAR_MONTH`, for two reasons: a median
+  cannot be expressed in SOQL at all, and phase 8 established that any aggregate
+  other than `COUNT()` charges every aggregated row against the 50,000-row
+  limit - so the guard would cost the very rows it is meant to protect.
 - Reads the matching quote and bid rows with only the fields the buckets need —
   the date, the amount, the currency — not the full search projection.
 - Groups by calendar month in Apex, computing count, median, min and max per
@@ -101,7 +145,10 @@ A `laneTrendChart` LWC that takes the points and draws them.
 
 - Apex: months with no rates leave gaps rather than zeros; medians match a
   hand-computed fixture; the row guard trips before the read on an oversized
-  window; a single-currency filter never mixes currencies.
+  window; a single-currency filter never mixes currencies; and **Exclude moves
+  the chart** - a lane whose only rates are market-test plots nothing under
+  Exclude and plots them under Include, which is the test that D7 is real rather
+  than asserted.
 - Jest: the chart renders a point per month; thin months are hollow and skipped
   by the line; the hidden table matches the points; fewer than two usable months
   renders the empty message and no frame.
