@@ -94,6 +94,10 @@
         <members>LaneSearchServiceTest</members>
         <members>MapboxException</members>
         <members>MapboxGeocoder</members>
+        <members>MarketTestServiceTest</members>
+        <members>MarketTestService</members>
+        <members>MarketTestControllerTest</members>
+        <members>MarketTestController</members>
         <members>MapboxGeocoderTest</members>
         <members>MapboxResponseParser</members>
         <members>MapboxHttp</members>
