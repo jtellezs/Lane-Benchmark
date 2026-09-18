@@ -28,6 +28,19 @@ public class LaneSearchRequest {
     ACCEPTED,
     DECLINED
   }
+  /**
+   * Market test data: the Market Test customer's quotes and the rates recorded against a lane or
+   * on one of its projects. Phase 7 excluded them outright and 2026-09-17 stopped excluding them;
+   * the owner asked on 2026-09-18 for the choice instead. Field is marketTestFilter, not
+   * marketTest, for the same reason acceptedFilter is not accepted: a field named like its enum
+   * does not compile.
+   */
+  public enum MarketTest {
+    INCLUDE,
+    EXCLUDE,
+    ONLY
+  }
+
   /** Which rows a search returns: Loads' carrier quotes, phase 3 bids (Benchmark_Rate__c), or both. */
   public enum RowSource {
     ALL,
@@ -58,6 +71,7 @@ public class LaneSearchRequest {
   // Field is sourceFilter, not source: a field named like its enum type (RowSource) does not
   // compile, the same collision documented above for acceptedFilter/Accepted.
   public RowSource sourceFilter = RowSource.ALL;
+  public MarketTest marketTestFilter = MarketTest.INCLUDE;
   // The two phase 3d members below are auto-properties, not plain fields, because this class sat
   // at exactly PMD's TooManyFields cap of 20 fields (the same cap LaneSearchResult.Row is at) and
   // the ruleset forbids suppressions. Every alternative that keeps the count down - nesting them,
@@ -119,6 +133,7 @@ public class LaneSearchRequest {
     radiusUnit = radiusUnit ?? Unit.MI;
     acceptedFilter = acceptedFilter ?? Accepted.ANY_STATUS;
     sourceFilter = sourceFilter ?? RowSource.ALL;
+    marketTestFilter = marketTestFilter ?? MarketTest.INCLUDE;
     rowLimit = rowLimit ?? 2000;
     includeStopGeolocation = includeStopGeolocation ?? true;
     hazmatOnly = hazmatOnly ?? false;

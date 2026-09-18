@@ -8,6 +8,7 @@ import getLanes from "@salesforce/apex/RfpLaneController.getLanes";
 import importLanes from "@salesforce/apex/RfpLaneController.importLanes";
 import saveLanePricing from "@salesforce/apex/RfpLaneController.saveLanePricing";
 import resolveLaneEnd from "@salesforce/apex/RfpLaneController.resolveLaneEnd";
+import similarLanes from "@salesforce/apex/RfpLaneController.similarLanes";
 import loadHistory from "@salesforce/apex/RfpHistoryController.loadHistory";
 import getBids from "@salesforce/apex/RfpBidController.getBids";
 import applyMedian from "@salesforce/apex/RfpBulkController.applyMedian";
@@ -48,6 +49,11 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/RfpLaneController.getLanes",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/RfpLaneController.similarLanes",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -1054,5 +1060,141 @@ describe("c-rfp-tool", () => {
       await settle();
       expect(child(el, "c-rfp-lane-table").rowErrors.a0L1).toContain("Boom");
     });
+  });
+
+  it("adds the similar lanes to the selection without applying anything", async () => {
+    similarLanes.mockResolvedValue(["a0L2", "a0L3"]);
+    const el = await openFromUrl(lanes(3));
+    const table = el.shadowRoot.querySelector("c-rfp-lane-table");
+    table.dispatchEvent(
+      new CustomEvent("selectionchange", { detail: { laneIds: ["a0L1"] } })
+    );
+    await settle();
+    el.shadowRoot
+      .querySelector("c-rfp-bulk-bar")
+      .dispatchEvent(
+        new CustomEvent("selectsimilar", { detail: { radiusMiles: 50 } })
+      );
+    await settle();
+    expect(similarLanes).toHaveBeenCalledWith({
+      laneId: "a0L1",
+      radiusMiles: 50
+    });
+    const ids = el.shadowRoot.querySelector("c-rfp-lane-table").selectedIds;
+    expect(ids).toEqual(expect.arrayContaining(["a0L1", "a0L2", "a0L3"]));
+  });
+
+  it("refuses to find similar lanes while another run holds the page", async () => {
+    similarLanes.mockResolvedValue(["a0L2"]);
+    let release;
+    // A chunked bulk run in flight: busy is the page's only mutex, and clearing it under the
+    // run would take the progress bar and Stop with it.
+    applyMedian.mockImplementation(
+      () => new Promise((resolve) => (release = resolve))
+    );
+    const el = await openFromUrl(lanes(3));
+    el.shadowRoot
+      .querySelector("c-rfp-lane-table")
+      .dispatchEvent(
+        new CustomEvent("selectionchange", { detail: { laneIds: ["a0L1"] } })
+      );
+    await settle();
+    el.shadowRoot
+      .querySelector("c-rfp-bulk-bar")
+      .dispatchEvent(
+        new CustomEvent("bulk", { detail: { scope: "all", action: "median" } })
+      );
+    await flush();
+    el.shadowRoot
+      .querySelector("c-rfp-bulk-bar")
+      .dispatchEvent(
+        new CustomEvent("selectsimilar", { detail: { radiusMiles: 50 } })
+      );
+    await settle();
+    expect(similarLanes).not.toHaveBeenCalled();
+    if (release) {
+      release({
+        lanes: [],
+        updated: 0,
+        skipped: 0,
+        skippedIds: [],
+        errors: []
+      });
+    }
+  });
+
+  it("reports what the similar search found in its own note", async () => {
+    similarLanes.mockResolvedValue([]);
+    const el = await openFromUrl(lanes(3));
+    el.shadowRoot
+      .querySelector("c-rfp-lane-table")
+      .dispatchEvent(
+        new CustomEvent("selectionchange", { detail: { laneIds: ["a0L1"] } })
+      );
+    await settle();
+    el.shadowRoot
+      .querySelector("c-rfp-bulk-bar")
+      .dispatchEvent(
+        new CustomEvent("selectsimilar", { detail: { radiusMiles: 50 } })
+      );
+    await settle();
+    // a button that silently does nothing reads as broken
+    expect(
+      el.shadowRoot.querySelector('[data-id="similar-note"]').textContent
+    ).toContain("No other lane");
+    // and the note is its own, not the bulk result the Overwrite affordance reads
+    expect(
+      el.shadowRoot.querySelector("c-rfp-bulk-bar").lastResult
+    ).not.toEqual(expect.objectContaining({ message: expect.any(String) }));
+  });
+
+  it("drops the similar note once the selection it describes has changed", async () => {
+    similarLanes.mockResolvedValue(["a0L2", "a0L3"]);
+    const el = await openFromUrl(lanes(3));
+    const table = el.shadowRoot.querySelector("c-rfp-lane-table");
+    table.dispatchEvent(
+      new CustomEvent("selectionchange", { detail: { laneIds: ["a0L1"] } })
+    );
+    await settle();
+    el.shadowRoot
+      .querySelector("c-rfp-bulk-bar")
+      .dispatchEvent(
+        new CustomEvent("selectsimilar", { detail: { radiusMiles: 50 } })
+      );
+    await settle();
+    expect(
+      el.shadowRoot.querySelector('[data-id="similar-note"]')
+    ).not.toBeNull();
+
+    // The pricer unticks everything. The note still claims lanes are selected, and it sits
+    // directly above the bulk bar's Apply - a sentence asserting a selection that is gone.
+    table.dispatchEvent(
+      new CustomEvent("selectionchange", { detail: { laneIds: [] } })
+    );
+    await settle();
+    expect(el.shadowRoot.querySelector('[data-id="similar-note"]')).toBeNull();
+  });
+
+  it("announces the similar note, which grows a selection the reader cannot see", async () => {
+    similarLanes.mockResolvedValue(["a0L2"]);
+    const el = await openFromUrl(lanes(3));
+    el.shadowRoot
+      .querySelector("c-rfp-lane-table")
+      .dispatchEvent(
+        new CustomEvent("selectionchange", { detail: { laneIds: ["a0L1"] } })
+      );
+    await settle();
+    el.shadowRoot
+      .querySelector("c-rfp-bulk-bar")
+      .dispatchEvent(
+        new CustomEvent("selectsimilar", { detail: { radiusMiles: 50 } })
+      );
+    await settle();
+    // the twin-offer banner in this same file carries role="status" for the same reason
+    expect(
+      el.shadowRoot
+        .querySelector('[data-id="similar-note"]')
+        .getAttribute("role")
+    ).toBe("status");
   });
 });

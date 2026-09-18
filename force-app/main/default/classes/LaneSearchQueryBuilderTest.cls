@@ -393,4 +393,108 @@ private class LaneSearchQueryBuilderTest {
     );
     System.assert(!soql.contains('Carrier_Att__c'), soql);
   }
+
+  /**
+   * Market test three ways (owner, 2026-09-18). INCLUDE adds nothing at all, which is why every
+   * other expectation in this class stayed byte-identical when the filter arrived.
+   */
+  @IsTest
+  static void marketTestIncludesExcludesOrShowsOnlyTheCustomersQuotes() {
+    LaneSearchRequest include = req();
+    Map<String, Object> includeBinds = new Map<String, Object>();
+    String includeSoql = LaneSearchQueryBuilder.buildSoql(
+      include,
+      includeBinds,
+      places()
+    );
+    System.assert(
+      !includeSoql.contains('Customer_Name__c'),
+      'INCLUDE constrains nothing: ' + includeSoql
+    );
+    System.assert(!includeBinds.containsKey('marketTest'));
+
+    LaneSearchRequest without = req();
+    without.marketTestFilter = LaneSearchRequest.MarketTest.EXCLUDE;
+    Map<String, Object> withoutBinds = new Map<String, Object>();
+    String withoutSoql = LaneSearchQueryBuilder.buildSoql(
+      without,
+      withoutBinds,
+      places()
+    );
+    System.assert(
+      withoutSoql.contains('(NOT Customer_Name__c LIKE :marketTest)'),
+      withoutSoql
+    );
+    System.assertEquals('%Market Test%', withoutBinds.get('marketTest'));
+
+    LaneSearchRequest only = req();
+    only.marketTestFilter = LaneSearchRequest.MarketTest.ONLY;
+    Map<String, Object> onlyBinds = new Map<String, Object>();
+    String onlySoql = LaneSearchQueryBuilder.buildSoql(
+      only,
+      onlyBinds,
+      places()
+    );
+    System.assert(
+      onlySoql.contains('Customer_Name__c LIKE :marketTest'),
+      onlySoql
+    );
+    System.assert(
+      !onlySoql.contains('NOT Customer_Name__c'),
+      'ONLY keeps them rather than dropping them: ' + onlySoql
+    );
+  }
+
+  /**
+   * Review finding #3: the two halves of one control disagreed on what "market test" means. The
+   * bid half resolves the house account by id from the custom metadata; the quote half matched the
+   * literal '%Market Test%', because rtms__CarrierQuote__c carries only Customer_Name__c and has
+   * no account lookup to match on. So renaming the account left Exclude still dropping quotes by
+   * the old name while the bid half followed the new one. The name now comes from the configured
+   * account, so both halves move together.
+   */
+  @IsTest
+  static void theQuoteHalfFollowsTheHouseAccountWhenItIsRenamed() {
+    Account renamed = new Account(
+      Name = 'Market Probe 2026',
+      RecordTypeId = Schema.SObjectType.Account.getRecordTypeInfosByDeveloperName()
+        .get('Customer')
+        ?.getRecordTypeId(),
+      rtms__TMS_Type__c = 'Customer',
+      Industry = 'Other',
+      BillingStreet = '1 Test St',
+      BillingCity = 'Montreal',
+      BillingState = 'Quebec',
+      BillingPostalCode = 'H1A 1A1',
+      BillingCountry = 'Canada',
+      CurrencyIsoCode = 'CAD'
+    );
+    insert renamed;
+    MarketTestSetting.accountIdOverride = renamed.Id;
+    MarketTestSetting.accountNameOverride = null;
+
+    LaneSearchRequest without = req();
+    without.marketTestFilter = LaneSearchRequest.MarketTest.EXCLUDE;
+    Map<String, Object> binds = new Map<String, Object>();
+    LaneSearchQueryBuilder.buildSoql(without, binds, places());
+
+    System.assertEquals(
+      '%Market Probe 2026%',
+      binds.get('marketTest'),
+      'the quote half matches the account the setting points at, not a literal'
+    );
+  }
+
+  /** With nothing configured the literal is still the answer, so an unset org keeps working. */
+  @IsTest
+  static void anUnconfiguredOrgStillMatchesTheLiteralName() {
+    MarketTestSetting.suppressSetting = true;
+
+    LaneSearchRequest without = req();
+    without.marketTestFilter = LaneSearchRequest.MarketTest.EXCLUDE;
+    Map<String, Object> binds = new Map<String, Object>();
+    LaneSearchQueryBuilder.buildSoql(without, binds, places());
+
+    System.assertEquals('%Market Test%', binds.get('marketTest'));
+  }
 }

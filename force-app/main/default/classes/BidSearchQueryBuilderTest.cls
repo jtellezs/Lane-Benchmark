@@ -229,4 +229,73 @@ private class BidSearchQueryBuilderTest {
     LaneSearchResult.Row row = new LaneSearchResult.Row();
     System.assertEquals(null, row.bid, 'loads carry no bid detail');
   }
+
+  /** A bid is market test by the phase 9 marker or by sitting on the Market Test account. */
+  @IsTest
+  static void marketTestFiltersBidsByTheMarkerOrTheAccount() {
+    LaneSearchRequest include = req();
+    Map<String, Object> binds = new Map<String, Object>();
+    String soql = BidSearchQueryBuilder.buildSoql(include, binds, places());
+    System.assert(!soql.contains('Market_Test__c'), soql);
+
+    // Both branches are pinned by their exact text. contains('NOT') passed happily over
+    // "AND NOT (...)", which SOQL rejects outright, so the filter shipped unable to run.
+    MarketTestSetting.suppressSetting = true;
+    LaneSearchRequest onlyNoAccount = req();
+    onlyNoAccount.marketTestFilter = LaneSearchRequest.MarketTest.ONLY;
+    Map<String, Object> noAccountBinds = new Map<String, Object>();
+    String noAccountSoql = BidSearchQueryBuilder.buildSoql(
+      onlyNoAccount,
+      noAccountBinds,
+      places()
+    );
+    System.assert(
+      noAccountSoql.contains('AND Market_Test__c = true'),
+      'with no account configured the marker alone decides: ' + noAccountSoql
+    );
+
+    MarketTestSetting.suppressSetting = false;
+    Id house = anyAccountId();
+    MarketTestSetting.accountIdOverride = house;
+    LaneSearchRequest only = req();
+    only.marketTestFilter = LaneSearchRequest.MarketTest.ONLY;
+    Map<String, Object> onlyBinds = new Map<String, Object>();
+    String onlySoql = BidSearchQueryBuilder.buildSoql(
+      only,
+      onlyBinds,
+      places()
+    );
+    System.assert(
+      onlySoql.contains(
+        'AND (Market_Test__c = true OR RFP_Project__r.Customer__c = :bMarketTestAccount)'
+      ),
+      'ONLY keeps the marker or the account: ' + onlySoql
+    );
+    System.assertEquals(house, onlyBinds.get('bMarketTestAccount'));
+
+    LaneSearchRequest without = req();
+    without.marketTestFilter = LaneSearchRequest.MarketTest.EXCLUDE;
+    Map<String, Object> withoutBinds = new Map<String, Object>();
+    String withoutSoql = BidSearchQueryBuilder.buildSoql(
+      without,
+      withoutBinds,
+      places()
+    );
+    System.assert(
+      withoutSoql.contains(
+        'AND (NOT (Market_Test__c = true OR RFP_Project__r.Customer__c = :bMarketTestAccount))'
+      ),
+      'EXCLUDE has to parenthesise its NOT or SOQL refuses the whole query: ' +
+      withoutSoql
+    );
+    System.assert(
+      !withoutSoql.contains('AND NOT '),
+      'an unparenthesised NOT after AND is a parse error: ' + withoutSoql
+    );
+  }
+
+  /** Any account id of the right shape; the filter only ever binds it, never reads the record. */
+  private static Id anyAccountId() {
+    return Account.SObjectType.getDescribe().getKeyPrefix() + '000000000001';
+  }
 }

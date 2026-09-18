@@ -15,7 +15,8 @@ const DEFAULTS = {
   equipmentTypes: [],
   hazmatOnly: false,
   acceptedFilter: "ANY_STATUS",
-  sourceFilter: "ALL"
+  sourceFilter: "ALL",
+  marketTestFilter: "INCLUDE"
 };
 
 async function mount(value = DEFAULTS) {
@@ -150,5 +151,25 @@ describe("c-lane-benchmark-filters", () => {
     expect(changed.mock.calls[changed.mock.calls.length - 1][0].detail).toEqual(
       DEFAULTS
     );
+  });
+
+  it("offers market test three ways and reports the choice", async () => {
+    const el = await mount();
+    const group = el.shadowRoot.querySelector('[data-id="market-test"]');
+    expect(group.options.map((o) => o.value)).toEqual([
+      "INCLUDE",
+      "EXCLUDE",
+      "ONLY"
+    ]);
+    expect(group.value).toBe("INCLUDE");
+    const changed = jest.fn();
+    el.addEventListener("filterschange", changed);
+    group.dispatchEvent(
+      new CustomEvent("change", { detail: { value: "ONLY" } })
+    );
+    await flush();
+    expect(
+      changed.mock.calls[changed.mock.calls.length - 1][0].detail
+    ).toMatchObject({ marketTestFilter: "ONLY" });
   });
 });

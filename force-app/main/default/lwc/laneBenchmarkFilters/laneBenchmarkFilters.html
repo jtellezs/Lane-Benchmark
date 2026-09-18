@@ -59,6 +59,14 @@
       onchange={handleFlags}
     ></lightning-checkbox-group>
     <lightning-radio-group
+      data-id="market-test"
+      label="Market test"
+      type="button"
+      options={marketTestOptions}
+      value={value.marketTestFilter}
+      onchange={handleMarketTest}
+    ></lightning-radio-group>
+    <lightning-radio-group
       data-id="source"
       label="Source"
       type="button"

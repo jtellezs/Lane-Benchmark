@@ -107,7 +107,7 @@ public with sharing class TripRouteView {
    * The lane write a route makes, or null. History miles are billed PC*Miler miles and outrank a
    * route (R75); an unavailable route changes nothing (spec section 7); No route clears the miles
    * and the hours. A lane that already holds the route's miles, source and hours needs no write
-   * (controller ruling). RfpLaneController.writeLaneMiles passes the lane as read, FOR UPDATE,
+   * (controller ruling). RfpLaneRouteService.writeLaneMiles passes the lane as read, FOR UPDATE,
    * right before its update.
    */
   public static RFP_Lane__c laneUpdate(RFP_Lane__c lane, TripRouteView view) {

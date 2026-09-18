@@ -68,6 +68,11 @@
         <h2 class="slds-text-heading_small slds-m-bottom_x-small">
           New project
         </h2>
+        <div class="slds-m-bottom_x-small">
+          <c-rfp-lane-template
+            label="Download lane template"
+          ></c-rfp-lane-template>
+        </div>
         <lightning-input
           data-id="name"
           label="Name"
@@ -82,6 +87,13 @@
           value-label={customerName}
           onaccountchange={handleAccount}
         ></c-rfp-account-picker>
+        <p
+          data-id="market-test-hint"
+          class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small"
+        >
+          Leave the customer empty for a market test: the project goes to the
+          Market Test account, where the whole pricing team can work it.
+        </p>
         <lightning-input
           data-id="due-date"
           type="date"

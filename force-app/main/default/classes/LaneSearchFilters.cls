@@ -20,6 +20,7 @@ public with sharing class LaneSearchFilters {
   ) {
     addCurrencyFilter(req, conditions, binds);
     LaneLoadFilters.add(req, 'rtms__Load__r.', conditions, binds);
+    MarketTestFilter.forQuotes(req, conditions, binds);
     addAcceptedFilter(req, conditions);
   }
 

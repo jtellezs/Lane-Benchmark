@@ -5,6 +5,7 @@
   "description": "Pricing Department Lightning app (Trans-Pro)",
   "scripts": {
     "lint": "eslint --no-error-on-unmatched-pattern \"**/{aura,lwc}/**/*.js\" \"scripts/**/*.mjs\"",
+    "pmd": "bash scripts/pmd.sh",
     "test": "npm run test:unit",
     "test:unit": "sfdx-lwc-jest",
     "test:unit:watch": "sfdx-lwc-jest --watch",

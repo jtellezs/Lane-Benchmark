@@ -4,6 +4,10 @@ order: 70
 hint: Upload the customer's .xlsx or .csv, match its columns to our fields (the mapping is remembered per customer), then import.
 ---
 
+## Start from the template
+
+**Download lane template** sits on the RFP Tool's project list, beside **New project**, and again under the file picker once you are on the upload screen. It gives you an empty sheet whose column headers are the ones this upload recognises, so a file filled in from it needs no column mapped by hand. It carries the headers and nothing else: a sample lane would be imported like any other row, priced and exported, so the template does not include one.
+
 ## The file
 
 Accepted: `.xlsx`, `.xlsm`, `.xls`, `.csv` up to 3 MB and 2,000 rows per file; keep a project under 2,000 lanes in total, the table shows at most that many. The first row must be the headers. A second upload into the same project adds rows after the existing ones.

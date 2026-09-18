@@ -51,7 +51,9 @@ export default class RfpProjectList extends LightningElement {
     return !this.loading && !this.hasProjects;
   }
   get cannotCreate() {
-    return !this.name.trim() || !this.customerId || this.saving;
+    // A project with no customer is a market test: the server attaches it to the Market Test
+    // account, where the whole pricing team can work it (owner, 2026-09-18).
+    return !this.name.trim() || this.saving;
   }
 
   get rows() {

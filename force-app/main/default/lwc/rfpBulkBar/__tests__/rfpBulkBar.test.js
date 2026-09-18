@@ -173,4 +173,26 @@ describe("c-rfp-bulk-bar", () => {
       "add-bid"
     ].forEach((id) => expect(field(el, id).disabled).toBe(true));
   });
+
+  it("offers similar lanes only with one lane selected, and reports the radius", async () => {
+    const none = await mount({ selectedCount: 0 });
+    expect(
+      none.shadowRoot.querySelector('[data-id="find-similar"]')
+    ).toBeNull();
+    const many = await mount({ selectedCount: 3 });
+    expect(
+      many.shadowRoot.querySelector('[data-id="find-similar"]')
+    ).toBeNull();
+
+    const one = await mount({ selectedCount: 1 });
+    const button = one.shadowRoot.querySelector('[data-id="find-similar"]');
+    expect(button).not.toBeNull();
+    const asked = jest.fn();
+    one.addEventListener("selectsimilar", asked);
+    one.shadowRoot
+      .querySelector('[data-id="similar-radius"]')
+      .dispatchEvent(new CustomEvent("change", { detail: { value: "25" } }));
+    button.click();
+    expect(asked.mock.calls[0][0].detail).toEqual({ radiusMiles: 25 });
+  });
 });

@@ -24,6 +24,26 @@
         </lightning-button-group>
       </div>
       <div class="slds-col">
+        <template lwc:if={canFindSimilar}>
+          <lightning-input
+            data-id="similar-radius"
+            type="number"
+            disabled={busy}
+            label="Similar within (mi)"
+            value={similarRadius}
+            min="1"
+            class="slds-m-right_x-small"
+            onchange={handleSimilarRadius}
+          ></lightning-input>
+          <lightning-button
+            data-id="find-similar"
+            label="Select similar lanes"
+            disabled={busy}
+            title="Add the lanes whose pick-ups and deliveries are close to this one, with the same mode and equipment"
+            onclick={handleFindSimilar}
+            class="slds-m-right_x-small"
+          ></lightning-button>
+        </template>
         <lightning-button
           data-id="use-median"
           label="Use median"

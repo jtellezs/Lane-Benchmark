@@ -32,6 +32,16 @@ Toute l'équipe de tarification voit tous les tarifs notés pour une voie. Si vo
 
 Les offres notées sur l'appel d'offres d'un client ne sont jamais affichées ni modifiées ici. Elles restent soumises aux règles d'accès de cet appel d'offres, où seules les personnes qui voient le compte du client peuvent les atteindre.
 
+## Tester plusieurs voies à la fois
+
+Une voie à la fois ne tient pas au-delà de quelques-unes. Pour une liste de voies, utilisez l'outil RFP :
+
+- **Download lane template** sur la liste des projets : remplissez les voies, puis créez un projet. **Laissez le client vide** — le projet est rattaché au compte Market Test, où toute l'équipe de tarification peut y travailler.
+- Téléversez le fichier : les voies apparaissent dans l'atelier.
+- Quand un transporteur vous donne un tarif, sélectionnez la voie cotée, réglez un rayon et cliquez sur **Select similar lanes** : les voies dont les ramassages et les livraisons sont proches, avec le même mode et le même équipement, rejoignent la sélection. Vérifiez-les, puis utilisez **Add carrier rate** pour noter le tarif sur toutes à la fois.
+
+Rien n'est appliqué tant que vous n'avez pas confirmé la sélection.
+
 ## Ce qu'il ne fait pas
 
 Il ne suit pas qui vous avez sollicité ni qui n'a pas répondu, seulement les tarifs reçus. Utilisez **Carriers to ask** sur la même page pour décider qui contacter.

@@ -10,6 +10,9 @@
     <div class="slds-form-element__control">
       <input id="file" type="file" accept={accept} onchange={handleFile} />
     </div>
+    <div class="slds-m-top_xx-small">
+      <c-rfp-lane-template></c-rfp-lane-template>
+    </div>
     <template lwc:if={status}
       ><p data-id="status" class="slds-text-color_weak slds-m-top_xx-small">
         {status}

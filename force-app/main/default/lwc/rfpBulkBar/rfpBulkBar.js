@@ -18,6 +18,7 @@ export default class RfpBulkBar extends LightningElement {
   marginText = "";
   costText = "";
   sellText = "";
+  similarRadius = "50";
   showBidForm = false;
   confirmingDelete = false;
   error = null;
@@ -34,6 +35,27 @@ export default class RfpBulkBar extends LightningElement {
     if (!this._selectedCount) {
       this.scope = "all";
     }
+  }
+
+  /**
+   * Phase 12: one carrier's rate often covers more than the lane it was quoted on, so with a
+   * single lane selected the bar offers to find the others. It only ever grows the selection -
+   * the pricer still confirms, and the apply is the same bulk action as before.
+   */
+  get canFindSimilar() {
+    return this._selectedCount === 1;
+  }
+
+  handleSimilarRadius(event) {
+    this.similarRadius = event.detail.value;
+  }
+
+  handleFindSimilar() {
+    this.dispatchEvent(
+      new CustomEvent("selectsimilar", {
+        detail: { radiusMiles: Number(this.similarRadius) || 50 }
+      })
+    );
   }
 
   get isSelectedScope() {

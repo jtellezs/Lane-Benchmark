@@ -8,7 +8,8 @@ export const DEFAULT_FILTERS = Object.freeze({
   equipmentTypes: [],
   hazmatOnly: false,
   acceptedFilter: "ANY_STATUS",
-  sourceFilter: "ALL"
+  sourceFilter: "ALL",
+  marketTestFilter: "INCLUDE"
 });
 
 export function cloneDefaults() {
@@ -44,7 +45,13 @@ export default class LaneBenchmarkFilters extends LightningElement {
     { label: "Loads only", value: "LOADS" },
     { label: "Bids only", value: "BIDS" }
   ];
-  // Market test is not a filter: those quotes count like any other, so the only flag is Hazmat.
+  // Market test is a three-way choice rather than a flag (owner, 2026-09-18): the Market Test
+  // customer's quotes and the rates recorded against a lane are in, out, or the only thing shown.
+  marketTestOptions = [
+    { label: "Include", value: "INCLUDE" },
+    { label: "Exclude", value: "EXCLUDE" },
+    { label: "Only", value: "ONLY" }
+  ];
   flagOptions = [{ label: "Hazmat only", value: "hazmatOnly" }];
 
   get lookbackDays() {
@@ -121,6 +128,9 @@ export default class LaneBenchmarkFilters extends LightningElement {
   }
   handleSource(event) {
     this.update({ sourceFilter: event.detail.value });
+  }
+  handleMarketTest(event) {
+    this.update({ marketTestFilter: event.detail.value });
   }
   handleFlags(event) {
     const set = new Set(event.detail.value);

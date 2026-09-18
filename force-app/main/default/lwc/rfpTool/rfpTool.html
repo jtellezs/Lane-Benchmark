@@ -133,7 +133,18 @@
           busy={busy}
           last-result={bulkResult}
           onbulk={handleBulk}
+          onselectsimilar={handleSelectSimilar}
         ></c-rfp-bulk-bar>
+
+        <template lwc:if={similarNote}>
+          <p
+            data-id="similar-note"
+            role="status"
+            class="slds-text-body_small slds-text-color_weak slds-m-bottom_x-small"
+          >
+            {similarNote}
+          </p>
+        </template>
 
         <div
           class="slds-grid slds-wrap slds-grid_vertical-align-end slds-gutters_x-small slds-m-bottom_x-small"

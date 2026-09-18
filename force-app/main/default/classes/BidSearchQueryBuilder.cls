@@ -50,6 +50,7 @@ public with sharing class BidSearchQueryBuilder {
       binds.put('bExcludeProject', req.excludeProjectId);
       conditions.add('RFP_Project__c != :bExcludeProject');
     }
+    MarketTestFilter.forBids(req, conditions, binds);
     addEnd(conditions, binds, req, originEnd(req), places);
     addEnd(conditions, binds, req, destinationEnd(req), places);
     addFilters(req, conditions, binds);

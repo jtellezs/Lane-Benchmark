@@ -52,6 +52,7 @@
         <members>rfpUpload</members>
         <members>rfpWorkbook</members>
         <members>rfpLaneFilter</members>
+        <members>rfpLaneTemplate</members>
         <members>rfpBulk</members>
         <members>rfpBulkBar</members>
         <members>distanceUnit</members>
@@ -96,6 +97,9 @@
         <members>LaneSearchServiceTest</members>
         <members>MapboxException</members>
         <members>MapboxGeocoder</members>
+        <members>MarketTestFilter</members>
+        <members>MarketTestSetting</members>
+        <members>MarketTestSettingTest</members>
         <members>MarketTestServiceTest</members>
         <members>MarketTestService</members>
         <members>MarketTestControllerTest</members>
@@ -123,6 +127,9 @@
         <members>RfpImportService</members>
         <members>RfpImportServiceTest</members>
         <members>RfpLaneController</members>
+        <members>RfpLaneSimilarityTest</members>
+        <members>RfpLaneRouteService</members>
+        <members>RfpLaneSimilarity</members>
         <members>RfpLaneControllerTest</members>
         <members>RfpUserError</members>
         <members>RfpHistoryController</members>
@@ -257,6 +264,8 @@
         <members>Account.Number_of_Loads__c</members>
         <members
     >Pricing_Department_Setting__mdt.Excluded_Contact_Ids__c</members>
+        <members
+    >Pricing_Department_Setting__mdt.Market_Test_Account_Id__c</members>
         <members>Truck_Routing_Setting__mdt.Alternatives__c</members>
         <members>Truck_Routing_Setting__mdt.Approx_Factor__c</members>
         <members>Truck_Routing_Setting__mdt.Height_M__c</members>
