@@ -1,21 +1,20 @@
 ---
 title: Market test
 order: 145
-hint: Pick a lane, record what carriers quote for it now, and read it beside what the lane has done. The rates count in the lane's median like any other bid.
+hint: On the Lane Benchmark page, under the results: record what carriers quote for the lane you searched. Each rate counts in that lane's median like any other bid.
 ---
 
 ## When to run a market test
 
-You want to know what a lane costs today and the history is thin, stale, or you simply want the market checked before you quote. A market test needs no RFP and no customer: pick the lane, call carriers, and record what they answer.
+You want to know what a lane costs today and the history is thin, stale, or you simply want the market checked before you quote. A market test needs no RFP and no customer: search the lane, call carriers, and record what they answer.
 
-## Picking the lane
+## Where it is
 
-Origin and destination use the same pickers as Lane Benchmark, so place names behave the same way. Choose the currency you are collecting in. Once both ends are set, the page fills in.
+Search a lane in **Lane Benchmark** as you normally would. Under the results you will find the **Market test** card for that lane. There is nothing separate to open and no lane to pick twice — the card follows the search.
 
-## What the two halves show
+## Reading it against the history
 
-- **What this lane has done**: the count, median and spread over the last 90 days, read straight from Lane Benchmark, so the numbers agree with that page by construction.
-- **What you are collecting**: the rates you have recorded for this lane, with their count, median and lowest-to-highest spread.
+The statistics card at the top of the page already shows what the lane has done: the count, median and spread. The market test card shows what you are collecting now, with its own count, median and lowest-to-highest spread.
 
 Reading one against the other is the point: it tells you whether today's market sits above or below where the lane has been.
 
@@ -25,12 +24,14 @@ Reading one against the other is the point: it tells you whether today's market 
 
 Each rate is saved as a carrier bid for the lane with no RFP attached, so it counts in that lane's median everywhere else in the app, exactly like a bid recorded on an RFP.
 
-## Who can see and change what
+## Working on the same lane as a colleague
 
-Everyone on the pricing team sees every rate recorded for a lane, the same way the lane's median already includes them. **You can edit or delete only the rates you recorded** — a colleague's are there to read.
+Everyone on the pricing team sees every rate recorded for a lane. If two of you call different carriers about the same lane, both sets of rates appear for both of you, and the count and median cover all of them.
+
+**You can edit or delete only the rates you recorded** — a colleague's are there to read.
 
 Bids recorded on a customer's RFP are never shown or touched here. They stay under that RFP's access rules, where only people who can see the customer's account can reach them.
 
 ## What it does not do
 
-It does not track who you asked or who did not answer — only the rates that came back. Use **Carriers to ask** on Lane Benchmark to decide who to contact.
+It does not track who you asked or who did not answer — only the rates that came back. Use **Carriers to ask** on the same page to decide who to contact.
