@@ -6,7 +6,7 @@ hint: Téléversez le .xlsx ou .csv du client, associez ses colonnes à nos cham
 
 ## Partir du modèle
 
-**Download lane template** se trouve sur la liste des projets de l'outil RFP, à côté de **New project**, et de nouveau sous le sélecteur de fichier une fois sur l'écran de téléversement. Vous obtenez une feuille vide dont les en-têtes de colonnes sont ceux que ce téléversement reconnaît : un fichier rempli à partir de ce modèle n'exige donc aucune colonne à associer à la main. La ligne d'exemple nomme des lieux qui ne se résolvent pas, elle est donc ignorée plutôt que transformée en voie.
+**Download lane template** se trouve sur la liste des projets de l'outil RFP, à côté de **New project**, et de nouveau sous le sélecteur de fichier une fois sur l'écran de téléversement. Vous obtenez une feuille vide dont les en-têtes de colonnes sont ceux que ce téléversement reconnaît : un fichier rempli à partir de ce modèle n'exige donc aucune colonne à associer à la main. Il ne contient que les en-têtes : une voie d'exemple serait importée comme n'importe quelle autre ligne, tarifée puis exportée, le modèle n'en comporte donc aucune.
 
 ## Le fichier
 

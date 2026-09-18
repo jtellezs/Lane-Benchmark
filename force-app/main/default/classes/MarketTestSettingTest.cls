@@ -5,17 +5,37 @@
  */
 @IsTest
 private class MarketTestSettingTest {
+  /**
+   * Reads the same custom metadata the class reads and asserts they agree, so deleting the
+   * query from MarketTestSetting fails this test instead of quietly returning null forever.
+   */
   @IsTest
-  static void theConfiguredAccountIsReadFromCustomMetadata() {
+  static void theConfiguredAccountIsTheOneInCustomMetadata() {
+    List<Pricing_Department_Setting__mdt> settings = [
+      SELECT Market_Test_Account_Id__c
+      FROM Pricing_Department_Setting__mdt
+      WHERE DeveloperName = 'Default'
+      LIMIT 1
+    ];
+    String expected = settings.isEmpty()
+      ? null
+      : settings[0].Market_Test_Account_Id__c;
     Test.startTest();
     Id configured = MarketTestSetting.accountId();
     Test.stopTest();
-    if (configured != null) {
+    if (String.isBlank(expected)) {
       System.assertEquals(
-        Account.SObjectType,
-        configured.getSObjectType(),
-        'the setting names an account, or nothing at all'
+        null,
+        configured,
+        'no setting reads as no account rather than a broken id'
       );
+    } else {
+      System.assertEquals(
+        (Id) expected,
+        configured,
+        'the class returns what the Default record holds'
+      );
+      System.assertEquals(Account.SObjectType, configured.getSObjectType());
     }
   }
 
@@ -52,6 +72,19 @@ private class MarketTestSettingTest {
     System.assert(
       found == null || found.getSObjectType() == Account.SObjectType,
       'a blank setting reads as no account, never as a broken id'
+    );
+  }
+
+  @IsTest
+  static void anOrgWithNoSettingReadsAsNoAccount() {
+    MarketTestSetting.suppressSetting = true;
+    Test.startTest();
+    Id found = MarketTestSetting.accountId();
+    Test.stopTest();
+    System.assertEquals(
+      null,
+      found,
+      'the branch that decides on the marker alone has to be reachable in a configured org'
     );
   }
 }

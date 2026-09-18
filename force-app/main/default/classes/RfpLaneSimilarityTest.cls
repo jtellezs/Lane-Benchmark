@@ -122,4 +122,74 @@ private class RfpLaneSimilarityTest {
     Test.stopTest();
     System.assertEquals(0, none.size());
   }
+
+  /**
+   * A place that was never geocoded has no coordinates, so distance cannot decide. The class
+   * falls back to the province, which is what keeps a half-geocoded project usable.
+   */
+  @IsTest
+  static void aLaneEndWithNoCoordinatesFallsBackToItsProvince() {
+    fixture();
+    Pricing_Place__c blindOrigin = RfpTestDataFactory.createPlace(
+      'Nowhere',
+      'QC',
+      'CA',
+      null,
+      null,
+      'H1A'
+    );
+    RFP_Lane__c anchor = RfpTestDataFactory.createLane(
+      project,
+      blindOrigin,
+      place('Toronto', 'ON', 43.65, -79.38)
+    );
+    Pricing_Place__c blindTwin = RfpTestDataFactory.createPlace(
+      'Elsewhere',
+      'QC',
+      'CA',
+      null,
+      null,
+      'H2B'
+    );
+    RFP_Lane__c sameProvince = RfpTestDataFactory.createLane(
+      project,
+      blindTwin,
+      place('Mississauga', 'ON', 43.59, -79.64)
+    );
+    Pricing_Place__c otherProvince = RfpTestDataFactory.createPlace(
+      'Moncton',
+      'NB',
+      'CA',
+      null,
+      null,
+      'E1C'
+    );
+    RFP_Lane__c elsewhere = RfpTestDataFactory.createLane(
+      project,
+      otherProvince,
+      place('Windsor', 'ON', 42.31, -83.03)
+    );
+    Test.startTest();
+    List<Id> found = RfpLaneSimilarity.similarTo(anchor.Id, 50);
+    Test.stopTest();
+    System.assert(
+      found.contains(sameProvince.Id),
+      'with no coordinates the province decides, so a half-geocoded project still works'
+    );
+    System.assert(
+      !found.contains(elsewhere.Id),
+      'and a different province is still a different lane'
+    );
+  }
+
+  /** A lane id that is not there answers with nothing rather than throwing at the page. */
+  @IsTest
+  static void aLaneThatIsNotThereOffersNothing() {
+    Id missing =
+      RFP_Lane__c.SObjectType.getDescribe().getKeyPrefix() + '000000000001';
+    Test.startTest();
+    List<Id> found = RfpLaneSimilarity.similarTo(missing, 50);
+    Test.stopTest();
+    System.assertEquals(0, found.size());
+  }
 }

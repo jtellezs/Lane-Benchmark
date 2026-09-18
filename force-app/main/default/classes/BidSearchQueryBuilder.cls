@@ -78,10 +78,13 @@ public with sharing class BidSearchQueryBuilder {
     String isMarketTest = house == null
       ? 'Market_Test__c = true'
       : '(Market_Test__c = true OR RFP_Project__r.Customer__c = :bMarketTestAccount)';
+    // The NOT has to be parenthesised: this condition is never first (CreatedDate is), so the
+    // join produces "... AND NOT ..." which SOQL rejects with "unexpected token: 'NOT'". The
+    // quote-side twin in LaneSearchFilters already wraps its own NOT for the same reason.
     conditions.add(
       req.marketTestFilter == LaneSearchRequest.MarketTest.ONLY
         ? isMarketTest
-        : 'NOT ' + isMarketTest
+        : '(NOT ' + isMarketTest + ')'
     );
   }
 

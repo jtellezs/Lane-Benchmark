@@ -183,4 +183,22 @@ describe("c-rfp-project-list", () => {
     expect(field(el, "error").textContent).toContain("name is required");
     expect(opened).not.toHaveBeenCalled();
   });
+
+  it("lets a project be created with no customer, for a market test", async () => {
+    const el = await mount();
+    el.shadowRoot
+      .querySelector('[data-id="name"]')
+      .dispatchEvent(
+        new CustomEvent("change", { detail: { value: "Lanes to test" } })
+      );
+    await flush();
+    // The server attaches a customerless project to the Market Test account, so the form
+    // must not block on a customer: this assertion fails the moment that guard comes back.
+    expect(el.shadowRoot.querySelector('[data-id="create"]').disabled).toBe(
+      false
+    );
+    expect(
+      el.shadowRoot.querySelector('[data-id="market-test-hint"]').textContent
+    ).toContain("Market Test account");
+  });
 });

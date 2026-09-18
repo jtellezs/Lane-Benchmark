@@ -4,20 +4,6 @@ import { TARGETS } from "c/rfpHeaderGuess";
 
 const XLSX_MIME = "application/octet-stream";
 
-/** One filled row so the shape is obvious; it names places that resolve to nothing, so an upload skips it. */
-const EXAMPLE = {
-  originCity: "Toronto",
-  originProvince: "ON",
-  originCountry: "CA",
-  destinationCity: "Montreal",
-  destinationProvince: "QC",
-  destinationCountry: "CA",
-  mode: "Truckload",
-  equipmentCategory: "Van",
-  equipmentType: "Dry Van 53'",
-  shipmentsPerYear: 12
-};
-
 /**
  * The lane template, wherever a pricer needs it: beside the upload, and on the project list,
  * because the template is most useful before a project exists - you fill it in first and create
@@ -39,12 +25,14 @@ export default class RfpLaneTemplate extends LightningElement {
     try {
       await ensureSheetJs(this);
       const XLSX = window.XLSX;
+      // Headers only. An example row is not skipped on upload: RfpImportService drops a row
+      // only when both ends are blank, so a sample Toronto to Montreal line would import as a
+      // real lane, get costed and go out in the export.
       const headers = TARGETS.map((t) => t.label);
-      const example = TARGETS.map((t) => EXAMPLE[t.key] ?? "");
       const book = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(
         book,
-        XLSX.utils.aoa_to_sheet([headers, example]),
+        XLSX.utils.aoa_to_sheet([headers]),
         "Lanes"
       );
       const out = XLSX.write(book, { bookType: "xlsx", type: "array" });

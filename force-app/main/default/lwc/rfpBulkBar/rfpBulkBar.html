@@ -28,6 +28,7 @@
           <lightning-input
             data-id="similar-radius"
             type="number"
+            disabled={busy}
             label="Similar within (mi)"
             value={similarRadius}
             min="1"
@@ -37,6 +38,7 @@
           <lightning-button
             data-id="find-similar"
             label="Select similar lanes"
+            disabled={busy}
             title="Add the lanes whose pick-ups and deliveries are close to this one, with the same mode and equipment"
             onclick={handleFindSimilar}
             class="slds-m-right_x-small"

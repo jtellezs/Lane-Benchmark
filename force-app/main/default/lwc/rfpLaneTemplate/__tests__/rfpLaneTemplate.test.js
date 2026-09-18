@@ -49,7 +49,8 @@ describe("c-rfp-lane-template", () => {
     expect(rows[0]).toEqual(TARGETS.map((t) => t.label));
     expect(rows[0]).toContain("Origin city");
     expect(rows[0]).toContain("Equipment type");
-    expect(rows[1]).toHaveLength(rows[0].length);
+    // headers only: an example row would import as a real lane, not be skipped
+    expect(rows).toHaveLength(1);
     expect(URL.createObjectURL).toHaveBeenCalled();
   });
 

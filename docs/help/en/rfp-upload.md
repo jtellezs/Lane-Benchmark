@@ -6,7 +6,7 @@ hint: Upload the customer's .xlsx or .csv, match its columns to our fields (the 
 
 ## Start from the template
 
-**Download lane template** sits on the RFP Tool's project list, beside **New project**, and again under the file picker once you are on the upload screen. It gives you an empty sheet whose column headers are the ones this upload recognises, so a file filled in from it needs no column mapped by hand. The one example row names places that resolve to nothing, so it is skipped rather than becoming a lane.
+**Download lane template** sits on the RFP Tool's project list, beside **New project**, and again under the file picker once you are on the upload screen. It gives you an empty sheet whose column headers are the ones this upload recognises, so a file filled in from it needs no column mapped by hand. It carries the headers and nothing else: a sample lane would be imported like any other row, priced and exported, so the template does not include one.
 
 ## The file
 

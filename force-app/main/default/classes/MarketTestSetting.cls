@@ -12,8 +12,18 @@
 public with sharing class MarketTestSetting {
   @TestVisible
   private static Id accountIdOverride;
+  /**
+   * Forces "no account configured" in a test. A null override cannot mean that: it falls
+   * through to the setting, and every org this runs in has one, so the branch that decides on
+   * the marker alone would never be exercised.
+   */
+  @TestVisible
+  private static Boolean suppressSetting = false;
 
   public static Id accountId() {
+    if (suppressSetting == true) {
+      return null;
+    }
     if (accountIdOverride != null) {
       return accountIdOverride;
     }

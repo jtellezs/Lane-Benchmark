@@ -42,6 +42,7 @@ export default class RfpTool extends LightningElement {
   lanes = [];
   selectedId = null;
   selectedIds = [];
+  similarNote = "";
   filter = { status: "all", text: "" };
   pendingIds = [];
   rowErrors = {};
@@ -492,24 +493,32 @@ export default class RfpTool extends LightningElement {
    * anything - the pricer sees the lanes selected and uses the bulk action as before.
    */
   async handleSelectSimilar(event) {
+    // busy is the page's only concurrency mutex: the progress bar, Stop and every bulk button
+    // read it. A chunked import or history run must not have it cleared underneath it.
+    if (this.busy) {
+      return;
+    }
     const anchor = this.selectedIds[0];
     if (!anchor) {
       return;
     }
+    this.error = null;
+    this.similarNote = "";
     this.busy = true;
     try {
       const found = await similarLanes({
         laneId: anchor,
         radiusMiles: event.detail.radiusMiles
       });
-      const merged = new Set([...this.selectedIds, ...(found || [])]);
-      this.selectedIds = [...merged];
-      this.bulkResult = {
-        message:
-          found && found.length
-            ? `${found.length} similar ${found.length === 1 ? "lane" : "lanes"} added to the selection. Check them before applying a rate.`
-            : "No other lane in this project is that close with the same mode and equipment."
-      };
+      const added = (found || []).filter(
+        (id) => !this.selectedIds.includes(id)
+      );
+      this.selectedIds = [...this.selectedIds, ...added];
+      // Its own note, not bulkResult: that one carries the median run's skipped ids and the
+      // Overwrite affordance, and nothing renders a message on it anyway.
+      this.similarNote = added.length
+        ? `${added.length} similar ${added.length === 1 ? "lane" : "lanes"} added to the selection. Check them before applying a rate.`
+        : "No other lane in this project is that close with the same mode and equipment.";
     } catch (e) {
       this.error = e?.body?.message || "The similar lanes could not be read.";
     } finally {
