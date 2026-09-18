@@ -88,6 +88,27 @@ export default class LaneBenchmarkStats extends LightningElement {
   get hasTripInfo() {
     return !!(this.tripLine || this.routeLine);
   }
+  /**
+   * The card shows the lane's own cost by default. Selling is a separate act - you decide a
+   * margin and read what to quote - so the margin control, the sell figures and the sell per
+   * distance appear only when the pricer asks for them.
+   */
+  showSelling = false;
+
+  handleToggleSelling() {
+    this.showSelling = !this.showSelling;
+  }
+
+  get sellingLabel() {
+    return this.showSelling ? "Hide selling" : "Selling";
+  }
+
+  get sellRateLabel() {
+    return this.unit === "km"
+      ? "Sell per km (median)"
+      : "Sell per mile (median)";
+  }
+
   get rateLabel() {
     return this.unit === "km"
       ? "Rate per km (median)"
@@ -114,6 +135,11 @@ export default class LaneBenchmarkStats extends LightningElement {
             rate === null || rate === undefined
               ? null
               : perDistance(rate, 1, this.unit)
+          ),
+          sellRate: fmt(
+            rate === null || rate === undefined
+              ? null
+              : suggestedSell(perDistance(rate, 1, this.unit), this._marginPct)
           )
         };
       });

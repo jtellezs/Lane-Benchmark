@@ -63,21 +63,41 @@ describe("c-lane-benchmark-stats", () => {
       document.body.removeChild(document.body.firstChild);
   });
 
-  it("renders one card per currency with suggested sell at the default 15%", async () => {
+  it("renders one card per currency showing the lane's own cost, not selling", async () => {
     const el = await mount();
     const cards = el.shadowRoot.querySelectorAll("[data-currency]");
     expect(Array.from(cards).map((c) => c.dataset.currency)).toEqual([
       "CAD",
       "USD"
     ]);
-    expect(text(el)).toContain("2,300.00"); // CAD median 2000 * 1.15
-    expect(text(el)).toContain("1,150.00"); // USD median 1000 * 1.15
+    expect(text(el)).toContain("2,000.00"); // the CAD median itself
     expect(text(el)).toContain("4 duplicates removed");
     expect(text(el)).toContain("0.4 s");
+    // selling is a separate act: no margin control and no sell figures until asked for
+    expect(text(el)).not.toContain("2,300.00");
+    expect(text(el)).not.toContain("Sell (median)");
+    expect(el.shadowRoot.querySelector('[data-id="margin"]')).toBeNull();
+    expect(el.shadowRoot.querySelector('[data-id="sell-rate"]')).toBeNull();
+  });
+
+  it("the selling button reveals the margin, the sell figures and the sell per mile", async () => {
+    const el = await mount();
+    el.shadowRoot.querySelector('[data-id="selling-toggle"]').click();
+    await flush();
+    expect(el.shadowRoot.querySelector('[data-id="margin"]')).not.toBeNull();
+    expect(text(el)).toContain("2,300.00"); // CAD median 2000 * 1.15
+    expect(text(el)).toContain("1,150.00"); // USD median 1000 * 1.15
+    expect(text(el)).toContain("Sell per mile (median)");
+    expect(el.shadowRoot.querySelector('[data-id="sell-rate"]')).not.toBeNull();
+    el.shadowRoot.querySelector('[data-id="selling-toggle"]').click();
+    await flush();
+    expect(text(el)).not.toContain("Sell (median)");
   });
 
   it("20% button and free entry change the suggestion and emit marginchange", async () => {
     const el = await mount();
+    el.shadowRoot.querySelector('[data-id="selling-toggle"]').click();
+    await flush();
     const handler = jest.fn();
     el.addEventListener("marginchange", handler);
     el.shadowRoot.querySelector('[data-id="margin-20"]').click();
