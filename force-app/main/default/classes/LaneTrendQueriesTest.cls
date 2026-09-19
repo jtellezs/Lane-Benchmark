@@ -6,10 +6,11 @@
  * DATEVALUE(CreatedDate)), and Shipping_Date__c resolves through
  * rtms__Load__r.rtms__Expected_Ship_Date2__c, which is neither createable nor updateable. So in any
  * test Quote_Date__c collapses to DATEVALUE(CreatedDate) and no fixture can tell the two fields
- * apart - which is why the whole-branch re-review could revert LaneTrendQueries.quoteSoql and
- * LaneTrendService.readQuoteSamples to Quote_Date__c and still watch all twenty LaneTrendServiceTest
- * methods pass. The half that carried the measured bias (341 of 4,892 PostProduc quotes over 30
- * days) was pinned by nothing. Asserting on the SOQL string is the pattern
+ * apart. The whole-branch re-review pointed this out, and it was reproduced here before this class
+ * was written: reverting LaneTrendQueries.quoteSoql and LaneTrendService.readQuoteSamples to
+ * Quote_Date__c leaves all twenty LaneTrendServiceTest methods green (measured, not assumed - Apex
+ * run 707As00001WimhM). The half that carried the measured bias (341 of 4,892 PostProduc quotes over
+ * 30 days) was pinned by nothing. Asserting on the SOQL string is the pattern
  * LaneSearchQueryBuilderTest and BidSearchQueryBuilderTest already use for the WHERE halves these
  * methods borrow.
  *
