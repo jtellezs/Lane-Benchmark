@@ -17,6 +17,11 @@ public class LaneTrend {
   public Integer monthSpan;
   @AuraEnabled
   public Boolean truncated = false;
+  /** Ruling 11: rows that matched the search's own WHERE but bucket outside this window - dated by
+   * Quote_Date__c/Valid_From__c, not by the CreatedDate the WHERE filtered on - dropped rather than
+   * clamped onto the axis, and counted here so the page can say so. */
+  @AuraEnabled
+  public Integer outsideWindow = 0;
   @AuraEnabled
   public Integer totalRates = 0;
   @AuraEnabled

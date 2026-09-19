@@ -467,6 +467,50 @@ private class LaneTrendServiceTest {
   }
 
   /**
+   * Ruling 11's fixture: one bid whose CreatedDate is now (so it matches the search's own
+   * CreatedDate = LAST_N_DAYS WHERE, and whose Valid_From__c/Expires_On__c keep it "still valid"
+   * too) but whose Valid_From__c - the field the chart buckets on - sits well outside the window.
+   * This is the real-world shape D2/Ruling 11 describe: a row the search legitimately matches, on a
+   * date the chart cannot place on its own axis. Benchmark_Rate__c.Valid_From__c is a plain field a
+   * pricer sets by hand, unlike rtms__CarrierQuote__c.Quote_Date__c/Shipping_Date__c, which resolve
+   * through a chain of non-writable formula fields (Shipping_Date__c ->
+   * rtms__Load__r.rtms__Expected_Ship_Date2__c, confirmed non-createable/non-updateable via
+   * `sf sobject describe rtms__Load__c`) - so a bid is the fixture that can actually construct this
+   * shape directly instead of guessing at an undocumented managed-package field chain.
+   */
+  private static LaneTrendFixture withABidOutsideTheWindow() {
+    Pricing_Place__c origin = RfpTestDataFactory.createPlace(
+      'Kelowna',
+      'BC',
+      'CA',
+      49.888,
+      -119.496,
+      'V1Y'
+    );
+    Pricing_Place__c destination = RfpTestDataFactory.createPlace(
+      'Kamloops',
+      'BC',
+      'CA',
+      50.6745,
+      -120.3273,
+      'V2C'
+    );
+    LaneTrendFixture f = forPlaces(origin, destination);
+
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RFP_Project__c project = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      project,
+      origin,
+      destination
+    );
+    Benchmark_Rate__c bid = RfpTestDataFactory.buildBid(lane, 1000);
+    bid.Valid_From__c = Date.today().addDays(-400);
+    insert bid;
+    return f;
+  }
+
+  /**
    * D7, and the test that makes it real rather than asserted: a lane whose only rates are
    * market-test plots them under Include and plots nothing under Exclude. Without this, the chart
    * and the median printed directly above it can describe different row sets.
@@ -514,6 +558,40 @@ private class LaneTrendServiceTest {
     System.assert(
       !trend.points.isEmpty(),
       'a drawn-and-flagged chart beats a refused one'
+    );
+  }
+
+  /**
+   * Ruling 12: the LIMIT that backs the guard is per side, not a shared budget - readQuoteSamples
+   * and readBidSamples each bind the same cap into their own :trendRowCap. So a request whose
+   * combined total exceeds the cap but whose two sides individually stay under it never actually
+   * loses a row, and truncated must say so - a warning that fires on a complete chart is one a
+   * pricer learns to ignore.
+   */
+  @IsTest
+  static void truncatedStaysFalseWhenOnlyTheCombinedTotalExceedsTheCap() {
+    LaneTrendFixture f = withQuotesAndBids();
+    LaneTrendService.rowCapOverride = 5;
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(f.request());
+    Test.stopTest();
+
+    System.assertEquals(
+      false,
+      trend.truncated,
+      'quoteCount (' +
+        f.quoteCount +
+        ') and bidCount (' +
+        f.bidCount +
+        ') each individually stay under the cap of 5, even though their sum (' +
+        (f.quoteCount + f.bidCount) +
+        ') does not - neither side\'s own LIMIT was hit, so nothing was actually dropped'
+    );
+    System.assertEquals(
+      f.quoteCount + f.bidCount,
+      trend.totalRates,
+      'every row from both sides made it into the chart, confirming nothing was truncated'
     );
   }
 
@@ -614,6 +692,37 @@ private class LaneTrendServiceTest {
       null,
       trend.monthSpan,
       'the axis size is still set even when there is nothing to plot on it'
+    );
+  }
+
+  /**
+   * Ruling 11: a row can match the search's own WHERE (CreatedDate recent, still within its
+   * validity window) and still bucket outside the chart's axis, because the WHERE filters on
+   * CreatedDate while the chart buckets on Valid_From__c/Quote_Date__c. It must be dropped rather
+   * than clamped onto the axis, and counted rather than silently vanishing - and the summary
+   * (totalRates) must describe only what is actually plotted.
+   */
+  @IsTest
+  static void aSampleOutsideTheWindowIsDroppedAndCounted() {
+    LaneTrendFixture f = withABidOutsideTheWindow();
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(f.request());
+    Test.stopTest();
+
+    System.assertEquals(
+      1,
+      trend.outsideWindow,
+      'the one bid sits 400 days before the window and must be counted, not silently dropped'
+    );
+    System.assertEquals(
+      0,
+      trend.totalRates,
+      'the dropped row must not count toward the summary either, or the sentence under the chart would describe a row the chart does not draw'
+    );
+    System.assert(
+      trend.points.isEmpty(),
+      'nothing left to plot once the only row is outside the window'
     );
   }
 }

@@ -68,7 +68,12 @@ public without sharing class LaneTrendService {
 
     Integer quoteRows = readQuotes ? countQuotes(req, places) : 0;
     Integer bidRows = countBids(req, places);
-    trend.truncated = quoteRows + bidRows > cap;
+    // Ruling 12: the LIMIT is per side (readQuoteSamples/readBidSamples each bind their own
+    // :trendRowCap), so nothing was actually dropped unless one side's own count exceeds it -
+    // summing both sides against one cap warns even when each side read in full. quoteRows is
+    // already 0 when the quote gate is closed (see above), so it can never exceed a positive cap on
+    // its own and needs no separate readQuotes guard here.
+    trend.truncated = quoteRows > cap || bidRows > cap;
 
     List<Sample> samples = new List<Sample>();
     if (readQuotes) {
@@ -76,9 +81,41 @@ public without sharing class LaneTrendService {
     }
     samples.addAll(readBidSamples(req, places, cap));
 
-    trend.points = bucket(samples, windowStartMonth);
-    summarise(trend, samples);
+    List<Sample> kept = dropOutsideWindow(trend, samples, windowStartMonth);
+    trend.points = bucket(kept, windowStartMonth);
+    summarise(trend, kept);
     return trend;
+  }
+
+  /**
+   * Ruling 11: the WHERE clause borrowed from the search (D2) filters on CreatedDate, but each
+   * sample is bucketed on a different date - Quote_Date__c or Valid_From__c - so a row can match
+   * the search and still fall outside the chart's own window. Dropped here rather than clamped onto
+   * the axis, so monthSpan keeps meaning exactly the window the pricer picked; counted on the trend
+   * so the page can say so, the way truncated already does. summarise() then runs on what is
+   * returned here, not on samples, so totalRates/overallMedian describe exactly what is plotted.
+   */
+  private static List<Sample> dropOutsideWindow(
+    LaneTrend trend,
+    List<Sample> samples,
+    Date windowStartMonth
+  ) {
+    Date today = Date.today();
+    List<Sample> kept = new List<Sample>();
+    Integer dropped = 0;
+    for (Sample s : samples) {
+      Boolean isOutsideWindow =
+        s?.sampleDate != null &&
+        (s.sampleDate < windowStartMonth ||
+        s.sampleDate > today);
+      if (isOutsideWindow) {
+        dropped++;
+      } else {
+        kept.add(s);
+      }
+    }
+    trend.outsideWindow = dropped;
+    return kept;
   }
 
   private static Integer countQuotes(
@@ -168,7 +205,8 @@ public without sharing class LaneTrendService {
     LaneTrend.Point latest = solid[solid.size() - 1];
     trend.firstLabel = earliest.label;
     trend.lastLabel = latest.label;
-    if (earliest.median != null && earliest.median != 0) {
+    Boolean canDivide = earliest.median != null && earliest.median != 0;
+    if (canDivide) {
       trend.changePct = ((latest.median - earliest.median) /
         earliest.median *
         100)
