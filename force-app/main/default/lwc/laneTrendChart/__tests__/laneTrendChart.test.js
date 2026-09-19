@@ -80,6 +80,29 @@ describe("c-lane-trend-chart", () => {
     ).not.toBeNull();
   });
 
+  it("shows a loading state while the request is in flight, then clears it", async () => {
+    let resolveTrend;
+    getTrend.mockReturnValue(
+      new Promise((resolve) => {
+        resolveTrend = resolve;
+      })
+    );
+    const el = createElement("c-lane-trend-chart", { is: LaneTrendChart });
+    el.currencyCode = "CAD";
+    el.requestJson = requestJson;
+    document.body.appendChild(el);
+    expect(
+      el.shadowRoot.querySelector('[data-id="trend-loading"]')
+    ).not.toBeNull();
+    expect(el.shadowRoot.querySelector('[data-id="trend-summary"]')).toBeNull();
+    resolveTrend(trend());
+    await settle();
+    expect(el.shadowRoot.querySelector('[data-id="trend-loading"]')).toBeNull();
+    expect(
+      el.shadowRoot.querySelector('[data-id="trend-summary"]')
+    ).not.toBeNull();
+  });
+
   it("does not re-ask when the same request is set again", async () => {
     await open(trend());
     getTrend.mockClear();
