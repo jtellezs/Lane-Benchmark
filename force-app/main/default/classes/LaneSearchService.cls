@@ -171,10 +171,11 @@ public without sharing class LaneSearchService {
     return s;
   }
 
+  /** Shared by LaneTrendService: the same places the search resolves, keyed as the request names them. */
   @SuppressWarnings(
     'PMD.ApexCRUDViolation'
   ) // system mode by design (see class comment)
-  private static Map<String, Pricing_Place__c> loadPlaces(
+  public static Map<String, Pricing_Place__c> loadPlaces(
     LaneSearchRequest req
   ) {
     Set<String> keys = new Set<String>();

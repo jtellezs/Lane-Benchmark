@@ -32,6 +32,27 @@ public with sharing class LaneSearchQueryBuilder {
     Map<String, Object> binds,
     Map<String, Pricing_Place__c> places
   ) {
+    binds.put('rowLimitPlusOne', req.rowLimit + 1);
+    return SELECT_CLAUSE +
+      ' WHERE ' +
+      whereFor(req, binds, places) +
+      ' ORDER BY CreatedDate DESC LIMIT :rowLimitPlusOne';
+  }
+
+  /**
+   * The condition text buildSoql uses, without its SELECT, ORDER BY or LIMIT — so the lane trend
+   * (LaneTrendQueries) can read the same rows through a narrower projection. Shared rather than
+   * re-derived: a trend and a search of the same lane must agree about which quotes belong to it
+   * (phase 10 D2), and this is what makes that true by construction rather than by vigilance.
+   * Public rather than private for exactly that sharing - LaneTrendQueries owns the trend's own
+   * SELECT/ORDER BY/LIMIT shapes, kept out of this class so its PMD cyclomatic-complexity total
+   * (already near the 40 cap - see LaneSearchFilters, MarketTestFilter) has room to grow.
+   */
+  public static String whereFor(
+    LaneSearchRequest req,
+    Map<String, Object> binds,
+    Map<String, Pricing_Place__c> places
+  ) {
     List<String> conditions = new List<String>();
     conditions.add(
       'CreatedDate = LAST_N_DAYS:' + String.valueOf(req.lookbackDays)
@@ -41,11 +62,7 @@ public with sharing class LaneSearchQueryBuilder {
     addEnd(conditions, binds, req, originEnd(req), places);
     addEnd(conditions, binds, req, destinationEnd(req), places);
     LaneSearchFilters.addFilters(req, conditions, binds);
-    binds.put('rowLimitPlusOne', req.rowLimit + 1);
-    return SELECT_CLAUSE +
-      ' WHERE ' +
-      String.join(conditions, ' AND ') +
-      ' ORDER BY CreatedDate DESC LIMIT :rowLimitPlusOne';
+    return String.join(conditions, ' AND ');
   }
 
   /**

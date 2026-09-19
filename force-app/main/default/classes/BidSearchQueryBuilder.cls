@@ -35,6 +35,23 @@ public with sharing class BidSearchQueryBuilder {
     if (!canMatchBids(req)) {
       return null;
     }
+    binds.put('bRowLimitPlusOne', req.rowLimit + 1);
+    return SELECT_CLAUSE +
+      ' WHERE ' +
+      whereFor(req, binds, places) +
+      ' ORDER BY CreatedDate DESC LIMIT :bRowLimitPlusOne';
+  }
+
+  /**
+   * As LaneSearchQueryBuilder.whereFor: the bid conditions, for LaneTrendQueries to borrow
+   * (phase 10 D2). Public for that sharing, and kept out of LaneTrendQueries itself for the same
+   * PMD-cap reason canMatchBids is public below.
+   */
+  public static String whereFor(
+    LaneSearchRequest req,
+    Map<String, Object> binds,
+    Map<String, Pricing_Place__c> places
+  ) {
     List<String> conditions = new List<String>();
     conditions.add(
       'CreatedDate = LAST_N_DAYS:' + String.valueOf(req.lookbackDays)
@@ -54,15 +71,11 @@ public with sharing class BidSearchQueryBuilder {
     addEnd(conditions, binds, req, originEnd(req), places);
     addEnd(conditions, binds, req, destinationEnd(req), places);
     addFilters(req, conditions, binds);
-    binds.put('bRowLimitPlusOne', req.rowLimit + 1);
-    return SELECT_CLAUSE +
-      ' WHERE ' +
-      String.join(conditions, ' AND ') +
-      ' ORDER BY CreatedDate DESC LIMIT :bRowLimitPlusOne';
+    return String.join(conditions, ' AND ');
   }
 
-  /** Bids have no accepted/declined state, so that filter excludes every bid. */
-  private static Boolean canMatchBids(LaneSearchRequest req) {
+  /** Shared by LaneTrendQueries: bids carry no accepted/declined state, so some requests can never match one. */
+  public static Boolean canMatchBids(LaneSearchRequest req) {
     return req.sourceFilter != LaneSearchRequest.RowSource.LOADS &&
       req.acceptedFilter == LaneSearchRequest.Accepted.ANY_STATUS;
   }

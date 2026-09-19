@@ -95,6 +95,7 @@
         <members>LaneSearchResult</members>
         <members>LaneSearchService</members>
         <members>LaneSearchServiceTest</members>
+        <members>LaneTrendQueries</members>
         <members>MapboxException</members>
         <members>MapboxGeocoder</members>
         <members>MarketTestFilter</members>
