@@ -113,12 +113,23 @@ describe("c-lane-trend-chart", () => {
     const el = await open(trend());
     getTrend.mockClear();
     el.shadowRoot
-      .querySelector('[data-id="window-3y"]')
+      .querySelector('[data-id="window-6m"]')
       .dispatchEvent(new CustomEvent("click"));
     await settle();
     expect(getTrend).toHaveBeenCalledTimes(1);
     const sent = JSON.parse(getTrend.mock.calls[0][0].requestJson);
-    expect(sent.lookbackDays).toBe(1095);
+    expect(sent.lookbackDays).toBe(182);
+  });
+
+  it("offers six months and one year only, because three years overruns the row cap", async () => {
+    const el = await open(trend());
+    const buttons = [...el.shadowRoot.querySelectorAll("[data-window]")];
+    expect(buttons.map((b) => b.dataset.window)).toEqual(["6m", "1y"]);
+    // Measured on PostProduc 2026-09-19: the busiest province pair (Ontario to Quebec) runs about
+    // 3,839 quotes a year, so a three-year window lands near 11,500 against a cap of 10,000 per
+    // side - real lanes would have truncated as a matter of course. The axis was unreadable at 37
+    // months as well, but the cap is the reason the option is gone rather than relabelled.
+    expect(el.shadowRoot.querySelector('[data-id="window-3y"]')).toBeNull();
   });
 
   it("says so rather than drawing a frame when fewer than two months are usable", async () => {
@@ -180,38 +191,39 @@ describe("c-lane-trend-chart", () => {
   // while an uncached one waits for a round trip. Without a generation token the late answer wins
   // whatever the pricer last asked for, and the chart, the highlighted button and the caption stop
   // agreeing with each other. Mutation: drop the `ticket === this.loadTicket` guards in
-  // laneTrendChart.load() and the assertions below read the 3-year answer under the 1-year button.
+  // laneTrendChart.load() and the assertions below read the six-month answer under the 1-year
+  // button.
   it("keeps the answer to the window last clicked when a slower earlier request lands after it", async () => {
-    const threeYear = trend({ lookbackDays: 1095, totalRates: 900 });
-    const oneYear = trend({ lookbackDays: 365, totalRates: 16 });
-    let resolveThreeYear;
+    const slowSixMonth = trend({ lookbackDays: 182, totalRates: 900 });
+    const fastOneYear = trend({ lookbackDays: 365, totalRates: 16 });
+    let resolveSixMonth;
     getTrend
       // the card's own first load, on the default 1-year window
-      .mockReturnValueOnce(Promise.resolve(oneYear))
-      // 3 years: uncached, held back until after the click that follows
+      .mockReturnValueOnce(Promise.resolve(fastOneYear))
+      // 6 months: uncached, held back until after the click that follows
       .mockReturnValueOnce(
         new Promise((resolve) => {
-          resolveThreeYear = resolve;
+          resolveSixMonth = resolve;
         })
       )
       // 1 year again: already cached, so it answers at once
-      .mockReturnValueOnce(Promise.resolve(oneYear));
+      .mockReturnValueOnce(Promise.resolve(fastOneYear));
 
     const el = createElement("c-lane-trend-chart", { is: LaneTrendChart });
     el.requestJson = requestJson;
     document.body.appendChild(el);
     await settle();
 
-    // 3 years first (its answer is held back), then 1 year, whose answer lands immediately.
+    // 6 months first (its answer is held back), then 1 year, whose answer lands immediately.
     el.shadowRoot
-      .querySelector('[data-id="window-3y"]')
+      .querySelector('[data-id="window-6m"]')
       .dispatchEvent(new CustomEvent("click"));
     await settle();
     el.shadowRoot
       .querySelector('[data-id="window-1y"]')
       .dispatchEvent(new CustomEvent("click"));
     await settle();
-    resolveThreeYear(threeYear);
+    resolveSixMonth(slowSixMonth);
     await settle();
     await settle();
 

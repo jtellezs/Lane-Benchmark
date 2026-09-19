@@ -14,7 +14,7 @@ A month with fewer than three rates is drawn as a hollow point and left off the 
 
 ## The window
 
-**6 months**, **1 year** and **3 years** choose how far back the chart looks; **1 year** is the default. Switching windows asks the server again and redraws the chart.
+**6 months** and **1 year** choose how far back the chart looks; **1 year** is the default. Switching windows asks the server again and redraws the chart.
 
 ## It follows the market-test filter
 

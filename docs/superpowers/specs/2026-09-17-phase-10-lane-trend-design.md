@@ -121,7 +121,12 @@ and `carrierLeads` already do, so it follows the lane with no new plumbing.
   rather than implied.
 - A point per month labelled with its count on hover; thin months (D5) drawn
   hollow and skipped by the line.
-- A window control: 6 months, 1 year, 3 years. Default 1 year.
+- A window control: 6 months, 1 year. Default 1 year. **Three years was withdrawn on
+  2026-09-19** (owner decision, on a measurement): the busiest province pair in the org runs
+  about 3,839 quotes a year, so three years lands near 11,500 against the 10,000-per-side cap
+  named in section 4 - a real lane would have truncated routinely. The 37-month axis was also
+  unreadable, since labels are month-only and repeat. It can return once the axis thins its
+  labels and the cap is revisited.
 - Under the chart, one plain sentence: "12 months, 148 rates, median 2,450 CAD,
   up 6% since October." The sentence is the part most pricers will read.
 

@@ -57,7 +57,7 @@
       },
       "hint": {
         "en": "A monthly line of the lane's median rate, with a min-to-max band and a 6-month/1-year/3-year window. Hollow points are months with fewer than three rates.",
-        "fr": "Une ligne mensuelle du tarif médian de la voie, avec une bande du plus bas au plus haut et une fenêtre 6 months/1 year/3 years. Les points creux sont des mois avec moins de trois tarifs."
+        "fr": "Une ligne mensuelle du tarif médian de la voie, avec une bande du plus bas au plus haut et une fenêtre 6 months/1 year. Les points creux sont des mois avec moins de trois tarifs."
       }
     },
     {

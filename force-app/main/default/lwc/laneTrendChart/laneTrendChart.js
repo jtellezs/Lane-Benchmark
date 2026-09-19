@@ -1,10 +1,15 @@
 import { LightningElement, api, track } from "lwc";
 import getTrend from "@salesforce/apex/LaneTrendController.getTrend";
 
+// Six months and one year only. Three years was offered until 2026-09-19 and was withdrawn on a
+// measurement, not a preference: the busiest province pair in the org (Ontario to Quebec) runs about
+// 3,839 quotes a year, so three years lands near 11,500 against LaneTrendService.ROW_CAP of 10,000
+// per side - a real lane would have truncated as a matter of course and captioned itself "may be
+// incomplete" every time. At one year the same pair sits near 38% of the cap. The 37-month axis was
+// also unreadable, month-only labels repeating "Jan" three times, but the cap is the reason.
 const WINDOWS = [
   { key: "6m", label: "6 months", days: 182 },
-  { key: "1y", label: "1 year", days: 365 },
-  { key: "3y", label: "3 years", days: 1095 }
+  { key: "1y", label: "1 year", days: 365 }
 ];
 
 // Geometry constants for the hand-drawn SVG (D4). A fixed viewBox, scaled by CSS, is what lets
@@ -47,9 +52,9 @@ export default class LaneTrendChart extends LightningElement {
   // or an earlier lane and is dropped. The same pattern as laneBenchmark.js's routeTicket, and
   // needed for the same reason plus one more: getTrend is cacheable, so a window whose answer is
   // already cached resolves almost immediately while an uncached one takes a round trip. Click
-  // 3 years then 1 year and, unticketed, the 1-year answer lands first and the slow 3-year answer
-  // overwrites it - leaving three years of data on screen with the 1-year button highlighted and
-  // aria-pressed, captioned with the three-year counts.
+  // 1 year then 6 months and, unticketed, the 6-month answer lands first and the slow 1-year answer
+  // overwrites it - leaving a year of data on screen with the 6-month button highlighted and
+  // aria-pressed, captioned with the one-year counts.
   loadTicket = 0;
 
   @api

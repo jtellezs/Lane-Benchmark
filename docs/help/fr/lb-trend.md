@@ -1,7 +1,7 @@
 ---
 title: Lire la tendance de la voie
 order: 45
-hint: Une ligne mensuelle du tarif médian de la voie, avec une bande du plus bas au plus haut et une fenêtre 6 months/1 year/3 years. Les points creux sont des mois avec moins de trois tarifs.
+hint: Une ligne mensuelle du tarif médian de la voie, avec une bande du plus bas au plus haut et une fenêtre 6 months/1 year. Les points creux sont des mois avec moins de trois tarifs.
 ---
 
 ## Sous les statistiques
@@ -14,7 +14,7 @@ Un mois avec moins de trois tarifs est dessiné comme un point creux et laissé 
 
 ## La fenêtre
 
-**6 months**, **1 year** et **3 years** choisissent jusqu'où le graphique remonte; **1 year** est la valeur par défaut. Changer de fenêtre redemande le serveur et redessine le graphique.
+**6 months** et **1 year** choisissent jusqu'où le graphique remonte; **1 year** est la valeur par défaut. Changer de fenêtre redemande le serveur et redessine le graphique.
 
 ## Il suit le filtre Market test
 
