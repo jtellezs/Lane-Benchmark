@@ -48,8 +48,7 @@ public without sharing class LaneTrendService {
   @TestVisible
   private static List<LaneTrend.Point> bucket(
     List<Sample> samples,
-    Date windowStart,
-    Integer monthSpan
+    Date windowStart
   ) {
     Map<String, List<Decimal>> byMonth = new Map<String, List<Decimal>>();
     Map<String, Date> firstOfMonth = new Map<String, Date>();

@@ -22,8 +22,7 @@ private class LaneTrendServiceTest {
     Test.startTest();
     List<LaneTrend.Point> points = LaneTrendService.bucket(
       samples,
-      Date.newInstance(2026, 1, 1),
-      3
+      Date.newInstance(2026, 1, 1)
     );
     Test.stopTest();
 
@@ -62,8 +61,7 @@ private class LaneTrendServiceTest {
     Test.startTest();
     List<LaneTrend.Point> points = LaneTrendService.bucket(
       samples,
-      Date.newInstance(2026, 1, 1),
-      2
+      Date.newInstance(2026, 1, 1)
     );
     Test.stopTest();
 
@@ -82,8 +80,7 @@ private class LaneTrendServiceTest {
     Test.startTest();
     List<LaneTrend.Point> points = LaneTrendService.bucket(
       samples,
-      Date.newInstance(2026, 1, 1),
-      1
+      Date.newInstance(2026, 1, 1)
     );
     Test.stopTest();
 
@@ -100,10 +97,100 @@ private class LaneTrendServiceTest {
     Test.startTest();
     List<LaneTrend.Point> points = LaneTrendService.bucket(
       new List<LaneTrendService.Sample>(),
-      Date.newInstance(2026, 1, 1),
-      6
+      Date.newInstance(2026, 1, 1)
     );
     Test.stopTest();
     System.assertEquals(0, points.size());
+  }
+
+  @IsTest
+  static void bucketsAcrossACalendarYearBoundary() {
+    List<LaneTrendService.Sample> samples = new List<LaneTrendService.Sample>{
+      s('2025-11-03', 1000),
+      s('2025-11-10', 1100),
+      s('2025-11-20', 1200),
+      s('2025-12-01', 2000),
+      s('2025-12-15', 2100),
+      s('2025-12-28', 2200),
+      s('2026-01-02', 3000),
+      s('2026-01-15', 3100),
+      s('2026-01-30', 3200)
+    };
+
+    Test.startTest();
+    List<LaneTrend.Point> points = LaneTrendService.bucket(
+      samples,
+      Date.newInstance(2025, 11, 1)
+    );
+    Test.stopTest();
+
+    System.assertEquals(
+      3,
+      points.size(),
+      'three months, none thin, none skipped across the year boundary'
+    );
+
+    System.assertEquals(
+      '2025-11',
+      points[0].monthKey,
+      'chronological order across the year boundary'
+    );
+    System.assertEquals(0, points[0].monthIndex, 'the window start month');
+    System.assertEquals(
+      '2025-12',
+      points[1].monthKey,
+      'chronological order across the year boundary'
+    );
+    System.assertEquals(
+      1,
+      points[1].monthIndex,
+      'a lost *12 year term in monthsBetween would miscount once the window crosses a year'
+    );
+    System.assertEquals(
+      '2026-01',
+      points[2].monthKey,
+      'chronological order across the year boundary'
+    );
+    System.assertEquals(
+      2,
+      points[2].monthIndex,
+      'two months after the window start, crossing the year: a lost *12 year term would give -10'
+    );
+  }
+
+  /**
+   * monthKeyOf pads single-digit months so keys sort correctly as strings. Unpadded, '2026-10'
+   * (October) would sort before '2026-2' (February) because the character comparison never
+   * reaches the month digits: '1' < '2' at the position where they first differ. Crossing a year
+   * boundary does not exercise this - the year digit differs first there - so this needs two
+   * months in the same year, one single-digit and one double-digit.
+   */
+  @IsTest
+  static void sortsASingleDigitMonthBeforeADoubleDigitOneInTheSameYear() {
+    List<LaneTrendService.Sample> samples = new List<LaneTrendService.Sample>{
+      s('2026-02-03', 1000),
+      s('2026-02-10', 1100),
+      s('2026-02-20', 1200),
+      s('2026-10-01', 2000),
+      s('2026-10-15', 2100),
+      s('2026-10-28', 2200)
+    };
+
+    Test.startTest();
+    List<LaneTrend.Point> points = LaneTrendService.bucket(
+      samples,
+      Date.newInstance(2026, 2, 1)
+    );
+    Test.stopTest();
+
+    System.assertEquals(2, points.size());
+    System.assertEquals(
+      '2026-02',
+      points[0].monthKey,
+      'unpadded, "2026-10" would sort before "2026-2" and put October first'
+    );
+    System.assertEquals(0, points[0].monthIndex);
+    System.assertEquals('2026-10', points[1].monthKey);
+    System.assertEquals(8, points[1].monthIndex);
   }
 }
