@@ -90,12 +90,23 @@ private class LaneTrendServiceTest {
     System.assertEquals(true, points[1].thin, 'nor does one');
   }
 
+  /**
+   * The zero is the boundary that matters, and it was the one this method did not have: a null date
+   * and a null amount were both pinned, but a real zero-total row - 2.9% of PostProduc's quotes over
+   * a year - passed straight through into the median LaneSearchService.stats() excludes it from, and
+   * pinned that month's minimum to 0, which anchors the chart's y axis at zero and squashes the
+   * median line into the top of the frame.
+   *
+   * Mutation: drop `amount != 0` from LaneTrendSummary.isUsable and both assertions below go red -
+   * count reads 2 and minimum reads 0.
+   */
   @IsTest
-  static void ignoresSamplesWithNoDateOrNoAmount() {
+  static void ignoresSamplesWithNoDateNoAmountOrAZeroAmount() {
     List<LaneTrendService.Sample> samples = new List<LaneTrendService.Sample>{
       s('2026-01-05', 1000),
       new LaneTrendService.Sample(null, 5000),
-      new LaneTrendService.Sample(Date.newInstance(2026, 1, 9), null)
+      new LaneTrendService.Sample(Date.newInstance(2026, 1, 9), null),
+      s('2026-01-12', 0)
     };
 
     Test.startTest();
@@ -109,7 +120,12 @@ private class LaneTrendServiceTest {
     System.assertEquals(
       1,
       points[0].count,
-      'a rate with no date cannot be placed on a time axis, and one with no amount is not a rate'
+      'a rate with no date cannot be placed on a time axis, one with no amount is not a rate, and a zero total is not a price the market set'
+    );
+    System.assert(
+      points[0].minimum == 1000,
+      'a kept zero would pin this month\'s minimum - and with it the chart\'s y axis - to 0: ' +
+      points[0].minimum
     );
   }
 
@@ -488,18 +504,19 @@ private class LaneTrendServiceTest {
   }
 
   /**
-   * Ruling 11's fixture: one bid whose CreatedDate is now (so it matches the search's own
-   * CreatedDate = LAST_N_DAYS WHERE, and whose Valid_From__c/Expires_On__c keep it "still valid"
-   * too) but whose Valid_From__c - the field the chart buckets on - sits well outside the window.
-   * This is the real-world shape D2/Ruling 11 describe: a row the search legitimately matches, on a
-   * date the chart cannot place on its own axis. Benchmark_Rate__c.Valid_From__c is a plain field a
-   * pricer sets by hand, unlike rtms__CarrierQuote__c.Quote_Date__c/Shipping_Date__c, which resolve
-   * through a chain of non-writable formula fields (Shipping_Date__c ->
-   * rtms__Load__r.rtms__Expected_Ship_Date2__c, confirmed non-createable/non-updateable via
-   * `sf sobject describe rtms__Load__c`) - so a bid is the fixture that can actually construct this
-   * shape directly instead of guessing at an undocumented managed-package field chain.
+   * One bid recorded now whose Valid_From__c sits 400 days back: a rate the search matches on
+   * CreatedDate, still valid (buildBid's Expires_On__c is today + 30, independent of Valid_From__c),
+   * and dated - by the field the trend used to bucket on - far off the left of the axis.
+   *
+   * This is the shape the removed window partition silently deleted, and the only shape that can
+   * distinguish the two candidate bucketing fields on a writable date. Benchmark_Rate__c.Valid_From__c
+   * is a plain field a pricer sets by hand, unlike rtms__CarrierQuote__c.Quote_Date__c /
+   * Shipping_Date__c, which resolve through a chain of non-writable formula fields (Shipping_Date__c
+   * -> rtms__Load__r.rtms__Expected_Ship_Date2__c, confirmed non-createable/non-updateable via
+   * `sf sobject describe rtms__Load__c`) - so a bid is the fixture that can construct it directly
+   * instead of guessing at an undocumented managed-package field chain.
    */
-  private static LaneTrendFixture withABidOutsideTheWindow() {
+  private static LaneTrendFixture withABidWhoseValidFromIsLongPast() {
     Pricing_Place__c origin = RfpTestDataFactory.createPlace(
       'Kelowna',
       'BC',
@@ -532,13 +549,17 @@ private class LaneTrendServiceTest {
   }
 
   /**
-   * Reviewer finding (Important 3): every other fixture puts all its rates in one calendar month
-   * (a quote's Quote_Date__c defaults to DATEVALUE(CreatedDate) = today; RfpTestDataFactory.buildBid
-   * sets Valid_From__c = today), so summarise()'s two-or-more-solid-months half never runs in any of
-   * them - solid.size() < 2 returns early every time. Three bids per month (never fewer than
-   * THIN_COUNT, so none is thin) two calendar months apart, anchored on Date.today().addMonths()
-   * rather than a fixed day offset so this is correct on every day of the year, not just the day it
-   * was written.
+   * Reviewer finding (Important 3): every other fixture puts all its rates in one calendar month, so
+   * summarise()'s two-or-more-solid-months half never runs in any of them - solid.size() < 2 returns
+   * early every time. Three bids per month (never fewer than THIN_COUNT, so none is thin) in three
+   * consecutive calendar months, anchored on Date.today().addMonths() rather than a fixed day offset
+   * so this is correct on every day of the year, not just the day it was written.
+   *
+   * Placed by CreatedDate, which is what the trend buckets on: Valid_From__c no longer decides which
+   * month a rate lands in, so setting it here would place nothing. CreatedDate is not writable, and
+   * Test.setCreatedDate is the supported way to put a record in a past month - see createdOn().
+   * Two months back is at most 62 days, so all three groups still sit inside the request's default
+   * 90-day window and none is filtered out by the search's own WHERE.
    */
   private static LaneTrendFixture withBidsAcrossThreeMonths() {
     Pricing_Place__c origin = RfpTestDataFactory.createPlace(
@@ -566,16 +587,51 @@ private class LaneTrendServiceTest {
       origin,
       destination
     );
+    List<Benchmark_Rate__c> twoMonthsBack = threeBidsOn(
+      lane,
+      Date.today(),
+      1000,
+      'CAD'
+    );
+    List<Benchmark_Rate__c> oneMonthBack = threeBidsOn(
+      lane,
+      Date.today(),
+      1100,
+      'CAD'
+    );
     List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
-    bids.addAll(threeBidsOn(lane, Date.today().addMonths(-2), 1000, 'CAD'));
-    bids.addAll(threeBidsOn(lane, Date.today().addMonths(-1), 1100, 'CAD'));
+    bids.addAll(twoMonthsBack);
+    bids.addAll(oneMonthBack);
     bids.addAll(threeBidsOn(lane, Date.today(), 1300, 'CAD'));
     insert bids;
+    createdOn(twoMonthsBack, Date.today().addMonths(-2));
+    createdOn(oneMonthBack, Date.today().addMonths(-1));
     return f;
   }
 
   /**
-   * Three bids dated the same day, in one currency. currencyCode is a parameter rather than a
+   * Puts already-inserted records in a past month, which is the only way a fixture can now choose a
+   * bucket: the trend buckets on CreatedDate, CreatedDate is not writable, and Test.setCreatedDate
+   * is the supported substitute. It needs an Id, so callers insert first and place afterwards.
+   *
+   * Noon local rather than midnight, so the Datetime.date() the service buckets with and the
+   * LAST_N_DAYS boundary the query filters with agree on the day whatever the running user's time
+   * zone is. There is deliberately no future-dating counterpart: CreatedDate cannot be set ahead of
+   * now, which is half of why the trend buckets on it.
+   */
+  private static void createdOn(List<Benchmark_Rate__c> bids, Date day) {
+    Datetime at = Datetime.newInstance(day, Time.newInstance(12, 0, 0, 0));
+    for (Benchmark_Rate__c b : bids) {
+      Test.setCreatedDate(b.Id, at);
+    }
+  }
+
+  /**
+   * Three bids valid from the same day, in one currency. Valid_From__c decides only whether the bid
+   * search's own validity check matches the row; which month the chart buckets it into is decided by
+   * CreatedDate, so a fixture that wants a past month calls createdOn() after inserting.
+   *
+   * currencyCode is a parameter rather than a
    * second overload because Ruling 19's and Ruling 20's fixtures both need a non-CAD group, and an
    * overload's own method body would have cost this test class a cyclomatic-complexity point it
    * does not have (35 of PMD's 39-point ceiling before this round). "currency" is a reserved Apex
@@ -598,14 +654,13 @@ private class LaneTrendServiceTest {
   }
 
   /**
-   * Ruling 13's fixture: three bids well outside the window (Valid_From__c 400 days back, the same
-   * construction withABidOutsideTheWindow() uses) and three inside it (Valid_From__c today), with a
-   * cap of 3 - enough to admit exactly one group's rows, not both. DESC keeps the newest (in-window)
-   * three; ASC would keep the oldest (out-of-window) three instead, which Ruling 11 then drops
-   * entirely - the two-way discriminator Ruling 13's own test needs. Both groups satisfy the bid
-   * WHERE's own validity check regardless of Valid_From__c, because buildBid's default
-   * Expires_On__c (today + 30) is independent of it - the same fact withABidOutsideTheWindow()
-   * already relies on.
+   * Ruling 13's fixture: three bids created thirteen months ago and three created now, with a cap of
+   * 3 - enough to admit exactly one group's rows, not both. Both groups are inside the window the
+   * test asks for (1095 days), which is what makes this a test of ORDER BY rather than of filtering:
+   * DESC spends the cap on the newest months, ASC on the oldest, and a truncated chart that goes
+   * quiet on the months a pricer actually reads is the failure Ruling 13 exists to prevent. Both
+   * groups satisfy the bid WHERE's own validity check, because buildBid's Valid_From__c (today) and
+   * Expires_On__c (today + 30) are independent of CreatedDate.
    */
   private static LaneTrendFixture withOldAndNewBidsBeyondTheCap() {
     Pricing_Place__c origin = RfpTestDataFactory.createPlace(
@@ -633,58 +688,17 @@ private class LaneTrendServiceTest {
       origin,
       destination
     );
+    List<Benchmark_Rate__c> earlier = threeBidsOn(
+      lane,
+      Date.today(),
+      1000,
+      'CAD'
+    );
     List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
-    bids.addAll(threeBidsOn(lane, Date.today().addDays(-400), 1000, 'CAD'));
+    bids.addAll(earlier);
     bids.addAll(threeBidsOn(lane, Date.today(), 2000, 'CAD'));
     insert bids;
-    return f;
-  }
-
-  /**
-   * Ruling 19's fixture, and the shape neither of the two fixtures it composes could produce alone:
-   * it varies the window and the currency at the same time. Six USD bids sit far outside the window
-   * (400 and 500 days back, the construction withABidOutsideTheWindow() already relies on) and three
-   * CAD bids sit inside it.
-   *
-   * USD deliberately outnumbers CAD six to three across the merged list, so the fixture is a
-   * two-way discriminator rather than a one-way one:
-   * - drop-then-choose (the defect) charts CAD - correctly - but counts all six USD drops on
-   *   trend.outsideWindow, so the caption describes a currency the chart never drew;
-   * - choose-then-drop (the tempting "just swap the two steps" fix) lets USD win the majority
-   *   contest on six rows that are all about to be discarded, and the chart comes back empty.
-   * Only partition-first-then-choose gives CAD, three plotted rates and an outsideWindow of zero.
-   */
-  private static LaneTrendFixture withOldUsdAndNewCadBids() {
-    Pricing_Place__c origin = RfpTestDataFactory.createPlace(
-      'Thunder Bay',
-      'ON',
-      'CA',
-      48.3809,
-      -89.2477,
-      'P7A'
-    );
-    Pricing_Place__c destination = RfpTestDataFactory.createPlace(
-      'Sudbury',
-      'ON',
-      'CA',
-      46.4917,
-      -80.993,
-      'P3E'
-    );
-    LaneTrendFixture f = forPlaces(origin, destination);
-
-    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-    RFP_Project__c project = RfpTestDataFactory.createProject(g.customer);
-    RFP_Lane__c lane = RfpTestDataFactory.createLane(
-      project,
-      origin,
-      destination
-    );
-    List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
-    bids.addAll(threeBidsOn(lane, Date.today().addDays(-400), 5000, 'USD'));
-    bids.addAll(threeBidsOn(lane, Date.today().addDays(-500), 5000, 'USD'));
-    bids.addAll(threeBidsOn(lane, Date.today(), 1000, 'CAD'));
-    insert bids;
+    createdOn(earlier, Date.today().addMonths(-13));
     return f;
   }
 
@@ -972,15 +986,20 @@ private class LaneTrendServiceTest {
   }
 
   /**
-   * Ruling 11: a row can match the search's own WHERE (CreatedDate recent, still within its
-   * validity window) and still bucket outside the chart's axis, because the WHERE filters on
-   * CreatedDate while the chart buckets on Valid_From__c/Quote_Date__c. It must be dropped rather
-   * than clamped onto the axis, and counted rather than silently vanishing - and the summary
-   * (totalRates) must describe only what is actually plotted.
+   * The successor to the window partition, and the guard that replaces it: a row the search's WHERE
+   * matched is a row the chart can place, because the trend now buckets on the very field that WHERE
+   * filters (CreatedDate). This fixture is the shape that used to be silently deleted - a bid the
+   * search legitimately matches whose Valid_From__c sits 400 days back - and the axis position is
+   * asserted, not just the presence of a point.
+   *
+   * Mutations: bucket on Valid_From__c again (the old behaviour) and monthIndex reads about -13,
+   * far off the left of the axis; re-add a post-read window partition on top of CreatedDate
+   * bucketing and it changes nothing, which is the point - but bucket on Valid_From__c *with* the
+   * partition, the exact pre-fix code, and totalRates reads 0.
    */
   @IsTest
-  static void aSampleOutsideTheWindowIsDroppedAndCounted() {
-    LaneTrendFixture f = withABidOutsideTheWindow();
+  static void aRowTheSearchMatchedIsAlwaysPlacedOnTheAxis() {
+    LaneTrendFixture f = withABidWhoseValidFromIsLongPast();
 
     Test.startTest();
     LaneTrend trend = LaneTrendService.trendFor(f.request());
@@ -988,23 +1007,18 @@ private class LaneTrendServiceTest {
 
     System.assertEquals(
       1,
-      trend.outsideWindow,
-      'the one bid sits 400 days before the window and must be counted, not silently dropped'
+      trend.totalRates,
+      'the bid matched the search\'s own CreatedDate window, so the chart must count it rather than delete the freshest evidence it has'
     );
     System.assertEquals(
-      0,
-      trend.totalRates,
-      'the dropped row must not count toward the summary either, or the sentence under the chart would describe a row the chart does not draw'
+      1,
+      trend.points.size(),
+      'one rate, one month, one point'
     );
-    System.assert(
-      trend.points.isEmpty(),
-      'nothing left to plot once the only row is outside the window'
-    );
-    System.assert(
-      trend.overallMedian == null,
-      'pre-fix this read 1000 (the dropped bid\'s own rate) - summarise must run on the kept ' +
-        'samples only, not the merged list Ruling 11 drops from: ' +
-        trend.overallMedian
+    System.assertEquals(
+      trend.monthSpan - 1,
+      trend.points[0].monthIndex,
+      'the evidence arrived this month - the last slot on the axis - whatever Valid_From__c says about when the freight moves'
     );
   }
 
@@ -1077,75 +1091,45 @@ private class LaneTrendServiceTest {
   }
 
   /**
-   * Ruling 13: DESC, not ASC. Three bids sit 400 days outside the window and three sit inside it;
-   * rowCapOverride admits only one group's worth of rows. Under DESC (correct) the LIMIT keeps the
-   * newest three - all in-window - so the chart still has points and nothing was dropped. Under ASC
-   * (the reverted bug, checked by hand against this exact test before this method was trusted) the
-   * LIMIT keeps the oldest three - all out-of-window - and Ruling 11 drops every one of them, so a
-   * busy, truncated lane would go quiet on its most recent months while the page only says "may be
-   * incomplete."
+   * Ruling 13: DESC, not ASC. Three bids were created thirteen months ago and three now; the window
+   * is three years, so the WHERE admits all six and rowCapOverride admits only three. Truncation is
+   * therefore certain, and the only question is which months' worth of evidence survives it. DESC
+   * spends the cap on the newest rows; ASC spends it on the oldest, and a busy lane would go quiet on
+   * exactly the months a pricer reads while the page only says "may be incomplete."
+   *
+   * Mutation: change ORDER BY CreatedDate DESC to ASC in LaneTrendQueries.bidSoql and the surviving
+   * month is the one thirteen months back, so the monthIndex assertion below goes red.
    */
   @IsTest
   static void orderingKeepsTheNewestRowsWithinTheCap() {
     LaneTrendFixture f = withOldAndNewBidsBeyondTheCap();
+    LaneSearchRequest req = f.request();
+    req.lookbackDays = 1095;
     LaneTrendService.rowCapOverride = 3;
 
     Test.startTest();
-    LaneTrend trend = LaneTrendService.trendFor(f.request());
-    Test.stopTest();
-
-    System.assert(
-      !trend.points.isEmpty(),
-      'ASC ordering would let the LIMIT keep the three oldest (out-of-window) bids instead of the ' +
-        'three newest, emptying the chart of its most recent month entirely - outsideWindow was ' +
-        trend.outsideWindow
-    );
-    System.assertEquals(
-      0,
-      trend.outsideWindow,
-      'the three rows the LIMIT actually kept must be the in-window ones, not the out-of-window ' +
-      'ones ASC would have kept instead'
-    );
-  }
-
-  /**
-   * Ruling 19: Rulings 11 and 14 have to compose in one order, and this is the fixture that can tell
-   * which order ran - it varies the window and the currency at the same time, which is why the two
-   * one-axis tests above it (withOldAndNewBidsBeyondTheCap varies the window only,
-   * withQuotesInBothCurrencies the currency only) both missed this.
-   *
-   * Six USD bids fall outside the window; three CAD bids fall inside it. CAD is the only currency
-   * with anything plottable, so the chart is CAD and not one charted row was dropped for window
-   * reasons - outsideWindow must read 0. Pre-fix it read 6, because dropOutsideWindow ran before
-   * selectCurrency and counted across every currency: the caption under the chart described six USD
-   * rows the chart never drew, which is the exact defect Ruling 11 exists to prevent, one field over.
-   */
-  @IsTest
-  static void outsideWindowCountsOnlyTheChartedCurrencysDroppedRows() {
-    LaneTrendFixture f = withOldUsdAndNewCadBids();
-
-    Test.startTest();
-    LaneTrend trend = LaneTrendService.trendFor(f.request());
+    LaneTrend trend = LaneTrendService.trendFor(req);
     Test.stopTest();
 
     System.assertEquals(
-      'CAD',
-      trend.currencyIsoCode,
-      'CAD is the only currency with rows inside the window, so it is the only one that can be ' +
-        'plotted - choosing the currency before partitioning would hand the chart to USD on six ' +
-        'rows that are all about to be discarded'
+      true,
+      trend.truncated,
+      'six rows against a cap of three: the chart must say it may be incomplete'
     );
     System.assertEquals(
-      0,
-      trend.outsideWindow,
-      'none of the three charted CAD rows was dropped for window reasons, so the caption must not ' +
-        'claim any were - pre-fix this read 6, counting out-of-window rows of a currency that was ' +
-        'never charted'
+      1,
+      trend.points.size(),
+      'the three rows that fitted the cap all came from one month'
+    );
+    System.assertEquals(
+      trend.monthSpan - 1,
+      trend.points[0].monthIndex,
+      'the surviving month must be the current one - ASC would have spent the cap on bids created thirteen months ago and left the recent months blank'
     );
     System.assertEquals(
       3,
       trend.totalRates,
-      'the three in-window CAD bids are what is plotted, and the summary must describe exactly them'
+      'exactly the three rows the cap admitted are plotted and summarised'
     );
   }
 

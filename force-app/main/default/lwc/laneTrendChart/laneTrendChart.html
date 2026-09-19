@@ -133,29 +133,11 @@
               The trend may be incomplete. Narrow the window to see all of it.
             </p>
           </template>
-          <template lwc:if={hasOutsideWindow}>
-            <p
-              data-id="trend-outside-window"
-              class="slds-text-color_weak slds-text-body_small"
-            >
-              {outsideWindowCount} rates fall outside this window and are not
-              shown.
-            </p>
-          </template>
         </template>
         <template lwc:else>
           <p data-id="trend-empty" class="slds-text-color_weak">
             There is not enough history on this lane to show a trend yet.
           </p>
-          <template lwc:if={hasOutsideWindow}>
-            <p
-              data-id="trend-outside-window"
-              class="slds-text-color_weak slds-text-body_small"
-            >
-              {outsideWindowCount} rates fall outside this window and are not
-              shown.
-            </p>
-          </template>
         </template>
       </div>
     </article>

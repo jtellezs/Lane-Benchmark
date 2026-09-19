@@ -1,6 +1,11 @@
 /**
  * Phase 10: bucketing a lane's rates into months.
  *
+ * Both sources are bucketed on CreatedDate - when the rate was recorded, not when the freight moves
+ * (owner decision, recorded in the spec's 2026-09-19 amendment; see LaneTrendQueries.quoteSoql for
+ * the measurement and the reasoning). Because that is also the field the borrowed WHERE filters on,
+ * every row this class reads is a row the axis can hold.
+ *
  * without sharing, like LaneSearchService and BidSearchService, because spec §6 requires the trend
  * to read through the same system-mode path the search uses and to expose no row a search of the
  * same lane would not.
@@ -81,16 +86,12 @@ public without sharing class LaneTrendService {
     }
     samples.addAll(readBidSamples(req, places, cap));
 
-    // Ruling 19: one call, because Rulings 11 (drop what falls outside the window, and count it)
-    // and 14 (never blend two currencies on one axis) have exactly one correct order and composing
-    // them by hand here is what got that order wrong. LaneTrendScope partitions by window, chooses
-    // the currency from what is actually plottable, and counts only that currency's out-of-window
-    // rows - so trend.outsideWindow and the points below always describe the same population.
-    List<Sample> plotted = LaneTrendScope.narrow(
-      trend,
-      samples,
-      windowStartMonth
-    );
+    // Ruling 14: one currency, chosen here rather than blended, and named on the trend so the
+    // caption says which. Ruling 11's window partition used to run alongside this and is gone: the
+    // rows read are dated by the same field the WHERE filtered, so none of them can fall outside the
+    // axis - see LaneTrendScope's class comment for why a guard that can never fire was removed
+    // rather than kept.
+    List<Sample> plotted = LaneTrendScope.narrow(trend, samples);
     trend.points = bucket(plotted, windowStartMonth);
     LaneTrendSummary.summarise(trend, plotted);
     return trend;
@@ -136,7 +137,11 @@ public without sharing class LaneTrendService {
       )
     ) {
       samples.add(
-        new Sample(q.Quote_Date__c, q.rtms__Carrier_Total__c, q.CurrencyIsoCode)
+        new Sample(
+          q.CreatedDate.date(),
+          q.rtms__Carrier_Total__c,
+          q.CurrencyIsoCode
+        )
       );
     }
     return samples;
@@ -161,12 +166,21 @@ public without sharing class LaneTrendService {
         AccessLevel.SYSTEM_MODE
       )
     ) {
-      samples.add(new Sample(b.Valid_From__c, b.Rate__c, b.CurrencyIsoCode));
+      samples.add(
+        new Sample(b.CreatedDate.date(), b.Rate__c, b.CurrencyIsoCode)
+      );
     }
     return samples;
   }
 
-  /** One rate on a date in a currency, which is all a bucket needs from either source. */
+  /**
+   * One rate on a date in a currency, which is all a bucket needs from either source.
+   *
+   * sampleDate is a Date, because a calendar-month bucket has no use for a time of day, while both
+   * sources' CreatedDate is a Datetime - hence the .date() in the two readers above. That conversion
+   * resolves in the running user's time zone, which is the same zone the query's own LAST_N_DAYS
+   * boundary is evaluated in, so the day a row is admitted on and the day it is bucketed on agree.
+   */
   public class Sample {
     public Date sampleDate;
     public Decimal amount;
@@ -189,8 +203,10 @@ public without sharing class LaneTrendService {
    * month's amounts. Months with no rates are absent (spec §7: gaps, not zeros), and monthIndex
    * carries the distance from the window start so the chart can show the gap.
    *
-   * A sample with no date cannot be placed on a time axis, and one with no amount is not a rate;
-   * both are dropped rather than counted as zero, which would drag a median toward nothing.
+   * A sample with no date cannot be placed on a time axis, one with no amount is not a rate, and one
+   * whose amount is zero is not a price the market set - all three are dropped rather than counted,
+   * because counting them would drag a median toward nothing and pin the month's minimum to zero.
+   * LaneTrendSummary.isUsable is the single place that rule lives.
    */
   @TestVisible
   private static List<LaneTrend.Point> bucket(

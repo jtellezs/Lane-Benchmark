@@ -20,6 +20,43 @@ before the results table. Second, phase 12 added `marketTestFilter`
 (Include / Exclude / Only) to `LaneSearchRequest`, which did not exist when D2
 was written - so "reuse the lane match" now has a concrete extra obligation.
 
+**Amended again 2026-09-19, during the whole-branch fix wave.** Two things this spec
+specified are now wrong on purpose, both decided by the owner after the review measured
+them.
+
+First, **both sources are bucketed on `CreatedDate`** - when the rate was recorded - and
+not on `Quote_Date__c` for quotes or `Valid_From__c` for bids. `Quote_Date__c` is the
+formula `IF(!ISBLANK(Shipping_Date__c), Shipping_Date__c, DATEVALUE(CreatedDate))` over
+`rtms__Load__r.rtms__Expected_Ship_Date2__c`, so a quote on freight that has not shipped
+yet is dated in the future: 363 of 69,215 PostProduc quotes over 365 days (0.5%), but
+**341 of 4,892 over 30 days (7.0%)**, because a quote is future-dated precisely while its
+freight is still ahead of it. The chart dropped every one of them, so the current month -
+the month a pricer reads, and the month that sets `changePct` and `lastLabel` - was the
+month most damaged. The axis means _when the evidence arrived_: a quote solicited today for
+freight moving next month is evidence about today's market, and the ship date describes the
+freight, not the market. It is also the field the borrowed WHERE (D2) already filters on, so
+what the query admits and what the axis can hold are now one field, and `CreatedDate` cannot
+be set into the future at all. Sections 2 and 4 are amended in place below, for the trend only:
+the search's results table still reports a bid's `Valid_From__c` as its quote date, and the bid
+WHERE still uses `Valid_From__c` to decide whether a bid is currently valid.
+
+That decision also retires the window partition the earlier fix rounds built (the
+`outsideWindow` count, and the page line that reported it). With the bucketing field equal to
+the filtered field, no row read can fall outside the axis, so the partition was provably dead,
+and it was never a guard: what it actually did was delete the 7%. A test that asserts the axis
+position of a row whose `Valid_From__c` is 400 days old replaces it, so a future change of
+bucketing field fails loudly instead of hiding quietly.
+
+Second, **zero-amount rows are excluded**, matching the statistics card the chart sits
+under: `LaneSearchService.stats()` has always computed its median, min, max and avg from
+non-zero totals only. 1,986 of 69,215 PostProduc quotes over 365 days (2.9%) carry a zero
+carrier total, and each one pinned its month's `minimum` to 0, which anchored the y axis at
+zero, squashed the median line into the top of the frame, and printed a median the card
+directly above contradicted. `totalRates` is therefore the card's `countNonZero` for the same
+rows. A consequence taken deliberately: **D5's thin-month denominator is now the non-zero
+count**, so a month of five rows of which three are zero is a month of two rates and is drawn
+hollow. That is what D5 says - two priced quotes do not make a market (owner, 2026-09-19).
+
 ## 1. Decisions
 
 | #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
@@ -39,7 +76,9 @@ was written - so "reuse the lane match" now has a concrete extra obligation.
   LWC formats them and does no maths of its own.
 - Every `LaneSearchResult.Row` carries `quoteDate` and `carrierTotal`. For bid
   rows `quoteDate` is `Valid_From__c` (`BidSearchService.cls:60`) and
-  `createdDate` is the record's `CreatedDate`.
+  `createdDate` is the record's `CreatedDate`. (Still true of the search's own
+  results table. The trend does **not** inherit either date: it buckets both
+  sources on `CreatedDate` - see the 2026-09-19 amendment.)
 - `LaneSearchRequest.lookbackDays` is a free integer with a 90-day default and
   no cap; `rowLimit` defaults to 2,000.
 - `LaneSearchService.search(LaneSearchRequest)` is the single public entry, and
@@ -56,10 +95,10 @@ Read again at the amendment (2026-09-18):
   and `.forBids` build the two halves of its condition - the quote half on the
   house account's current name, the bid half on the phase 9 marker or the
   account id.
-- Bid rows are `Benchmark_Rate__c` dated on `Valid_From__c`, which
-  `BidSearchService` already treats as the quote date; quote rows are
-  `rtms__CarrierQuote__c`, whose only customer field is the text
-  `Customer_Name__c`.
+- Bid rows are `Benchmark_Rate__c`, which `BidSearchService` reports dated on
+  `Valid_From__c`; quote rows are `rtms__CarrierQuote__c`, whose only customer
+  field is the text `Customer_Name__c`. (The trend buckets both on
+  `CreatedDate` instead - 2026-09-19 amendment.)
 - The Lane Benchmark page composes eight cards today, in this order: statistics,
   selling, market test rates, carriers to ask, route map, map preview, results,
   split-lane options.
@@ -105,14 +144,20 @@ A new `LaneTrendController.getTrend(String requestJson)` over a
   the 6 MB synchronous heap. Over the cap the chart is still drawn from what was
   read, with the note - a drawn-and-flagged chart beats a refused one.
 - Two sources, one series: quotes from `rtms__CarrierQuote__c` and bids from
-  `Benchmark_Rate__c` dated on `Valid_From__c`, each narrowed to the selected
-  currency (D6), merged before bucketing.
+  `Benchmark_Rate__c`, **both dated on `CreatedDate`** - when the rate was
+  recorded, which is the field the borrowed WHERE already filters on
+  (2026-09-19 amendment; `Quote_Date__c` and `Valid_From__c` are not used for
+  the axis) - each narrowed to the selected currency (D6), merged before
+  bucketing.
 - Bucketing is Apex, not `GROUP BY CALENDAR_MONTH`, for two reasons: a median
   cannot be expressed in SOQL at all, and phase 8 established that any aggregate
   other than `COUNT()` charges every aggregated row against the 50,000-row
   limit - so the guard would cost the very rows it is meant to protect.
 - Reads the matching quote and bid rows with only the fields the buckets need —
-  the date, the amount, the currency — not the full search projection.
+  `CreatedDate`, the amount, the currency — not the full search projection. A
+  row with no amount, or an amount of zero, is dropped rather than bucketed, so
+  the chart and the statistics card above it exclude the same rows
+  (2026-09-19 amendment).
 - Groups by calendar month in Apex, computing count, median, min and max per
   month per currency, and returns a compact `LaneTrend` result: a list of
   points, the currency, the window, and `truncated`.

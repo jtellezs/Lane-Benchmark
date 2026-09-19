@@ -31,7 +31,6 @@ const trend = (over = {}) => ({
   lookbackDays: 365,
   monthSpan: 12,
   truncated: false,
-  outsideWindow: 0,
   totalRates: 16,
   overallMedian: 2450,
   changePct: 6.2,
@@ -176,19 +175,58 @@ describe("c-lane-trend-chart", () => {
     ).toContain("may be incomplete");
   });
 
-  it("says when rows fall outside the window rather than hiding them", async () => {
-    const el = await open(trend({ outsideWindow: 12 }));
-    expect(
-      el.shadowRoot.querySelector('[data-id="trend-outside-window"]')
-        .textContent
-    ).toContain("12");
-  });
+  // The window control fires load() on every click and the answers come back on their own
+  // schedule: getTrend is cacheable, so a window already in the cache resolves almost at once
+  // while an uncached one waits for a round trip. Without a generation token the late answer wins
+  // whatever the pricer last asked for, and the chart, the highlighted button and the caption stop
+  // agreeing with each other. Mutation: drop the `ticket === this.loadTicket` guards in
+  // laneTrendChart.load() and the assertions below read the 3-year answer under the 1-year button.
+  it("keeps the answer to the window last clicked when a slower earlier request lands after it", async () => {
+    const threeYear = trend({ lookbackDays: 1095, totalRates: 900 });
+    const oneYear = trend({ lookbackDays: 365, totalRates: 16 });
+    let resolveThreeYear;
+    getTrend
+      // the card's own first load, on the default 1-year window
+      .mockReturnValueOnce(Promise.resolve(oneYear))
+      // 3 years: uncached, held back until after the click that follows
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveThreeYear = resolve;
+        })
+      )
+      // 1 year again: already cached, so it answers at once
+      .mockReturnValueOnce(Promise.resolve(oneYear));
 
-  it("does not mention rows outside the window when there are none", async () => {
-    const el = await open(trend({ outsideWindow: 0 }));
+    const el = createElement("c-lane-trend-chart", { is: LaneTrendChart });
+    el.requestJson = requestJson;
+    document.body.appendChild(el);
+    await settle();
+
+    // 3 years first (its answer is held back), then 1 year, whose answer lands immediately.
+    el.shadowRoot
+      .querySelector('[data-id="window-3y"]')
+      .dispatchEvent(new CustomEvent("click"));
+    await settle();
+    el.shadowRoot
+      .querySelector('[data-id="window-1y"]')
+      .dispatchEvent(new CustomEvent("click"));
+    await settle();
+    resolveThreeYear(threeYear);
+    await settle();
+    await settle();
+
     expect(
-      el.shadowRoot.querySelector('[data-id="trend-outside-window"]')
-    ).toBeNull();
+      el.shadowRoot
+        .querySelector('[data-id="window-1y"]')
+        .getAttribute("aria-pressed")
+    ).toBe("true");
+    expect(
+      el.shadowRoot.querySelector('[data-id="trend-summary"]').textContent
+    ).toContain("16 rates");
+    expect(
+      el.shadowRoot.querySelector('[data-id="trend-summary"]').textContent
+    ).not.toContain("900 rates");
+    expect(el.shadowRoot.querySelector('[data-id="trend-loading"]')).toBeNull();
   });
 
   it("shows the Apex error message rather than a stale trend when the call fails", async () => {

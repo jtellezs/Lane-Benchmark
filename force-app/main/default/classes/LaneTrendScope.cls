@@ -1,91 +1,52 @@
 /**
- * Phase 10 fix round 4 (Ruling 19): which of the merged samples the chart actually plots, and what
- * that leaves out.
+ * Phase 10 (Ruling 14, revised by the spec's 2026-09-19 amendment): which of the merged samples the
+ * chart actually plots.
  *
- * Rulings 11 and 14 compose, and getting the order wrong breaks something in either direction -
- * which is why they live together here rather than as two steps trendFor sequences by hand:
- * - drop the out-of-window rows first (what trendFor did) and they are counted across every
- *   currency, so trend.outsideWindow can report rows of a currency the chart never drew. On a mixed
- *   lane whose losing currency happens to be the old one, the caption under the chart described a
- *   different population than the chart - the exact defect Ruling 11 exists to prevent, one field
- *   over;
- * - choose the currency first and a currency can win the majority contest on the strength of rows
- *   that are about to be discarded, leaving the "winning" currency a sparse or empty chart.
+ * Today that means one thing - one currency, chosen rather than blended - and it says so on the
+ * trend, because a median over CAD and USD together describes no market at all (D6).
  *
- * So: partition by window, choose the currency from the in-window rows - the plottable ones - then
- * count only that currency's out-of-window rows. Both numbers then describe one population: the
- * chart's.
+ * This class also used to partition the samples by window and count what fell outside, and that
+ * machinery was removed when the trend moved to bucketing both sources on CreatedDate. The partition
+ * existed because the WHERE filtered CreatedDate while the chart bucketed on Quote_Date__c /
+ * Valid_From__c, so a row could match the search and still land off the axis. With one field doing
+ * both jobs, no read row can: LAST_N_DAYS admits CreatedDate from the window start onward, the axis
+ * starts on the first of that month, and CreatedDate cannot be in the future. The partition was
+ * therefore provably unreachable - and it was not a safety net, it was the defect. What it did in
+ * production was silently delete every quote on freight that had not shipped yet, 7.0% of PostProduc
+ * over 30 days and concentrated in the current month, and report the deletion through a counter no
+ * one reads as a warning. Keeping it "in case the bucketing field changes again" would have kept
+ * exactly that behaviour armed for the next change, and kept a page telling pricers "0 rates fall
+ * outside this window" on a sentence that could never say anything else.
  *
- * Split out of LaneTrendService per this project's standing ruling that a class at PMD's
- * cyclomatic-complexity ceiling is split, not suppressed (the ruling behind LaneSearchFilters,
- * MarketTestFilter, LaneTrendQueries and LaneTrendSummary). No SOQL, no DML, no sharing declaration
- * needed - this class only sorts samples into the ones the chart draws and the ones it does not.
+ * What replaces it is a test that fails loudly instead of a guard that hides quietly:
+ * LaneTrendServiceTest.aRowTheSearchMatchedIsAlwaysPlacedOnTheAxis asserts the axis position of a
+ * row whose Valid_From__c is 400 days old, so bucketing on anything other than the filtered field
+ * puts that point off the frame and goes red.
+ *
+ * Kept as its own class rather than folded back into LaneTrendService, which sits at 39 of PMD's
+ * 40-point cyclomatic-complexity cap - the project's standing ruling is that a class at the ceiling
+ * is split, not suppressed (the ruling behind LaneSearchFilters, MarketTestFilter, LaneTrendQueries
+ * and LaneTrendSummary). No SOQL, no DML, no sharing declaration needed.
  */
 public class LaneTrendScope {
   /**
-   * The samples the chart plots: inside the window, in one currency.
+   * The samples the chart plots: the ones in the currency it plots.
    *
-   * Records both of the trend's own accounts of what it left out, so they cannot drift apart:
-   * trend.currencyIsoCode (the currency it chose, which the component already displays) and
-   * trend.outsideWindow (how many rows of that same currency fell outside the window).
+   * Records the choice on trend.currencyIsoCode - the currency the component already displays - so
+   * the caption and the chart can never describe two different populations.
    */
   public static List<LaneTrendService.Sample> narrow(
     LaneTrend trend,
-    List<LaneTrendService.Sample> samples,
-    Date windowStartMonth
+    List<LaneTrendService.Sample> samples
   ) {
-    List<LaneTrendService.Sample> outOfWindow = new List<LaneTrendService.Sample>();
-    List<LaneTrendService.Sample> inWindow = partitionByWindow(
-      samples,
-      windowStartMonth,
-      outOfWindow
-    );
     // D6/Ruling 14: req.currencyIsoCode already narrows both queries' own WHERE when it is set, so
     // samplesInCurrency is a no-op filter in that case; when it is blank (both currencies allowed
-    // through) the chart picks the one with the most usable in-window samples and says so, rather
-    // than merging CAD and USD into one meaningless median.
+    // through) the chart picks the one with the most usable samples and says so, rather than
+    // merging CAD and USD into one meaningless median.
     if (String.isBlank(trend.currencyIsoCode)) {
-      trend.currencyIsoCode = majorityCurrency(inWindow);
+      trend.currencyIsoCode = majorityCurrency(samples);
     }
-    // Ruling 19: scoped to the chosen currency, so the caption and the chart describe one
-    // population. When no currency could be chosen there is nothing plottable and therefore no
-    // chart, samplesInCurrency then matches everything, and this reports every out-of-window row:
-    // a lane whose only rows all fall outside the window must still say so, which is what
-    // aSampleOutsideTheWindowIsDroppedAndCounted pins, and with no charted currency there is
-    // nothing to scope the count to anyway.
-    trend.outsideWindow = samplesInCurrency(outOfWindow, trend.currencyIsoCode)
-      .size();
-    return samplesInCurrency(inWindow, trend.currencyIsoCode);
-  }
-
-  /**
-   * Ruling 11: the WHERE clause borrowed from the search (D2) filters on CreatedDate, but each
-   * sample is bucketed on a different date - Quote_Date__c or Valid_From__c - so a row can match the
-   * search and still fall outside the chart's own window. Separated here rather than clamped onto the
-   * axis, so monthSpan keeps meaning exactly the window the pricer picked.
-   *
-   * Returns the in-window samples and appends the rest to outOfWindow, because Ruling 19 needs both
-   * halves: one to plot, the other to count once the currency is known.
-   */
-  private static List<LaneTrendService.Sample> partitionByWindow(
-    List<LaneTrendService.Sample> samples,
-    Date windowStartMonth,
-    List<LaneTrendService.Sample> outOfWindow
-  ) {
-    Date today = Date.today();
-    List<LaneTrendService.Sample> inWindow = new List<LaneTrendService.Sample>();
-    for (LaneTrendService.Sample s : samples) {
-      Boolean isOutsideWindow =
-        s?.sampleDate != null &&
-        (s.sampleDate < windowStartMonth ||
-        s.sampleDate > today);
-      if (isOutsideWindow) {
-        outOfWindow.add(s);
-      } else {
-        inWindow.add(s);
-      }
-    }
-    return inWindow;
+    return samplesInCurrency(samples, trend.currencyIsoCode);
   }
 
   /**
@@ -131,9 +92,8 @@ public class LaneTrendScope {
    * the parameter is currencyCode, matching req.currencyIsoCode's own naming.
    *
    * A blank currencyCode matches every sample. That happens only when majorityCurrency found nothing
-   * usable in the window, where there is no chart to keep to one currency: every in-window sample
-   * left is unusable by definition, so bucket() and summarise() drop all of them anyway, and the
-   * out-of-window rows are counted in full deliberately (see narrow()).
+   * usable, where there is no chart to keep to one currency: every sample left is unusable by
+   * definition, so bucket() and summarise() drop all of them anyway.
    */
   private static List<LaneTrendService.Sample> samplesInCurrency(
     List<LaneTrendService.Sample> samples,

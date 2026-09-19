@@ -43,6 +43,14 @@ export default class LaneTrendChart extends LightningElement {
   windowKey = "1y";
   loading = false;
   error = null;
+  // Bumped by every trend request; an answer carrying an older ticket belongs to an earlier window
+  // or an earlier lane and is dropped. The same pattern as laneBenchmark.js's routeTicket, and
+  // needed for the same reason plus one more: getTrend is cacheable, so a window whose answer is
+  // already cached resolves almost immediately while an uncached one takes a round trip. Click
+  // 3 years then 1 year and, unticketed, the 1-year answer lands first and the slow 3-year answer
+  // overwrites it - leaving three years of data on screen with the 1-year button highlighted and
+  // aria-pressed, captioned with the three-year counts.
+  loadTicket = 0;
 
   @api
   get requestJson() {
@@ -101,7 +109,16 @@ export default class LaneTrendChart extends LightningElement {
     this.load();
   }
 
+  /**
+   * The ticket is taken before the early return, as laneBenchmark.loadRoute does, so clearing the
+   * card also invalidates a request already in flight. Every write that describes the answer -
+   * trend, error and the loading flag - is guarded by it: a stale rejection would otherwise blank a
+   * chart that had already arrived, and a stale `loading = false` would unspin a request still
+   * running.
+   */
   async load() {
+    this.loadTicket += 1;
+    const ticket = this.loadTicket;
     this.error = null;
     if (!this.hasLane) {
       this.trend = null;
@@ -110,15 +127,22 @@ export default class LaneTrendChart extends LightningElement {
     const days = WINDOWS.find((w) => w.key === this.windowKey).days;
     this.loading = true;
     try {
-      this.trend = await getTrend({
+      const result = await getTrend({
         requestJson: JSON.stringify({ ...this.request, lookbackDays: days })
       });
+      if (ticket === this.loadTicket) {
+        this.trend = result;
+      }
     } catch (e) {
-      this.trend = null;
-      this.error =
-        e?.body?.message || e?.message || "The trend could not be read.";
+      if (ticket === this.loadTicket) {
+        this.trend = null;
+        this.error =
+          e?.body?.message || e?.message || "The trend could not be read.";
+      }
     } finally {
-      this.loading = false;
+      if (ticket === this.loadTicket) {
+        this.loading = false;
+      }
     }
   }
 
@@ -135,8 +159,9 @@ export default class LaneTrendChart extends LightningElement {
    * Ruling 25: every point's monthIndex is only meaningful against a positive monthSpan - a
    * falsy or non-positive monthSpan is an Apex contract violation, not a case to paper over by
    * falling back to points.length. A points.length fallback would silently downgrade the axis
-   * to array-index spacing: a chart that looks right but is not sized by the window, which is
-   * exactly the quiet-wrongness Ruling 11's reasoning exists to rule out.
+   * to array-index spacing: a chart that looks right but is not sized by the window - quietly
+   * wrong, which is the one failure mode a chart must not have, since a reader has nothing to
+   * check it against.
    */
   get hasValidSpan() {
     return this.trend?.monthSpan > 0;
@@ -149,15 +174,6 @@ export default class LaneTrendChart extends LightningElement {
 
   get isTruncated() {
     return this.trend?.truncated === true;
-  }
-
-  get outsideWindowCount() {
-    return this.trend?.outsideWindow || 0;
-  }
-
-  /** Ruling 11: a rate the search matched but the trend dropped is never left unmentioned. */
-  get hasOutsideWindow() {
-    return this.outsideWindowCount > 0;
   }
 
   /**

@@ -28,6 +28,20 @@ public without sharing class LaneTrendController {
       return LaneTrendService.trendFor(req);
     } catch (LaneSearchException e) {
       throw userError(e.getMessage());
+    } catch (QueryException e) {
+      // The same arm LaneBenchmarkController.search carries, and needed more here than there: this
+      // runs the search's own WHERE - RADIUS DISTANCE() predicates included - over as much as 1095
+      // days where a search runs 90, so the platform is strictly likelier to refuse it. D3's row
+      // guard is no substitute, because the guard is a COUNT() and the count is the first query
+      // trendFor runs: the throw comes out of the guard itself. Without this the component renders
+      // e.body.message straight into its error line, so a pricer reads a raw platform string on a
+      // page whose search has just worked. "Window" rather than "lookback" because the window is
+      // what the chart's own control is called.
+      throw userError(
+        'The trend took too long or returned too much data. Narrow the window or the radius and try again. (' +
+          e.getMessage() +
+          ')'
+      );
     }
   }
 

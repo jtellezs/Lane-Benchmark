@@ -28,6 +28,10 @@ Fewer than two months with enough rates to trust, and the card says there is not
 
 A busy lane over a long window can hold more rows than the chart safely reads in one call. When that happens the chart is still drawn from what it read, with this note under it — narrow the window to see the rest.
 
-## Rates counted outside the window
+## Which month a rate lands in
 
-The chart picks up rates by the day they were created, over the window you chose, then places each one on the axis by the day it was quoted or the day it is valid from — a different date. A rate created inside the window can still be dated, by that second date, into a month outside it. Rather than drop it without saying so, the card counts how many rates this happened to and shows that count under the chart.
+Each rate is placed on the axis by the day it was recorded, not by the day the freight is due to move. A quote you asked for today tells you about today's market whether the truck rolls next week or next month. The window you choose counts that same day, so every rate the chart finds is a rate it can place — nothing is quietly left off the axis, and the newest month is as complete as the older ones.
+
+## Rates the chart leaves out
+
+A row with no rate on it, and a row whose carrier total is zero, are not prices a market set, so the chart leaves them out — exactly as the median, lowest and highest in **Statistics** above already do. A month's rate count here is therefore the non-zero count, which can be smaller than the number of rows the results table shows for the same month.

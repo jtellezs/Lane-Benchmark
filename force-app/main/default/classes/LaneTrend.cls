@@ -4,6 +4,10 @@
  * Data only. Every number is computed in Apex (D1) so the component formats and never calculates,
  * which is how LaneSearchResult.Stats already works. A month with no rates is absent rather than
  * zero, and monthIndex is what lets the chart draw that absence as a gap on a fixed axis.
+ *
+ * The months are CreatedDate months - when each rate was recorded (owner decision, recorded in the
+ * spec's 2026-09-19 amendment) - so the axis reads as when the evidence arrived, not when the freight
+ * is due to move.
  */
 public class LaneTrend {
   @AuraEnabled
@@ -17,17 +21,14 @@ public class LaneTrend {
   public Integer monthSpan;
   @AuraEnabled
   public Boolean truncated = false;
-  /** Ruling 11: rows that matched the search's own WHERE but bucket outside this window - dated by
-   * Quote_Date__c/Valid_From__c, not by the CreatedDate the WHERE filtered on - dropped rather than
-   * clamped onto the axis, and counted here so the page can say so.
-   *
-   * Ruling 19: rows of currencyIsoCode only - the currency actually plotted - so this and the points
-   * describe one population. A lane can hold old rows in a currency that lost the choice below, and
-   * counting those here would have the caption describe a chart that was never drawn. The one case
-   * where this counts every currency is when no currency could be chosen at all, because then
-   * nothing is plotted and there is no chart for the count to disagree with. */
-  @AuraEnabled
-  public Integer outsideWindow = 0;
+  /**
+   * How many rates the chart is drawn from: dated, priced and in currencyIsoCode. This is the
+   * statistics card's countNonZero for the same rows, not its count - a zero carrier total is not a
+   * price the market set, and the card has always excluded zeros from its median, min, max and avg
+   * (LaneSearchService.stats). There is no companion count of what was left out: every row the query
+   * admitted can be placed on the axis now that both are decided by CreatedDate, so the only rows
+   * missing from this number are the undated, unpriced and zero ones (LaneTrendSummary.isUsable).
+   */
   @AuraEnabled
   public Integer totalRates = 0;
   @AuraEnabled

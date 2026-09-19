@@ -164,6 +164,46 @@ private class LaneTrendControllerTest {
   }
 
   /**
+   * The trend runs the search's own WHERE - RADIUS DISTANCE() predicates included - over as much as
+   * 1095 days where a search runs 90, so it is strictly likelier than the search to be refused by
+   * the platform. LaneBenchmarkController.search already translates QueryException into a sentence
+   * a pricer can act on; getTrend caught only LaneSearchException, so the same failure reached the
+   * component's error line as a raw platform string on a page whose search had just worked. D3's
+   * row guard cannot stand in for this: the guard's own COUNT() is the first query trendFor runs,
+   * which is exactly where the throw comes from - so LaneTrendQueries.breakCountForTest breaks the
+   * count, not the read.
+   *
+   * Mutation: delete the catch (QueryException) arm and the raw QueryException - a different type -
+   * escapes the narrower catch (AuraHandledException) below, failing the whole method; make the arm
+   * swallow instead and threw stays false. Either way this goes red.
+   */
+  @IsTest
+  static void aQueryThePlatformRefusesIsAUserErrorRatherThanAPlatformString() {
+    LaneTrendFixture f = withQuotes(1);
+    String requestJson = JSON.serialize(f.request());
+    LaneTrendQueries.breakCountForTest = true;
+
+    Boolean threw = false;
+    Test.startTest();
+    try {
+      LaneTrendController.getTrend(requestJson);
+    } catch (AuraHandledException e) {
+      threw = true;
+      System.assertEquals(
+        true,
+        e.getMessage()
+          .startsWith(
+            'The trend took too long or returned too much data. Narrow the window or the radius and try again. ('
+          ),
+        'the page shows the advice LaneBenchmarkController.search already gives, with the platform detail in brackets, not instead of it: ' +
+        e.getMessage()
+      );
+    }
+    Test.stopTest();
+    System.assertEquals(true, threw);
+  }
+
+  /**
    * Ruling 17: excludeProjectId binds into a system-mode bid query that LaneTrendService.trendFor
    * shares with LaneSearchService.search (BidSearchQueryBuilder.whereFor), so the trend must apply
    * LaneBenchmarkController.readableProject()'s own read check before delegating - otherwise a
