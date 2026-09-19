@@ -100,6 +100,7 @@
         <members>LaneTrendController</members>
         <members>LaneTrendControllerTest</members>
         <members>LaneTrendQueries</members>
+        <members>LaneTrendQueriesTest</members>
         <members>LaneTrendScope</members>
         <members>LaneTrendService</members>
         <members>LaneTrendServiceTest</members>

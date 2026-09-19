@@ -28,6 +28,10 @@ Avec moins de deux mois ayant assez de tarifs à considérer fiables, l'encadré
 
 Une voie très active sur une longue fenêtre peut contenir plus de lignes que le graphique ne peut en lire sans risque en un seul appel. Le cas échéant, le graphique est quand même dessiné à partir de ce qu'il a lu, avec cette note en dessous — réduisez la fenêtre pour voir le reste.
 
-## Des tarifs comptés hors de la fenêtre
+## Le mois dans lequel un tarif se place
 
-Le graphique retient les tarifs créés dans la fenêtre choisie, puis place chacun sur l'axe selon le jour de la cotation ou le jour à partir duquel il est valide — une date différente. Un tarif créé dans la fenêtre peut donc, selon cette seconde date, se retrouver daté dans un mois hors de la fenêtre. Plutôt que de l'écarter sans le dire, l'encadré compte combien de tarifs ont eu ce sort et montre ce nombre sous le graphique.
+Chaque tarif est placé sur l'axe selon le jour où il a été enregistré, et non selon le jour où la marchandise doit partir. Une cotation demandée aujourd'hui renseigne sur le marché d'aujourd'hui, que le camion roule la semaine prochaine ou le mois prochain. La fenêtre choisie compte ce même jour : tout tarif que le graphique trouve est donc un tarif qu'il peut placer — rien n'est écarté en silence, et le mois courant est aussi complet que les plus anciens.
+
+## Les tarifs que le graphique laisse de côté
+
+Une ligne sans tarif, et une ligne dont le total transporteur est zéro, ne sont pas des prix fixés par un marché : le graphique les laisse de côté — exactement comme le font déjà la médiane, le plus bas et le plus haut dans **Statistics** au-dessus. Le nombre de tarifs d'un mois est donc le nombre de tarifs non nuls, qui peut être inférieur au nombre de lignes que le tableau des résultats montre pour ce même mois.

@@ -631,10 +631,10 @@ private class LaneTrendServiceTest {
    * search's own validity check matches the row; which month the chart buckets it into is decided by
    * CreatedDate, so a fixture that wants a past month calls createdOn() after inserting.
    *
-   * currencyCode is a parameter rather than a
-   * second overload because Ruling 19's and Ruling 20's fixtures both need a non-CAD group, and an
-   * overload's own method body would have cost this test class a cyclomatic-complexity point it
-   * does not have (35 of PMD's 39-point ceiling before this round). "currency" is a reserved Apex
+   * currencyCode is a parameter rather than a second overload because Ruling 20's tie fixture needs
+   * a non-CAD group - it is the only caller that passes anything but CAD, now that Ruling 19's
+   * fixture is gone - and an overload's own method body would have cost this test class a
+   * cyclomatic-complexity point it did not have at the time. "currency" is a reserved Apex
    * identifier, hence currencyCode - see LaneTrendScope.samplesInCurrency.
    */
   private static List<Benchmark_Rate__c> threeBidsOn(
