@@ -11,6 +11,10 @@ public without sharing class LaneTrendService {
   /** D5: three quotes do not make a market. */
   public static final Integer THIN_COUNT = 3;
 
+  /** @TestVisible so a test can prove the guard without inserting 10,001 rows. camelCase, not final. */
+  @TestVisible
+  private static Integer rowCapOverride;
+
   private static final List<String> MONTH_LABELS = new List<String>{
     'Jan',
     'Feb',
@@ -25,6 +29,192 @@ public without sharing class LaneTrendService {
     'Nov',
     'Dec'
   };
+
+  /**
+   * The lane's rates over the request's window, bucketed by month.
+   *
+   * The conditions are the search's own (D2) and therefore carry the market-test filter the pricer
+   * set (D7), so this chart and the statistics card above it always describe the same rows. Both
+   * sources are counted before either is read (D3): a COUNT() costs one query row, while reading
+   * 10,000 rows to discover they were too many costs 10,000 - and a LimitException cannot be
+   * caught.
+   *
+   * The two gates are asymmetric and both are honored, neither re-derived here (Ruling 8/9):
+   * - bids switch off when LaneTrendQueries.bidSoql/.bidCountSoql return null (they encode
+   *   BidSearchQueryBuilder.canMatchBids themselves), and that side's row count is then 0;
+   * - quotes have no such builder-side signal, so trendFor skips the quote count and read itself
+   *   when req.sourceFilter is BIDS, exactly as LaneSearchService.search() does at its lines 29-32.
+   * If both gates fire, every count and read is skipped and this returns an empty-but-valid trend.
+   */
+  public static LaneTrend trendFor(LaneSearchRequest req) {
+    req.validate();
+    LaneTrend trend = new LaneTrend();
+    trend.currencyIsoCode = req.currencyIsoCode;
+    trend.lookbackDays = req.lookbackDays;
+    Date windowStart = Date.today().addDays(-req.lookbackDays);
+    Date windowStartMonth = Date.newInstance(
+      windowStart.year(),
+      windowStart.month(),
+      1
+    );
+    trend.monthSpan = monthsBetween(windowStartMonth, Date.today()) + 1;
+
+    Map<String, Pricing_Place__c> places = LaneSearchService.loadPlaces(req);
+    Integer cap = rowCapOverride == null ? ROW_CAP : rowCapOverride;
+    // Ruling 9: the quote side has no null-returning builder to hook into (unlike bids), so the
+    // gate lives here - mirroring LaneSearchService.search(), which skips the query itself when
+    // sourceFilter is BIDS.
+    Boolean readQuotes = req.sourceFilter != LaneSearchRequest.RowSource.BIDS;
+
+    Integer quoteRows = readQuotes ? countQuotes(req, places) : 0;
+    Integer bidRows = countBids(req, places);
+    trend.truncated = quoteRows + bidRows > cap;
+
+    List<Sample> samples = new List<Sample>();
+    if (readQuotes) {
+      samples.addAll(readQuoteSamples(req, places, cap));
+    }
+    samples.addAll(readBidSamples(req, places, cap));
+
+    trend.points = bucket(samples, windowStartMonth);
+    summarise(trend, samples);
+    return trend;
+  }
+
+  @SuppressWarnings(
+    'PMD.ApexCRUDViolation'
+  ) // system mode by design (see class comment); Database.countQueryWithBinds and queryWithBinds also count as CRUD for PMD
+  private static Integer countQuotes(
+    LaneSearchRequest req,
+    Map<String, Pricing_Place__c> places
+  ) {
+    Map<String, Object> binds = new Map<String, Object>();
+    return Database.countQueryWithBinds(
+      LaneTrendQueries.quoteCountSoql(req, binds, places),
+      binds,
+      AccessLevel.SYSTEM_MODE
+    );
+  }
+
+  /** Ruling 8: a null bidCountSoql IS the signal that this request can never match a bid - that side's count is 0, not derived here. */
+  @SuppressWarnings(
+    'PMD.ApexCRUDViolation'
+  ) // system mode by design (see class comment)
+  private static Integer countBids(
+    LaneSearchRequest req,
+    Map<String, Pricing_Place__c> places
+  ) {
+    Map<String, Object> binds = new Map<String, Object>();
+    String soql = LaneTrendQueries.bidCountSoql(req, binds, places);
+    return soql == null
+      ? 0
+      : Database.countQueryWithBinds(soql, binds, AccessLevel.SYSTEM_MODE);
+  }
+
+  @SuppressWarnings(
+    'PMD.ApexCRUDViolation'
+  ) // system mode by design (see class comment)
+  private static List<Sample> readQuoteSamples(
+    LaneSearchRequest req,
+    Map<String, Pricing_Place__c> places,
+    Integer cap
+  ) {
+    List<Sample> samples = new List<Sample>();
+    Map<String, Object> binds = new Map<String, Object>{ 'trendRowCap' => cap };
+    String soql = LaneTrendQueries.quoteSoql(req, binds, places);
+    for (
+      rtms__CarrierQuote__c q : (List<rtms__CarrierQuote__c>) Database.queryWithBinds(
+        soql,
+        binds,
+        AccessLevel.SYSTEM_MODE
+      )
+    ) {
+      samples.add(new Sample(q.Quote_Date__c, q.rtms__Carrier_Total__c));
+    }
+    return samples;
+  }
+
+  /** Ruling 8: a null bidSoql IS the signal that this request can never match a bid - no bid samples, not derived here. */
+  @SuppressWarnings(
+    'PMD.ApexCRUDViolation'
+  ) // system mode by design (see class comment)
+  private static List<Sample> readBidSamples(
+    LaneSearchRequest req,
+    Map<String, Pricing_Place__c> places,
+    Integer cap
+  ) {
+    List<Sample> samples = new List<Sample>();
+    Map<String, Object> binds = new Map<String, Object>{ 'trendRowCap' => cap };
+    String soql = LaneTrendQueries.bidSoql(req, binds, places);
+    if (soql == null) {
+      return samples;
+    }
+    for (
+      Benchmark_Rate__c b : (List<Benchmark_Rate__c>) Database.queryWithBinds(
+        soql,
+        binds,
+        AccessLevel.SYSTEM_MODE
+      )
+    ) {
+      samples.add(new Sample(b.Valid_From__c, b.Rate__c));
+    }
+    return samples;
+  }
+
+  /**
+   * The numbers the sentence under the chart is built from. Computed here rather than in the
+   * component because the component formats and never calculates, as it already does for
+   * LaneSearchResult.Stats. The change compares the first and last months that are not thin: two
+   * quotes at either end would otherwise set the headline for a year.
+   */
+  private static void summarise(LaneTrend trend, List<Sample> samples) {
+    List<Decimal> all = usableAmounts(samples);
+    trend.totalRates = all.size();
+    trend.overallMedian = SplitLaneService.median(all);
+
+    List<LaneTrend.Point> solid = solidPoints(trend.points);
+    if (solid.size() < 2) {
+      return;
+    }
+    LaneTrend.Point earliest = solid[0];
+    LaneTrend.Point latest = solid[solid.size() - 1];
+    trend.firstLabel = earliest.label;
+    trend.lastLabel = latest.label;
+    if (earliest.median != null && earliest.median != 0) {
+      trend.changePct = ((latest.median - earliest.median) /
+        earliest.median *
+        100)
+        .setScale(1);
+    }
+  }
+
+  /** Same drop rule as bucket(): a sample with no date or no amount is not a rate. */
+  private static List<Decimal> usableAmounts(List<Sample> samples) {
+    List<Decimal> amounts = new List<Decimal>();
+    for (Sample s : samples) {
+      if (isUsable(s)) {
+        amounts.add(s.amount);
+      }
+    }
+    return amounts;
+  }
+
+  /** Shared by bucket() and usableAmounts(): a sample with no date cannot be placed on a time axis, and one with no amount is not a rate. */
+  private static Boolean isUsable(Sample s) {
+    return s != null && s.sampleDate != null && s.amount != null;
+  }
+
+  private static List<LaneTrend.Point> solidPoints(
+    List<LaneTrend.Point> points
+  ) {
+    List<LaneTrend.Point> solid = new List<LaneTrend.Point>();
+    for (LaneTrend.Point p : points) {
+      if (p.thin != true) {
+        solid.add(p);
+      }
+    }
+    return solid;
+  }
 
   /** One rate on a date, which is all a bucket needs from either source. */
   public class Sample {
@@ -53,11 +243,7 @@ public without sharing class LaneTrendService {
     Map<String, List<Decimal>> byMonth = new Map<String, List<Decimal>>();
     Map<String, Date> firstOfMonth = new Map<String, Date>();
     for (Sample sample : samples) {
-      if (
-        sample == null ||
-        sample.sampleDate == null ||
-        sample.amount == null
-      ) {
+      if (!isUsable(sample)) {
         continue;
       }
       String key = monthKeyOf(sample.sampleDate);
