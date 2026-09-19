@@ -7,6 +7,23 @@ const WINDOWS = [
   { key: "3y", label: "3 years", days: 1095 }
 ];
 
+// Geometry constants for the hand-drawn SVG (D4). A fixed viewBox, scaled by CSS, is what lets
+// the chart resize without a resize listener.
+const VIEW_W = 640;
+const VIEW_H = 220;
+const PAD_L = 56;
+const PAD_R = 12;
+const PAD_T = 12;
+const PAD_B = 28;
+const AXIS_LABEL_Y = VIEW_H - 8;
+const GRID_LABEL_X = 8;
+
+// SLDS design tokens with hex fallbacks (spec 5), so the chart reads correctly in both themes.
+// Only the dot fill varies per point (below); the rest are static and set directly in the
+// template.
+const COLOR_LINE = "var(--slds-g-color-accent-base-50, #0176d3)";
+const COLOR_DOT_HOLLOW = "var(--slds-g-color-neutral-base-100, #ffffff)";
+
 /**
  * Phase 10: how this lane's market moved. Imperative rather than @wire because the window
  * control asks the same question over a different span, and because the card must stay closed
@@ -151,5 +168,103 @@ export default class LaneTrendChart extends LightningElement {
         ? ""
         : `, ${t.changePct >= 0 ? "up" : "down"} ${Math.abs(t.changePct)}% since ${t.firstLabel}`;
     return `${t.points.length} months, ${t.totalRates} rates, median ${median} ${t.currencyIsoCode}${direction}.`;
+  }
+
+  /**
+   * Positions only. Every statistic was computed in Apex; this turns numbers into coordinates
+   * for the hand-drawn SVG (D4) - no charting library.
+   *
+   * The x axis spans `monthSpan`, not `points.length`: monthSpan is the whole window the pricer
+   * chose, and points are only the months that happened to carry a rate. Sizing the axis by the
+   * window rather than by what showed up is what lets a quiet stretch read as the gap it is,
+   * instead of being squeezed out next to its neighbours. `monthIndex` is used exactly as Apex
+   * sends it - it is already guaranteed to fall in [0, monthSpan) there, so clamping it here
+   * would only hide a future regression rather than surface it.
+   *
+   * `fill` is computed per point here, not read off a single component getter, because an LWC
+   * template cannot evaluate an expression: one getter cannot vary per iteration of a for:each,
+   * so each dot carries its own colour.
+   */
+  get geometry() {
+    const points = this.trend?.points || [];
+    if (!this.hasEnough) {
+      return null;
+    }
+    const span = Math.max(this.trend.monthSpan || points.length, 2);
+    const low = Math.min(...points.map((p) => p.minimum));
+    const high = Math.max(...points.map((p) => p.maximum));
+    const range = high - low || 1;
+
+    const plotW = VIEW_W - PAD_L - PAD_R;
+    const plotH = VIEW_H - PAD_T - PAD_B;
+    const x = (i) => PAD_L + (plotW * i) / (span - 1);
+    const y = (v) => PAD_T + plotH * (1 - (v - low) / range);
+
+    const dots = points.map((p) => ({
+      key: p.monthKey,
+      cx: x(p.monthIndex),
+      cy: y(p.median),
+      thin: p.thin === true ? "true" : "false",
+      fill: p.thin === true ? COLOR_DOT_HOLLOW : COLOR_LINE,
+      title: `${p.label}: median ${p.median} ${this.trend.currencyIsoCode}, ${p.count} rates`
+    }));
+
+    const line = points
+      .filter((p) => !p.thin)
+      .map((p) => `${x(p.monthIndex)},${y(p.median)}`)
+      .join(" ");
+
+    // The band shows spread, not trend, so - unlike the line above - it keeps every month,
+    // thin ones included: D5 withholds a thin month's authority over the trend line, not its
+    // evidence of that month's spread.
+    const top = points.map((p) => `${x(p.monthIndex)},${y(p.maximum)}`);
+    const bottom = points
+      .slice()
+      .reverse()
+      .map((p) => `${x(p.monthIndex)},${y(p.minimum)}`);
+    const band = top.concat(bottom).join(" ");
+
+    return {
+      viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
+      line,
+      band,
+      dots,
+      axis: points.map((p) => ({
+        key: p.monthKey,
+        x: x(p.monthIndex),
+        y: AXIS_LABEL_Y,
+        label: p.label
+      })),
+      gridY: [
+        {
+          key: "hi",
+          x: GRID_LABEL_X,
+          y: y(high),
+          label: String(Math.round(high))
+        },
+        {
+          key: "lo",
+          x: GRID_LABEL_X,
+          y: y(low),
+          label: String(Math.round(low))
+        }
+      ]
+    };
+  }
+
+  /** The same numbers as the chart, laid out for the visually-hidden table (spec 5). */
+  get tableRows() {
+    return (this.trend?.points || []).map((p) => ({
+      key: p.monthKey,
+      label: p.label,
+      count: p.count,
+      median: p.median,
+      minimum: p.minimum,
+      maximum: p.maximum
+    }));
+  }
+
+  get figureTitle() {
+    return `Lane trend, ${this.trend?.currencyIsoCode || ""}`;
   }
 }

@@ -223,4 +223,159 @@ describe("c-lane-trend-chart", () => {
       el.shadowRoot.querySelector('[data-id="lane-trend-card"]')
     ).toBeNull();
   });
+
+  // Fixture for the drawing tests below: three real months, the middle one thin (one quote).
+  // min <= median <= max on every point, including the thin one, so a coordinate mistake shows
+  // up as a wrong position rather than an off-canvas point that would fail for the wrong reason.
+  const threeMonthsOneThin = () =>
+    trend({
+      points: [
+        point({
+          monthKey: "2026-01",
+          label: "Jan",
+          monthIndex: 0,
+          count: 9,
+          median: 2000,
+          minimum: 1800,
+          maximum: 2900
+        }),
+        point({
+          monthKey: "2026-02",
+          label: "Feb",
+          monthIndex: 1,
+          count: 1,
+          median: 2600,
+          minimum: 2600,
+          maximum: 2600,
+          thin: true
+        }),
+        point({
+          monthKey: "2026-03",
+          label: "Mar",
+          monthIndex: 2,
+          count: 7,
+          median: 2200,
+          minimum: 1900,
+          maximum: 2600
+        })
+      ]
+    });
+
+  it("draws one dot per month, skips the thin month on the line, and gives it a distinct hollow fill", async () => {
+    const el = await open(threeMonthsOneThin());
+    const dots = [...el.shadowRoot.querySelectorAll('[data-id="trend-dot"]')];
+    expect(dots).toHaveLength(3);
+
+    const hollow = dots.filter((d) => d.getAttribute("data-thin") === "true");
+    const solid = dots.filter((d) => d.getAttribute("data-thin") === "false");
+    expect(hollow).toHaveLength(1);
+    expect(solid).toHaveLength(2);
+    expect(hollow[0].querySelector("title").textContent).toContain("Feb");
+
+    // Hollow must actually be a different, white-ish fill from a getter computed per point -
+    // not the same fill on every dot, which is the mistake an earlier draft made by binding a
+    // single component getter instead of a per-point value from the geometry getter.
+    const hollowFill = hollow[0].getAttribute("fill");
+    const solidFill = solid[0].getAttribute("fill");
+    expect(hollowFill).not.toBe(solidFill);
+    expect(hollowFill.toLowerCase()).toContain("fff");
+    expect(solid[1].getAttribute("fill")).toBe(solidFill);
+
+    // The line joins Jan to Mar directly: the month standing on one quote must not bend it.
+    const line = el.shadowRoot.querySelector('[data-id="trend-line"]');
+    expect(line.getAttribute("points").trim().split(/\s+/)).toHaveLength(2);
+  });
+
+  it("shades a min-max band that still includes the thin month's spread", async () => {
+    // D5 excludes a thin month from the trend line, not from the evidence, so the band - which
+    // shows spread, not trend - keeps all three months: a mistake that reused the line's filter
+    // would quietly shrink the band to two vertices per side instead of three.
+    const el = await open(threeMonthsOneThin());
+    const band = el.shadowRoot
+      .querySelector('[data-id="trend-band"]')
+      .getAttribute("points")
+      .trim()
+      .split(/\s+/);
+    expect(band).toHaveLength(6);
+  });
+
+  it("shows one table row per month with the same numbers as the chart", async () => {
+    const el = await open(trend());
+    const rows = el.shadowRoot.querySelectorAll('[data-id="trend-row"]');
+    expect(rows).toHaveLength(2);
+    const cells = (row) => [...row.children].map((td) => td.textContent);
+    expect(cells(rows[0])).toEqual(["Jan", "8", "2400", "2000", "2900"]);
+    expect(cells(rows[1])).toEqual(["Feb", "8", "2550", "2000", "2900"]);
+    expect(
+      el.shadowRoot.querySelector('[data-id="trend-table"]').className
+    ).toContain("slds-assistive-text");
+  });
+
+  it("keeps a thin month's row in the table even though its dot is hollow and off the line", async () => {
+    const el = await open(threeMonthsOneThin());
+    const rows = el.shadowRoot.querySelectorAll('[data-id="trend-row"]');
+    expect(rows).toHaveLength(3);
+    const cells = (row) => [...row.children].map((td) => td.textContent);
+    expect(cells(rows[1])).toEqual(["Feb", "1", "2600", "2600", "2600"]);
+  });
+
+  it("titles and describes the figure so it is not an unlabelled picture", async () => {
+    const el = await open(trend());
+    const svg = el.shadowRoot.querySelector("svg");
+    expect(svg.getAttribute("role")).toBe("img");
+
+    const title = el.shadowRoot.querySelector("svg title");
+    expect(title.textContent).toContain("Lane trend");
+    expect(title.id).toBeTruthy();
+    expect(svg.getAttribute("aria-labelledby")).toBe(title.id);
+
+    const desc = el.shadowRoot.querySelector("svg desc");
+    expect(desc).not.toBeNull();
+    expect(desc.textContent.trim().length).toBeGreaterThan(0);
+    expect(desc.id).toBeTruthy();
+    expect(svg.getAttribute("aria-describedby")).toBe(desc.id);
+    // The accessible description is the same sentence printed under the chart, not a second,
+    // independently-worded string that could drift from it.
+    expect(desc.textContent).toBe(
+      el.shadowRoot.querySelector('[data-id="trend-summary"]').textContent
+    );
+  });
+
+  it("gives the svg a viewBox so it scales without a resize listener", async () => {
+    const el = await open(trend());
+    const viewBox = el.shadowRoot.querySelector("svg").getAttribute("viewBox");
+    expect(viewBox).toMatch(/^0 0 \d+ \d+$/);
+    const [, , w, h] = viewBox.split(" ").map(Number);
+    expect(w).toBeGreaterThan(0);
+    expect(h).toBeGreaterThan(0);
+  });
+
+  it("spaces months across the window's whole span, not just the plotted months", async () => {
+    // monthIndex 0, 1 and 5 inside a 6-month span: the gap from index 1 to 5 must be four times
+    // the gap from 0 to 1. A mutation that positioned dots by array index instead of monthIndex
+    // would space all three evenly (ratio 1), and a mutation that sized the axis by
+    // points.length (3) instead of monthSpan (6) would push month 5 off the right edge of the
+    // viewBox - both are checked below.
+    const el = await open(
+      trend({
+        monthSpan: 6,
+        points: [
+          point({ monthKey: "2026-01", label: "Jan", monthIndex: 0 }),
+          point({ monthKey: "2026-02", label: "Feb", monthIndex: 1 }),
+          point({ monthKey: "2026-06", label: "Jun", monthIndex: 5 })
+        ]
+      })
+    );
+    const dots = [...el.shadowRoot.querySelectorAll('[data-id="trend-dot"]')];
+    const [cx0, cx1, cx5] = dots.map((d) => Number(d.getAttribute("cx")));
+    const smallGap = cx1 - cx0;
+    const bigGap = cx5 - cx1;
+    expect(Math.abs(bigGap - smallGap * 4)).toBeLessThan(0.01);
+
+    const viewBoxWidth = Number(
+      el.shadowRoot.querySelector("svg").getAttribute("viewBox").split(" ")[2]
+    );
+    expect(cx5).toBeLessThanOrEqual(viewBoxWidth);
+    expect(cx5).toBeGreaterThan(viewBoxWidth * 0.9);
+  });
 });

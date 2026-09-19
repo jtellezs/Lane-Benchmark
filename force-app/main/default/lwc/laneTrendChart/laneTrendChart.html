@@ -36,7 +36,92 @@
           </p>
         </template>
         <template lwc:elseif={hasEnough}>
-          <!-- Task 6 draws the chart here -->
+          <svg
+            role="img"
+            aria-labelledby="trend-title"
+            aria-describedby="trend-desc"
+            viewBox={geometry.viewBox}
+            class="trend-svg slds-m-bottom_x-small"
+          >
+            <title id="trend-title">{figureTitle}</title>
+            <desc id="trend-desc">{summary}</desc>
+            <polygon
+              data-id="trend-band"
+              points={geometry.band}
+              fill="var(--slds-g-color-palette-blue-90, #d8e6fe)"
+              stroke="none"
+            ></polygon>
+            <template for:each={geometry.gridY} for:item="g">
+              <text
+                key={g.key}
+                x={g.x}
+                y={g.y}
+                font-size="11"
+                fill="var(--slds-g-color-neutral-base-50, #747474)"
+              >
+                {g.label}
+              </text>
+            </template>
+            <polyline
+              data-id="trend-line"
+              points={geometry.line}
+              fill="none"
+              stroke="var(--slds-g-color-accent-base-50, #0176d3)"
+              stroke-width="2"
+            ></polyline>
+            <template for:each={geometry.dots} for:item="d">
+              <circle
+                key={d.key}
+                data-id="trend-dot"
+                data-thin={d.thin}
+                cx={d.cx}
+                cy={d.cy}
+                r="4"
+                stroke="var(--slds-g-color-accent-base-50, #0176d3)"
+                stroke-width="2"
+                fill={d.fill}
+              >
+                <title>{d.title}</title>
+              </circle>
+            </template>
+            <template for:each={geometry.axis} for:item="a">
+              <text
+                key={a.key}
+                x={a.x}
+                y={a.y}
+                font-size="11"
+                text-anchor="middle"
+                fill="var(--slds-g-color-neutral-base-50, #747474)"
+              >
+                {a.label}
+              </text>
+            </template>
+          </svg>
+          <table data-id="trend-table" class="slds-assistive-text">
+            <caption>
+              {figureTitle}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Month</th>
+                <th scope="col">Rates</th>
+                <th scope="col">Median</th>
+                <th scope="col">Lowest</th>
+                <th scope="col">Highest</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template for:each={tableRows} for:item="r">
+                <tr key={r.key} data-id="trend-row">
+                  <td>{r.label}</td>
+                  <td>{r.count}</td>
+                  <td>{r.median}</td>
+                  <td>{r.minimum}</td>
+                  <td>{r.maximum}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
           <p data-id="trend-summary" class="slds-text-body_regular">
             {summary}
           </p>
