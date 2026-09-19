@@ -30,4 +30,4 @@ A busy lane over a long window can hold more rows than the chart safely reads in
 
 ## Rates counted outside the window
 
-The search's own lookback counts a rate by the day it was created; the chart buckets each rate by the day it was quoted or the day it is valid from, which can be a different date. A rate can match your search and still fall outside the chart's chosen window by that date. Rather than drop it without saying so, the card counts how many rates this happened to and shows that count under the chart.
+The chart picks up rates by the day they were created, over the window you chose, then places each one on the axis by the day it was quoted or the day it is valid from — a different date. A rate created inside the window can still be dated, by that second date, into a month outside it. Rather than drop it without saying so, the card counts how many rates this happened to and shows that count under the chart.

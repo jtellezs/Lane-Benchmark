@@ -1,7 +1,7 @@
 ---
 title: Lire la tendance de la voie
 order: 45
-hint: Une ligne mensuelle du tarif médian de la voie, avec une bande du plus bas au plus haut et une fenêtre 6 mois/1 an/3 ans. Les points creux sont des mois avec moins de trois tarifs.
+hint: Une ligne mensuelle du tarif médian de la voie, avec une bande du plus bas au plus haut et une fenêtre 6 months/1 year/3 years. Les points creux sont des mois avec moins de trois tarifs.
 ---
 
 ## Sous les statistiques
@@ -30,4 +30,4 @@ Une voie très active sur une longue fenêtre peut contenir plus de lignes que l
 
 ## Des tarifs comptés hors de la fenêtre
 
-La période de votre recherche compte un tarif selon le jour où il a été créé; le graphique classe chaque tarif selon le jour de la cotation ou le jour à partir duquel il est valide, qui peut être une date différente. Un tarif peut correspondre à votre recherche et pourtant tomber, selon cette date, hors de la fenêtre choisie pour le graphique. Plutôt que de l'écarter sans le dire, l'encadré compte combien de tarifs ont eu ce sort et montre ce nombre sous le graphique.
+Le graphique retient les tarifs créés dans la fenêtre choisie, puis place chacun sur l'axe selon le jour de la cotation ou le jour à partir duquel il est valide — une date différente. Un tarif créé dans la fenêtre peut donc, selon cette seconde date, se retrouver daté dans un mois hors de la fenêtre. Plutôt que de l'écarter sans le dire, l'encadré compte combien de tarifs ont eu ce sort et montre ce nombre sous le graphique.
