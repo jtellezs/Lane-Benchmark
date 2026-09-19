@@ -378,4 +378,110 @@ describe("c-lane-trend-chart", () => {
     expect(cx5).toBeLessThanOrEqual(viewBoxWidth);
     expect(cx5).toBeGreaterThan(viewBoxWidth * 0.9);
   });
+
+  // Ruling 24: every test above reads the x dimension only. These two read y.
+
+  it("plots a higher median with a smaller cy, because SVG y grows downward", async () => {
+    // Dropping the "1 -" in the y() formula would invert the chart: a rising market would draw
+    // as a falling line, and nothing above this test would notice, since none of it reads cy.
+    const el = await open(
+      trend({
+        points: [
+          point({
+            monthKey: "2026-01",
+            label: "Jan",
+            monthIndex: 0,
+            median: 2000,
+            minimum: 1800,
+            maximum: 2200
+          }),
+          point({
+            monthKey: "2026-02",
+            label: "Feb",
+            monthIndex: 1,
+            median: 2800,
+            minimum: 2600,
+            maximum: 3000
+          })
+        ]
+      })
+    );
+    const dots = [...el.shadowRoot.querySelectorAll('[data-id="trend-dot"]')];
+    const cyJan = Number(dots[0].getAttribute("cy"));
+    const cyFeb = Number(dots[1].getAttribute("cy"));
+    expect(cyFeb).toBeLessThan(cyJan);
+  });
+
+  it("orders the band as each month's maximum going forward then each month's minimum coming back, not a bowtie", async () => {
+    // The earlier band-vertex-count test only counts vertices (six), which a self-intersecting
+    // polygon still has if .reverse() is dropped from `bottom`. This checks their order instead:
+    // the vertex x-coordinates must trace right across the maxima, then back left across the
+    // minima - the same x-coordinates the dots already sit at, since both use x(p.monthIndex).
+    const el = await open(threeMonthsOneThin());
+    const dotX = [
+      ...el.shadowRoot.querySelectorAll('[data-id="trend-dot"]')
+    ].map((d) => Number(d.getAttribute("cx")));
+    const bandX = el.shadowRoot
+      .querySelector('[data-id="trend-band"]')
+      .getAttribute("points")
+      .trim()
+      .split(/\s+/)
+      .map((pair) => Number(pair.split(",")[0]));
+    expect(bandX).toEqual([
+      dotX[0],
+      dotX[1],
+      dotX[2],
+      dotX[2],
+      dotX[1],
+      dotX[0]
+    ]);
+  });
+
+  // Ruling 25: monthSpan is an Apex contract, not a value to paper over.
+
+  it("falls through to the empty state rather than drawing a misleading chart when monthSpan is missing or zero", async () => {
+    // A `|| points.length` fallback would let this quietly draw a chart sized by array position
+    // instead of the window - a chart that looks right but is not sized by monthSpan, which is
+    // the specific wrongness Ruling 11's monthIndex contract exists to prevent. Two sequential
+    // scenarios rather than a loop, so as not to await inside one.
+    const withMissingSpan = await open(trend({ monthSpan: null }));
+    expect(withMissingSpan.shadowRoot.querySelector("svg")).toBeNull();
+    expect(
+      withMissingSpan.shadowRoot.querySelector('[data-id="trend-empty"]')
+    ).not.toBeNull();
+
+    const withZeroSpan = await open(trend({ monthSpan: 0 }));
+    expect(withZeroSpan.shadowRoot.querySelector("svg")).toBeNull();
+    expect(
+      withZeroSpan.shadowRoot.querySelector('[data-id="trend-empty"]')
+    ).not.toBeNull();
+  });
+
+  it("still draws real coordinates when the window spans exactly one month", async () => {
+    // monthSpan === 1 is a legitimate one-month window, not a contract violation - the
+    // Math.max(monthSpan, 2) floor exists only so (span - 1) is never zero. Checking only that
+    // an <svg> exists would not catch that floor being "simplified" away later: the element
+    // would still render even with NaN coordinates, so this checks the coordinates themselves.
+    const el = await open(
+      trend({
+        monthSpan: 1,
+        points: [
+          point({ monthKey: "2026-01", label: "Jan", monthIndex: 0 }),
+          point({
+            monthKey: "2026-01b",
+            label: "Jan",
+            monthIndex: 0,
+            median: 2600
+          })
+        ]
+      })
+    );
+    expect(el.shadowRoot.querySelector("svg")).not.toBeNull();
+    const dots = [...el.shadowRoot.querySelectorAll('[data-id="trend-dot"]')];
+    expect(dots).toHaveLength(2);
+    dots.forEach((d) => {
+      expect(Number.isFinite(Number(d.getAttribute("cx")))).toBe(true);
+      expect(Number.isFinite(Number(d.getAttribute("cy")))).toBe(true);
+    });
+  });
 });

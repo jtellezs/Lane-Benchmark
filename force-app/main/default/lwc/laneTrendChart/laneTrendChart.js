@@ -131,6 +131,22 @@ export default class LaneTrendChart extends LightningElement {
     return this.solidPoints.length >= 2;
   }
 
+  /**
+   * Ruling 25: every point's monthIndex is only meaningful against a positive monthSpan - a
+   * falsy or non-positive monthSpan is an Apex contract violation, not a case to paper over by
+   * falling back to points.length. A points.length fallback would silently downgrade the axis
+   * to array-index spacing: a chart that looks right but is not sized by the window, which is
+   * exactly the quiet-wrongness Ruling 11's reasoning exists to rule out.
+   */
+  get hasValidSpan() {
+    return this.trend?.monthSpan > 0;
+  }
+
+  /** What the template gates the chart on: D5's count rule and Ruling 25's span contract. */
+  get canDraw() {
+    return this.hasEnough && this.hasValidSpan;
+  }
+
   get isTruncated() {
     return this.trend?.truncated === true;
   }
@@ -184,13 +200,18 @@ export default class LaneTrendChart extends LightningElement {
    * `fill` is computed per point here, not read off a single component getter, because an LWC
    * template cannot evaluate an expression: one getter cannot vary per iteration of a for:each,
    * so each dot carries its own colour.
+   *
+   * No `|| points.length` fallback on monthSpan (Ruling 25): `canDraw` has already ruled out a
+   * falsy or non-positive monthSpan, so by the time this runs monthSpan is trustworthy. The
+   * `Math.max(monthSpan, 2)` floor is not that fallback - it exists only so a legitimate
+   * one-month window (monthSpan === 1) does not divide by zero on (span - 1) below.
    */
   get geometry() {
     const points = this.trend?.points || [];
-    if (!this.hasEnough) {
+    if (!this.canDraw) {
       return null;
     }
-    const span = Math.max(this.trend.monthSpan || points.length, 2);
+    const span = Math.max(this.trend.monthSpan, 2);
     const low = Math.min(...points.map((p) => p.minimum));
     const high = Math.max(...points.map((p) => p.maximum));
     const range = high - low || 1;
