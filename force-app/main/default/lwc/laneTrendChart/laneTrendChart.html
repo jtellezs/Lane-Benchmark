@@ -1,0 +1,78 @@
+<template>
+  <template lwc:if={hasLane}>
+    <article class="slds-card slds-m-bottom_small" data-id="lane-trend-card">
+      <div class="slds-card__header slds-grid">
+        <header class="slds-media slds-media_center slds-has-flexi-truncate">
+          <div class="slds-media__body">
+            <h2 class="slds-card__header-title slds-text-heading_small">
+              Lane trend
+            </h2>
+          </div>
+        </header>
+        <div class="slds-no-flex">
+          <template for:each={windows} for:item="w">
+            <button
+              key={w.key}
+              data-id={w.dataId}
+              data-window={w.key}
+              class={w.buttonClass}
+              aria-pressed={w.ariaPressed}
+              onclick={handleWindow}
+            >
+              {w.label}
+            </button>
+          </template>
+        </div>
+      </div>
+      <div class="slds-card__body slds-card__body_inner">
+        <template lwc:if={loading}>
+          <p data-id="trend-loading" class="slds-text-color_weak">
+            Loading the trend…
+          </p>
+        </template>
+        <template lwc:elseif={error}>
+          <p data-id="trend-error" role="alert" class="slds-text-color_error">
+            {error}
+          </p>
+        </template>
+        <template lwc:elseif={hasEnough}>
+          <!-- Task 6 draws the chart here -->
+          <p data-id="trend-summary" class="slds-text-body_regular">
+            {summary}
+          </p>
+          <template lwc:if={isTruncated}>
+            <p
+              data-id="trend-truncated"
+              class="slds-text-color_weak slds-text-body_small"
+            >
+              The trend may be incomplete. Narrow the window to see all of it.
+            </p>
+          </template>
+          <template lwc:if={hasOutsideWindow}>
+            <p
+              data-id="trend-outside-window"
+              class="slds-text-color_weak slds-text-body_small"
+            >
+              {outsideWindowCount} rates fall outside this window and are not
+              shown.
+            </p>
+          </template>
+        </template>
+        <template lwc:else>
+          <p data-id="trend-empty" class="slds-text-color_weak">
+            There is not enough history on this lane to show a trend yet.
+          </p>
+          <template lwc:if={hasOutsideWindow}>
+            <p
+              data-id="trend-outside-window"
+              class="slds-text-color_weak slds-text-body_small"
+            >
+              {outsideWindowCount} rates fall outside this window and are not
+              shown.
+            </p>
+          </template>
+        </template>
+      </div>
+    </article>
+  </template>
+</template>
