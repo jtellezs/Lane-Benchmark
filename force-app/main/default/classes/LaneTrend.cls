@@ -19,7 +19,13 @@ public class LaneTrend {
   public Boolean truncated = false;
   /** Ruling 11: rows that matched the search's own WHERE but bucket outside this window - dated by
    * Quote_Date__c/Valid_From__c, not by the CreatedDate the WHERE filtered on - dropped rather than
-   * clamped onto the axis, and counted here so the page can say so. */
+   * clamped onto the axis, and counted here so the page can say so.
+   *
+   * Ruling 19: rows of currencyIsoCode only - the currency actually plotted - so this and the points
+   * describe one population. A lane can hold old rows in a currency that lost the choice below, and
+   * counting those here would have the caption describe a chart that was never drawn. The one case
+   * where this counts every currency is when no currency could be chosen at all, because then
+   * nothing is plotted and there is no chart for the count to disagree with. */
   @AuraEnabled
   public Integer outsideWindow = 0;
   @AuraEnabled

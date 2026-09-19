@@ -81,94 +81,19 @@ public without sharing class LaneTrendService {
     }
     samples.addAll(readBidSamples(req, places, cap));
 
-    List<Sample> kept = dropOutsideWindow(trend, samples, windowStartMonth);
-    List<Sample> oneCurrency = selectCurrency(trend, kept);
-    trend.points = bucket(oneCurrency, windowStartMonth);
-    LaneTrendSummary.summarise(trend, oneCurrency);
+    // Ruling 19: one call, because Rulings 11 (drop what falls outside the window, and count it)
+    // and 14 (never blend two currencies on one axis) have exactly one correct order and composing
+    // them by hand here is what got that order wrong. LaneTrendScope partitions by window, chooses
+    // the currency from what is actually plottable, and counts only that currency's out-of-window
+    // rows - so trend.outsideWindow and the points below always describe the same population.
+    List<Sample> plotted = LaneTrendScope.narrow(
+      trend,
+      samples,
+      windowStartMonth
+    );
+    trend.points = bucket(plotted, windowStartMonth);
+    LaneTrendSummary.summarise(trend, plotted);
     return trend;
-  }
-
-  /**
-   * D6/Ruling 14: never mix currencies, and say which one was plotted. req.currencyIsoCode already
-   * narrows both queries' own WHERE when it is set, so this is a no-op filter in that case; when it
-   * is blank (both currencies allowed through), it picks the currency with the most usable samples,
-   * keeps only those, and records the choice on trend.currencyIsoCode - the field the component
-   * already displays - rather than merging CAD and USD into one meaningless median.
-   */
-  private static List<Sample> selectCurrency(
-    LaneTrend trend,
-    List<Sample> samples
-  ) {
-    if (String.isBlank(trend.currencyIsoCode)) {
-      trend.currencyIsoCode = majorityCurrency(samples);
-    }
-    return samplesInCurrency(samples, trend.currencyIsoCode);
-  }
-
-  private static String majorityCurrency(List<Sample> samples) {
-    Map<String, Integer> counts = new Map<String, Integer>();
-    for (Sample s : samples) {
-      if (!LaneTrendSummary.isUsable(s)) {
-        continue;
-      }
-      counts.put(s.currencyIsoCode, (counts.get(s.currencyIsoCode) ?? 0) + 1);
-    }
-    String best = null;
-    Integer bestCount = 0;
-    for (String code : counts.keySet()) {
-      Integer count = counts.get(code);
-      if (count > bestCount) {
-        best = code;
-        bestCount = count;
-      }
-    }
-    return best;
-  }
-
-  // "currency" is a reserved Apex identifier (compiler: "Identifier name is reserved: currency");
-  // parameter renamed to currencyCode, matching req.currencyIsoCode's own naming.
-  private static List<Sample> samplesInCurrency(
-    List<Sample> samples,
-    String currencyCode
-  ) {
-    List<Sample> matching = new List<Sample>();
-    for (Sample s : samples) {
-      if (currencyCode == s.currencyIsoCode) {
-        matching.add(s);
-      }
-    }
-    return matching;
-  }
-
-  /**
-   * Ruling 11: the WHERE clause borrowed from the search (D2) filters on CreatedDate, but each
-   * sample is bucketed on a different date - Quote_Date__c or Valid_From__c - so a row can match
-   * the search and still fall outside the chart's own window. Dropped here rather than clamped onto
-   * the axis, so monthSpan keeps meaning exactly the window the pricer picked; counted on the trend
-   * so the page can say so, the way truncated already does. summarise() then runs on what is
-   * returned here, not on samples, so totalRates/overallMedian describe exactly what is plotted.
-   */
-  private static List<Sample> dropOutsideWindow(
-    LaneTrend trend,
-    List<Sample> samples,
-    Date windowStartMonth
-  ) {
-    Date today = Date.today();
-    List<Sample> kept = new List<Sample>();
-    Integer dropped = 0;
-    for (Sample s : samples) {
-      Boolean isOutsideWindow =
-        s?.sampleDate != null &&
-        (s.sampleDate < windowStartMonth ||
-        s.sampleDate > today);
-      if (isOutsideWindow) {
-        dropped++;
-      } else {
-        kept.add(s);
-      }
-    }
-    trend.outsideWindow = dropped;
-    return kept;
   }
 
   private static Integer countQuotes(

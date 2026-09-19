@@ -567,22 +567,31 @@ private class LaneTrendServiceTest {
       destination
     );
     List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
-    bids.addAll(threeBidsOn(lane, Date.today().addMonths(-2), 1000));
-    bids.addAll(threeBidsOn(lane, Date.today().addMonths(-1), 1100));
-    bids.addAll(threeBidsOn(lane, Date.today(), 1300));
+    bids.addAll(threeBidsOn(lane, Date.today().addMonths(-2), 1000, 'CAD'));
+    bids.addAll(threeBidsOn(lane, Date.today().addMonths(-1), 1100, 'CAD'));
+    bids.addAll(threeBidsOn(lane, Date.today(), 1300, 'CAD'));
     insert bids;
     return f;
   }
 
+  /**
+   * Three bids dated the same day, in one currency. currencyCode is a parameter rather than a
+   * second overload because Ruling 19's and Ruling 20's fixtures both need a non-CAD group, and an
+   * overload's own method body would have cost this test class a cyclomatic-complexity point it
+   * does not have (35 of PMD's 39-point ceiling before this round). "currency" is a reserved Apex
+   * identifier, hence currencyCode - see LaneTrendScope.samplesInCurrency.
+   */
   private static List<Benchmark_Rate__c> threeBidsOn(
     RFP_Lane__c lane,
     Date validFrom,
-    Decimal rate
+    Decimal rate,
+    String currencyCode
   ) {
     List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
     for (Integer i = 0; i < 3; i++) {
       Benchmark_Rate__c bid = RfpTestDataFactory.buildBid(lane, rate);
       bid.Valid_From__c = validFrom;
+      bid.CurrencyIsoCode = currencyCode;
       bids.add(bid);
     }
     return bids;
@@ -625,8 +634,94 @@ private class LaneTrendServiceTest {
       destination
     );
     List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
-    bids.addAll(threeBidsOn(lane, Date.today().addDays(-400), 1000));
-    bids.addAll(threeBidsOn(lane, Date.today(), 2000));
+    bids.addAll(threeBidsOn(lane, Date.today().addDays(-400), 1000, 'CAD'));
+    bids.addAll(threeBidsOn(lane, Date.today(), 2000, 'CAD'));
+    insert bids;
+    return f;
+  }
+
+  /**
+   * Ruling 19's fixture, and the shape neither of the two fixtures it composes could produce alone:
+   * it varies the window and the currency at the same time. Six USD bids sit far outside the window
+   * (400 and 500 days back, the construction withABidOutsideTheWindow() already relies on) and three
+   * CAD bids sit inside it.
+   *
+   * USD deliberately outnumbers CAD six to three across the merged list, so the fixture is a
+   * two-way discriminator rather than a one-way one:
+   * - drop-then-choose (the defect) charts CAD - correctly - but counts all six USD drops on
+   *   trend.outsideWindow, so the caption describes a currency the chart never drew;
+   * - choose-then-drop (the tempting "just swap the two steps" fix) lets USD win the majority
+   *   contest on six rows that are all about to be discarded, and the chart comes back empty.
+   * Only partition-first-then-choose gives CAD, three plotted rates and an outsideWindow of zero.
+   */
+  private static LaneTrendFixture withOldUsdAndNewCadBids() {
+    Pricing_Place__c origin = RfpTestDataFactory.createPlace(
+      'Thunder Bay',
+      'ON',
+      'CA',
+      48.3809,
+      -89.2477,
+      'P7A'
+    );
+    Pricing_Place__c destination = RfpTestDataFactory.createPlace(
+      'Sudbury',
+      'ON',
+      'CA',
+      46.4917,
+      -80.993,
+      'P3E'
+    );
+    LaneTrendFixture f = forPlaces(origin, destination);
+
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RFP_Project__c project = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      project,
+      origin,
+      destination
+    );
+    List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
+    bids.addAll(threeBidsOn(lane, Date.today().addDays(-400), 5000, 'USD'));
+    bids.addAll(threeBidsOn(lane, Date.today().addDays(-500), 5000, 'USD'));
+    bids.addAll(threeBidsOn(lane, Date.today(), 1000, 'CAD'));
+    insert bids;
+    return f;
+  }
+
+  /**
+   * Ruling 20's fixture: an exact tie - three usable CAD bids and three usable USD bids, all inside
+   * the window, all on the same day. Which currency wins is arbitrary; that the same one wins every
+   * run is not, and nothing in the majority count itself can break this tie.
+   */
+  private static LaneTrendFixture withATieBetweenTwoCurrencies() {
+    Pricing_Place__c origin = RfpTestDataFactory.createPlace(
+      'Lethbridge',
+      'AB',
+      'CA',
+      49.6956,
+      -112.8451,
+      'T1J'
+    );
+    Pricing_Place__c destination = RfpTestDataFactory.createPlace(
+      'Medicine Hat',
+      'AB',
+      'CA',
+      50.0405,
+      -110.6764,
+      'T1A'
+    );
+    LaneTrendFixture f = forPlaces(origin, destination);
+
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RFP_Project__c project = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      project,
+      origin,
+      destination
+    );
+    List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
+    bids.addAll(threeBidsOn(lane, Date.today(), 1000, 'CAD'));
+    bids.addAll(threeBidsOn(lane, Date.today(), 7000, 'USD'));
     insert bids;
     return f;
   }
@@ -1010,6 +1105,82 @@ private class LaneTrendServiceTest {
       trend.outsideWindow,
       'the three rows the LIMIT actually kept must be the in-window ones, not the out-of-window ' +
       'ones ASC would have kept instead'
+    );
+  }
+
+  /**
+   * Ruling 19: Rulings 11 and 14 have to compose in one order, and this is the fixture that can tell
+   * which order ran - it varies the window and the currency at the same time, which is why the two
+   * one-axis tests above it (withOldAndNewBidsBeyondTheCap varies the window only,
+   * withQuotesInBothCurrencies the currency only) both missed this.
+   *
+   * Six USD bids fall outside the window; three CAD bids fall inside it. CAD is the only currency
+   * with anything plottable, so the chart is CAD and not one charted row was dropped for window
+   * reasons - outsideWindow must read 0. Pre-fix it read 6, because dropOutsideWindow ran before
+   * selectCurrency and counted across every currency: the caption under the chart described six USD
+   * rows the chart never drew, which is the exact defect Ruling 11 exists to prevent, one field over.
+   */
+  @IsTest
+  static void outsideWindowCountsOnlyTheChartedCurrencysDroppedRows() {
+    LaneTrendFixture f = withOldUsdAndNewCadBids();
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(f.request());
+    Test.stopTest();
+
+    System.assertEquals(
+      'CAD',
+      trend.currencyIsoCode,
+      'CAD is the only currency with rows inside the window, so it is the only one that can be ' +
+        'plotted - choosing the currency before partitioning would hand the chart to USD on six ' +
+        'rows that are all about to be discarded'
+    );
+    System.assertEquals(
+      0,
+      trend.outsideWindow,
+      'none of the three charted CAD rows was dropped for window reasons, so the caption must not ' +
+        'claim any were - pre-fix this read 6, counting out-of-window rows of a currency that was ' +
+        'never charted'
+    );
+    System.assertEquals(
+      3,
+      trend.totalRates,
+      'the three in-window CAD bids are what is plotted, and the summary must describe exactly them'
+    );
+  }
+
+  /**
+   * Ruling 20: three usable CAD samples against three usable USD samples is an exact tie, and
+   * nothing in the counts themselves can break it. Unsorted, the winner is the first key the count
+   * map yields - Apex's Map<String, Integer> was observed to iterate in insertion order, i.e. the
+   * order the rows came back from SOQL, and rows tied on the ORDER BY key have no guaranteed order -
+   * so the same lane could render as CAD one run and USD the next. The tie-break is deliberately
+   * alphabetical: which currency wins is arbitrary, that the same one wins every time is not, and
+   * the chart states the currency it plotted so a stable arbitrary pick misleads nobody.
+   *
+   * Honest about its own strength: this passed against the pre-fix code too (CAD happened to come
+   * back first), so it is not a demonstrated red. What it does catch deterministically is a
+   * tie-break that resolves the other way - > relaxed to >= over the sorted codes picks USD, and
+   * this fails.
+   */
+  @IsTest
+  static void aTieBetweenCurrenciesPicksTheAlphabeticallyFirst() {
+    LaneTrendFixture f = withATieBetweenTwoCurrencies();
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(f.request());
+    Test.stopTest();
+
+    System.assertEquals(
+      'CAD',
+      trend.currencyIsoCode,
+      'CAD and USD hold three usable samples each: the tie must resolve alphabetically rather than ' +
+      'by whatever order the count map happens to iterate in'
+    );
+    System.assertEquals(
+      3,
+      trend.totalRates,
+      'one currency only - six rates here would mean CAD and USD had been blended onto one axis'
     );
   }
 }
