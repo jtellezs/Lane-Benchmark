@@ -8,6 +8,27 @@ private class LaneTrendServiceTest {
     return new LaneTrendService.Sample(Date.valueOf(isoDate), amount);
   }
 
+  /** Independent of LaneTrendService.MONTH_LABELS (private there) so a test computing an expected
+   * label is not just re-reading production's own constant back at itself. */
+  private static final List<String> MONTH_LABELS = new List<String>{
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec'
+  };
+
+  private static String monthLabel(Date d) {
+    return MONTH_LABELS[d.month() - 1];
+  }
+
   @IsTest
   static void bucketsByCalendarMonthAndComputesMedianMinMax() {
     List<LaneTrendService.Sample> samples = new List<LaneTrendService.Sample>{
@@ -511,6 +532,106 @@ private class LaneTrendServiceTest {
   }
 
   /**
+   * Reviewer finding (Important 3): every other fixture puts all its rates in one calendar month
+   * (a quote's Quote_Date__c defaults to DATEVALUE(CreatedDate) = today; RfpTestDataFactory.buildBid
+   * sets Valid_From__c = today), so summarise()'s two-or-more-solid-months half never runs in any of
+   * them - solid.size() < 2 returns early every time. Three bids per month (never fewer than
+   * THIN_COUNT, so none is thin) two calendar months apart, anchored on Date.today().addMonths()
+   * rather than a fixed day offset so this is correct on every day of the year, not just the day it
+   * was written.
+   */
+  private static LaneTrendFixture withBidsAcrossThreeMonths() {
+    Pricing_Place__c origin = RfpTestDataFactory.createPlace(
+      'Nanaimo',
+      'BC',
+      'CA',
+      49.1659,
+      -123.9401,
+      'V9R'
+    );
+    Pricing_Place__c destination = RfpTestDataFactory.createPlace(
+      'Victoria',
+      'BC',
+      'CA',
+      48.4284,
+      -123.3656,
+      'V8W'
+    );
+    LaneTrendFixture f = forPlaces(origin, destination);
+
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RFP_Project__c project = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      project,
+      origin,
+      destination
+    );
+    List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
+    bids.addAll(threeBidsOn(lane, Date.today().addMonths(-2), 1000));
+    bids.addAll(threeBidsOn(lane, Date.today().addMonths(-1), 1100));
+    bids.addAll(threeBidsOn(lane, Date.today(), 1300));
+    insert bids;
+    return f;
+  }
+
+  private static List<Benchmark_Rate__c> threeBidsOn(
+    RFP_Lane__c lane,
+    Date validFrom,
+    Decimal rate
+  ) {
+    List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
+    for (Integer i = 0; i < 3; i++) {
+      Benchmark_Rate__c bid = RfpTestDataFactory.buildBid(lane, rate);
+      bid.Valid_From__c = validFrom;
+      bids.add(bid);
+    }
+    return bids;
+  }
+
+  /**
+   * Ruling 13's fixture: three bids well outside the window (Valid_From__c 400 days back, the same
+   * construction withABidOutsideTheWindow() uses) and three inside it (Valid_From__c today), with a
+   * cap of 3 - enough to admit exactly one group's rows, not both. DESC keeps the newest (in-window)
+   * three; ASC would keep the oldest (out-of-window) three instead, which Ruling 11 then drops
+   * entirely - the two-way discriminator Ruling 13's own test needs. Both groups satisfy the bid
+   * WHERE's own validity check regardless of Valid_From__c, because buildBid's default
+   * Expires_On__c (today + 30) is independent of it - the same fact withABidOutsideTheWindow()
+   * already relies on.
+   */
+  private static LaneTrendFixture withOldAndNewBidsBeyondTheCap() {
+    Pricing_Place__c origin = RfpTestDataFactory.createPlace(
+      'Prince George',
+      'BC',
+      'CA',
+      53.9171,
+      -122.7497,
+      'V2L'
+    );
+    Pricing_Place__c destination = RfpTestDataFactory.createPlace(
+      'Fort St John',
+      'BC',
+      'CA',
+      56.2499,
+      -120.8529,
+      'V1J'
+    );
+    LaneTrendFixture f = forPlaces(origin, destination);
+
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
+    RFP_Project__c project = RfpTestDataFactory.createProject(g.customer);
+    RFP_Lane__c lane = RfpTestDataFactory.createLane(
+      project,
+      origin,
+      destination
+    );
+    List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
+    bids.addAll(threeBidsOn(lane, Date.today().addDays(-400), 1000));
+    bids.addAll(threeBidsOn(lane, Date.today(), 2000));
+    insert bids;
+    return f;
+  }
+
+  /**
    * D7, and the test that makes it real rather than asserted: a lane whose only rates are
    * market-test plots them under Include and plots nothing under Exclude. Without this, the chart
    * and the median printed directly above it can describe different row sets.
@@ -559,6 +680,13 @@ private class LaneTrendServiceTest {
       !trend.points.isEmpty(),
       'a drawn-and-flagged chart beats a refused one'
     );
+    System.assertEquals(
+      2,
+      trend.totalRates,
+      'the read itself must be bound by the override (cap), not ROW_CAP - otherwise this test would ' +
+        'still pass while the read quietly pulled all 5 rows and risked the very LimitException the ' +
+        'guard exists to avoid'
+    );
   }
 
   /**
@@ -592,6 +720,59 @@ private class LaneTrendServiceTest {
       f.quoteCount + f.bidCount,
       trend.totalRates,
       'every row from both sides made it into the chart, confirming nothing was truncated'
+    );
+  }
+
+  /**
+   * Reviewer finding (Important 1): >= at the truncated line survives every existing test, because
+   * none of them puts a side's own count exactly AT the cap. A LIMIT of N returns every one of
+   * exactly N matching rows - nothing is dropped - so a count equal to the cap must not warn.
+   * quoteCount (4) == rowCapOverride (4) here pins that exact boundary.
+   */
+  @IsTest
+  static void truncatedStaysFalseWhenASideExactlyMeetsTheCap() {
+    LaneTrendFixture f = withQuotesAndBids();
+    LaneTrendService.rowCapOverride = f.quoteCount;
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(f.request());
+    Test.stopTest();
+
+    System.assertEquals(
+      false,
+      trend.truncated,
+      'quoteRows (' +
+        f.quoteCount +
+        ') is exactly the cap (' +
+        f.quoteCount +
+        '), so its own LIMIT returned every matching row - a >= here would wrongly warn'
+    );
+  }
+
+  /**
+   * Reviewer finding (Important 2): the oversized-window test above is quotes-only, and the
+   * combined-total test keeps both sides under their cap, so `|| bidRows > cap` is never actually
+   * exercised - deleting it outright leaves every existing test green. sourceFilter = BIDS closes
+   * the quote gate (quoteRows forced to 0), isolating the bid half of the formula.
+   */
+  @IsTest
+  static void truncatedFiresWhenOnlyTheBidSideExceedsItsOwnCap() {
+    LaneTrendFixture f = withQuotesAndBids();
+    LaneSearchRequest req = f.request();
+    req.sourceFilter = LaneSearchRequest.RowSource.BIDS;
+    LaneTrendService.rowCapOverride = 2;
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(req);
+    Test.stopTest();
+
+    System.assertEquals(
+      true,
+      trend.truncated,
+      'bidRows (' +
+        f.bidCount +
+        ') exceeds the cap (2) with the quote side gated off entirely - only the bid half of the ' +
+        'formula could have caught this'
     );
   }
 
@@ -723,6 +904,112 @@ private class LaneTrendServiceTest {
     System.assert(
       trend.points.isEmpty(),
       'nothing left to plot once the only row is outside the window'
+    );
+    System.assert(
+      trend.overallMedian == null,
+      'pre-fix this read 1000 (the dropped bid\'s own rate) - summarise must run on the kept ' +
+        'samples only, not the merged list Ruling 11 drops from: ' +
+        trend.overallMedian
+    );
+  }
+
+  /**
+   * Reviewer finding (Important 3): summarise()'s summary half - changePct, firstLabel, lastLabel,
+   * overallMedian - has never run in any prior test, because every prior fixture puts all its rates
+   * in one calendar month. Three months of rising rates pins the direction (and, incidentally, the
+   * exact setScale(1) value): swap earliest and latest inside summarise and this flips sign and
+   * fails.
+   */
+  @IsTest
+  static void summariseComputesLabelsAndTheSignOfChangeAcrossMonths() {
+    LaneTrendFixture f = withBidsAcrossThreeMonths();
+    String expectedFirstLabel = monthLabel(Date.today().addMonths(-2));
+    String expectedLastLabel = monthLabel(Date.today());
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(f.request());
+    Test.stopTest();
+
+    System.assertEquals(
+      expectedFirstLabel,
+      trend.firstLabel,
+      'the earliest of the three solid months'
+    );
+    System.assertEquals(
+      expectedLastLabel,
+      trend.lastLabel,
+      'the latest of the three solid months'
+    );
+    System.assert(
+      trend.changePct == 30.0,
+      'rates rose from a median of 1000 (earliest month) to 1300 (latest): (1300-1000)/1000*100 = ' +
+        '30.0 - a swapped earliest/latest would read -23.1 instead: ' +
+        trend.changePct
+    );
+    System.assert(
+      trend.overallMedian == 1100,
+      'nine rates (1000 x3, 1100 x3, 1300 x3): the middle value is 1100: ' +
+      trend.overallMedian
+    );
+  }
+
+  /**
+   * Ruling 14: a blank request currency lets both CAD and USD through the query, and D6 forbids
+   * plotting both on one axis. The chart must pick one - the currency with the more usable samples -
+   * and say which on trend.currencyIsoCode rather than blending them into one meaningless median.
+   */
+  @IsTest
+  static void blankCurrencyPicksTheOneWithMoreUsableSamples() {
+    LaneTrendFixture f = withQuotesInBothCurrencies();
+    LaneSearchRequest req = f.request();
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(req);
+    Test.stopTest();
+
+    System.assertEquals(
+      'CAD',
+      trend.currencyIsoCode,
+      'CAD has ' +
+        f.cadQuoteCount +
+        ' usable samples against USD\'s 1 - the chart must say which currency it chose'
+    );
+    System.assertEquals(
+      f.cadQuoteCount,
+      trend.totalRates,
+      'only the chosen currency\'s rows are plotted - the USD row must not leak into this median'
+    );
+  }
+
+  /**
+   * Ruling 13: DESC, not ASC. Three bids sit 400 days outside the window and three sit inside it;
+   * rowCapOverride admits only one group's worth of rows. Under DESC (correct) the LIMIT keeps the
+   * newest three - all in-window - so the chart still has points and nothing was dropped. Under ASC
+   * (the reverted bug, checked by hand against this exact test before this method was trusted) the
+   * LIMIT keeps the oldest three - all out-of-window - and Ruling 11 drops every one of them, so a
+   * busy, truncated lane would go quiet on its most recent months while the page only says "may be
+   * incomplete."
+   */
+  @IsTest
+  static void orderingKeepsTheNewestRowsWithinTheCap() {
+    LaneTrendFixture f = withOldAndNewBidsBeyondTheCap();
+    LaneTrendService.rowCapOverride = 3;
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(f.request());
+    Test.stopTest();
+
+    System.assert(
+      !trend.points.isEmpty(),
+      'ASC ordering would let the LIMIT keep the three oldest (out-of-window) bids instead of the ' +
+        'three newest, emptying the chart of its most recent month entirely - outsideWindow was ' +
+        trend.outsideWindow
+    );
+    System.assertEquals(
+      0,
+      trend.outsideWindow,
+      'the three rows the LIMIT actually kept must be the in-window ones, not the out-of-window ' +
+      'ones ASC would have kept instead'
     );
   }
 }

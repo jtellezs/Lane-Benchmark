@@ -82,9 +82,62 @@ public without sharing class LaneTrendService {
     samples.addAll(readBidSamples(req, places, cap));
 
     List<Sample> kept = dropOutsideWindow(trend, samples, windowStartMonth);
-    trend.points = bucket(kept, windowStartMonth);
-    summarise(trend, kept);
+    List<Sample> oneCurrency = selectCurrency(trend, kept);
+    trend.points = bucket(oneCurrency, windowStartMonth);
+    LaneTrendSummary.summarise(trend, oneCurrency);
     return trend;
+  }
+
+  /**
+   * D6/Ruling 14: never mix currencies, and say which one was plotted. req.currencyIsoCode already
+   * narrows both queries' own WHERE when it is set, so this is a no-op filter in that case; when it
+   * is blank (both currencies allowed through), it picks the currency with the most usable samples,
+   * keeps only those, and records the choice on trend.currencyIsoCode - the field the component
+   * already displays - rather than merging CAD and USD into one meaningless median.
+   */
+  private static List<Sample> selectCurrency(
+    LaneTrend trend,
+    List<Sample> samples
+  ) {
+    if (String.isBlank(trend.currencyIsoCode)) {
+      trend.currencyIsoCode = majorityCurrency(samples);
+    }
+    return samplesInCurrency(samples, trend.currencyIsoCode);
+  }
+
+  private static String majorityCurrency(List<Sample> samples) {
+    Map<String, Integer> counts = new Map<String, Integer>();
+    for (Sample s : samples) {
+      if (!LaneTrendSummary.isUsable(s)) {
+        continue;
+      }
+      counts.put(s.currencyIsoCode, (counts.get(s.currencyIsoCode) ?? 0) + 1);
+    }
+    String best = null;
+    Integer bestCount = 0;
+    for (String code : counts.keySet()) {
+      Integer count = counts.get(code);
+      if (count > bestCount) {
+        best = code;
+        bestCount = count;
+      }
+    }
+    return best;
+  }
+
+  // "currency" is a reserved Apex identifier (compiler: "Identifier name is reserved: currency");
+  // parameter renamed to currencyCode, matching req.currencyIsoCode's own naming.
+  private static List<Sample> samplesInCurrency(
+    List<Sample> samples,
+    String currencyCode
+  ) {
+    List<Sample> matching = new List<Sample>();
+    for (Sample s : samples) {
+      if (currencyCode == s.currencyIsoCode) {
+        matching.add(s);
+      }
+    }
+    return matching;
   }
 
   /**
@@ -157,7 +210,9 @@ public without sharing class LaneTrendService {
         AccessLevel.SYSTEM_MODE
       )
     ) {
-      samples.add(new Sample(q.Quote_Date__c, q.rtms__Carrier_Total__c));
+      samples.add(
+        new Sample(q.Quote_Date__c, q.rtms__Carrier_Total__c, q.CurrencyIsoCode)
+      );
     }
     return samples;
   }
@@ -181,75 +236,26 @@ public without sharing class LaneTrendService {
         AccessLevel.SYSTEM_MODE
       )
     ) {
-      samples.add(new Sample(b.Valid_From__c, b.Rate__c));
+      samples.add(new Sample(b.Valid_From__c, b.Rate__c, b.CurrencyIsoCode));
     }
     return samples;
   }
 
-  /**
-   * The numbers the sentence under the chart is built from. Computed here rather than in the
-   * component because the component formats and never calculates, as it already does for
-   * LaneSearchResult.Stats. The change compares the first and last months that are not thin: two
-   * quotes at either end would otherwise set the headline for a year.
-   */
-  private static void summarise(LaneTrend trend, List<Sample> samples) {
-    List<Decimal> all = usableAmounts(samples);
-    trend.totalRates = all.size();
-    trend.overallMedian = SplitLaneService.median(all);
-
-    List<LaneTrend.Point> solid = solidPoints(trend.points);
-    if (solid.size() < 2) {
-      return;
-    }
-    LaneTrend.Point earliest = solid[0];
-    LaneTrend.Point latest = solid[solid.size() - 1];
-    trend.firstLabel = earliest.label;
-    trend.lastLabel = latest.label;
-    Boolean canDivide = earliest.median != null && earliest.median != 0;
-    if (canDivide) {
-      trend.changePct = ((latest.median - earliest.median) /
-        earliest.median *
-        100)
-        .setScale(1);
-    }
-  }
-
-  /** Same drop rule as bucket(): a sample with no date or no amount is not a rate. */
-  private static List<Decimal> usableAmounts(List<Sample> samples) {
-    List<Decimal> amounts = new List<Decimal>();
-    for (Sample s : samples) {
-      if (isUsable(s)) {
-        amounts.add(s.amount);
-      }
-    }
-    return amounts;
-  }
-
-  /** Shared by bucket() and usableAmounts(): a sample with no date cannot be placed on a time axis, and one with no amount is not a rate. */
-  private static Boolean isUsable(Sample s) {
-    return s != null && s.sampleDate != null && s.amount != null;
-  }
-
-  private static List<LaneTrend.Point> solidPoints(
-    List<LaneTrend.Point> points
-  ) {
-    List<LaneTrend.Point> solid = new List<LaneTrend.Point>();
-    for (LaneTrend.Point p : points) {
-      if (p.thin != true) {
-        solid.add(p);
-      }
-    }
-    return solid;
-  }
-
-  /** One rate on a date, which is all a bucket needs from either source. */
+  /** One rate on a date in a currency, which is all a bucket needs from either source. */
   public class Sample {
     public Date sampleDate;
     public Decimal amount;
+    public String currencyIsoCode;
 
+    /** Currency-less for Task 1's own bucket() tests, which predate D6/Ruling 14 and do not care. */
     public Sample(Date sampleDate, Decimal amount) {
+      this(sampleDate, amount, null);
+    }
+
+    public Sample(Date sampleDate, Decimal amount, String currencyIsoCode) {
       this.sampleDate = sampleDate;
       this.amount = amount;
+      this.currencyIsoCode = currencyIsoCode;
     }
   }
 
@@ -269,7 +275,7 @@ public without sharing class LaneTrendService {
     Map<String, List<Decimal>> byMonth = new Map<String, List<Decimal>>();
     Map<String, Date> firstOfMonth = new Map<String, Date>();
     for (Sample sample : samples) {
-      if (!isUsable(sample)) {
+      if (!LaneTrendSummary.isUsable(sample)) {
         continue;
       }
       String key = monthKeyOf(sample.sampleDate);

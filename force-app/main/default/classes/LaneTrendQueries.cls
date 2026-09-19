@@ -12,7 +12,16 @@
  * its WHERE.
  */
 public with sharing class LaneTrendQueries {
-  /** Phase 10: the date, amount and currency of the same quote rows, and nothing else. */
+  /**
+   * Phase 10: the date, amount and currency of the same quote rows, and nothing else.
+   *
+   * Ruling 13: DESC, not ASC. Ruling 11 drops rows LaneTrendService reads but whose bucketing date
+   * falls outside the window, and those out-of-window rows sort oldest - ASC would let them consume
+   * LIMIT slots ahead of the newest, in-window rows on a truncated lane, so a busy lane could end up
+   * missing its most recent months while the page only says "may be incomplete." DESC keeps the
+   * newest rows within the cap; bucket() sorts its own month keys, so read order otherwise never
+   * matters.
+   */
   public static String quoteSoql(
     LaneSearchRequest req,
     Map<String, Object> binds,
@@ -21,7 +30,7 @@ public with sharing class LaneTrendQueries {
     return 'SELECT Quote_Date__c, rtms__Carrier_Total__c, CurrencyIsoCode' +
       ' FROM rtms__CarrierQuote__c WHERE ' +
       LaneSearchQueryBuilder.whereFor(req, binds, places) +
-      ' ORDER BY Quote_Date__c LIMIT :trendRowCap';
+      ' ORDER BY Quote_Date__c DESC LIMIT :trendRowCap';
   }
 
   /** Phase 10 D3: one query row, to decide whether the read above fits before running it. */
@@ -48,10 +57,11 @@ public with sharing class LaneTrendQueries {
     if (!BidSearchQueryBuilder.canMatchBids(req)) {
       return null;
     }
+    // Ruling 13: DESC for the same reason quoteSoql is - see its doc comment.
     return 'SELECT Valid_From__c, Rate__c, CurrencyIsoCode' +
       ' FROM Benchmark_Rate__c WHERE ' +
       BidSearchQueryBuilder.whereFor(req, binds, places) +
-      ' ORDER BY Valid_From__c LIMIT :trendRowCap';
+      ' ORDER BY Valid_From__c DESC LIMIT :trendRowCap';
   }
 
   /** As bidSoql: null under the same rule, so a null count is never mistaken for a real zero. */
