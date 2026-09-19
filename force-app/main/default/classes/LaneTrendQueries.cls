@@ -6,7 +6,7 @@
  * own (phase 10 D2). These four methods started out living on the two search builders themselves,
  * but BidSearchQueryBuilder's PMD cyclomatic-complexity total was already 37 of the 40 cap before
  * phase 10 touched it, and each new method's own baseline complexity would have pushed it to 40 -
- * the project's ruling (LaneLoadFilters, MarketTestFilter) is that a class over the cap is split
+ * the project's ruling (LaneSearchFilters, MarketTestFilter) is that a class over the cap is split
  * into another class, never suppressed. So the trend's own SELECT, ORDER BY and LIMIT (or its
  * absence, for the COUNT() variants) live here instead, and each search builder keeps owning only
  * its WHERE.

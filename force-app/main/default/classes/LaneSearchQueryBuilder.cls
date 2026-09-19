@@ -25,8 +25,6 @@ public with sharing class LaneSearchQueryBuilder {
     'rtms__Vendor__r.Black_List__c, rtms__Carrier_Service__r.rtms__Transportation_Profile__r.Outstanding_Claim__c, ' +
     'CreatedDate FROM rtms__CarrierQuote__c';
 
-  // Brief called this local/parameter "where", but WHERE is a reserved Apex identifier (compiler
-  // cascade: "Unexpected token 'where'" etc. across this whole method); renamed to "conditions".
   public static String buildSoql(
     LaneSearchRequest req,
     Map<String, Object> binds,
@@ -44,10 +42,13 @@ public with sharing class LaneSearchQueryBuilder {
    * (LaneTrendQueries) can read the same rows through a narrower projection. Shared rather than
    * re-derived: a trend and a search of the same lane must agree about which quotes belong to it
    * (phase 10 D2), and this is what makes that true by construction rather than by vigilance.
-   * Public rather than private for exactly that sharing - LaneTrendQueries owns the trend's own
-   * SELECT/ORDER BY/LIMIT shapes, kept out of this class so its PMD cyclomatic-complexity total
-   * (already near the 40 cap - see LaneSearchFilters, MarketTestFilter) has room to grow.
+   * Public not for headroom (this class is 16 of PMD's 40-point cap; BidSearchQueryBuilder, at 38,
+   * is the one with none) but for symmetry - LaneTrendQueries needs the same entry point on both
+   * the quote and the bid side, so both builders expose whereFor the same way even though only
+   * the bid side's complexity forced the trend's queries into their own class.
    */
+  // Brief called this local/parameter "where", but WHERE is a reserved Apex identifier (compiler
+  // cascade: "Unexpected token 'where'" etc. across this whole method); renamed to "conditions".
   public static String whereFor(
     LaneSearchRequest req,
     Map<String, Object> binds,
