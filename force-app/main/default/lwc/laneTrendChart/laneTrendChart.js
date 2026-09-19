@@ -19,8 +19,6 @@ const WINDOWS = [
  * breaking the page has to sit where a caller can actually observe it going missing.
  */
 export default class LaneTrendChart extends LightningElement {
-  @api currencyCode;
-
   _requestJson = null;
   request = null;
 
@@ -129,7 +127,16 @@ export default class LaneTrendChart extends LightningElement {
     return this.outsideWindowCount > 0;
   }
 
-  /** The sentence most pricers will read. Formats numbers Apex already computed; does no maths. */
+  /**
+   * The sentence most pricers will read. Formats numbers Apex already computed; does no maths.
+   *
+   * Ruling 22: counts points.length, not monthSpan. monthSpan is the window's calendar span (a
+   * 365-day window can touch 13 distinct calendar months) - right for Task 6's axis, wrong here,
+   * because the window is already named by the highlighted button and restating it as a
+   * different, larger number reads as a contradiction. points.length is the number of months
+   * that carry rates - thin months included, since D5 only excludes a thin month from the trend
+   * line, not from the evidence - and it is the number the reader can verify by counting dots.
+   */
   get summary() {
     if (!this.trend) {
       return "";
@@ -143,6 +150,6 @@ export default class LaneTrendChart extends LightningElement {
       t.changePct === null || t.changePct === undefined
         ? ""
         : `, ${t.changePct >= 0 ? "up" : "down"} ${Math.abs(t.changePct)}% since ${t.firstLabel}`;
-    return `${t.monthSpan} months, ${t.totalRates} rates, median ${median} ${t.currencyIsoCode}${direction}.`;
+    return `${t.points.length} months, ${t.totalRates} rates, median ${median} ${t.currencyIsoCode}${direction}.`;
   }
 }

@@ -53,7 +53,6 @@ const requestJson = JSON.stringify({
 async function open(result, json = requestJson) {
   getTrend.mockResolvedValue(result);
   const el = createElement("c-lane-trend-chart", { is: LaneTrendChart });
-  el.currencyCode = "CAD";
   el.requestJson = json;
   document.body.appendChild(el);
   await settle();
@@ -88,7 +87,6 @@ describe("c-lane-trend-chart", () => {
       })
     );
     const el = createElement("c-lane-trend-chart", { is: LaneTrendChart });
-    el.currencyCode = "CAD";
     el.requestJson = requestJson;
     document.body.appendChild(el);
     expect(
@@ -148,6 +146,29 @@ describe("c-lane-trend-chart", () => {
     ).toContain("not enough");
   });
 
+  it("states the months that carry rates, not the window's calendar span", async () => {
+    // monthSpan (13) is what a 365-day window touches on the calendar axis - correct for Task
+    // 6's axis, wrong for this sentence. The sentence must count points.length (5) instead,
+    // since that is what the reader can verify by counting dots on the chart.
+    const el = await open(
+      trend({
+        monthSpan: 13,
+        points: [
+          point({ monthKey: "2025-09", label: "Sep", monthIndex: 0 }),
+          point({ monthKey: "2025-10", label: "Oct", monthIndex: 1 }),
+          point({ monthKey: "2025-11", label: "Nov", monthIndex: 2 }),
+          point({ monthKey: "2025-12", label: "Dec", monthIndex: 3 }),
+          point({ monthKey: "2026-01", label: "Jan", monthIndex: 4 })
+        ]
+      })
+    );
+    const summary = el.shadowRoot.querySelector(
+      '[data-id="trend-summary"]'
+    ).textContent;
+    expect(summary).toContain("5 months");
+    expect(summary).not.toContain("13 months");
+  });
+
   it("warns when the window was truncated", async () => {
     const el = await open(trend({ truncated: true }));
     expect(
@@ -175,7 +196,6 @@ describe("c-lane-trend-chart", () => {
       body: { message: "The trend could not be read." }
     });
     const el = createElement("c-lane-trend-chart", { is: LaneTrendChart });
-    el.currencyCode = "CAD";
     el.requestJson = requestJson;
     document.body.appendChild(el);
     await settle();
