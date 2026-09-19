@@ -81,9 +81,6 @@ public without sharing class LaneTrendService {
     return trend;
   }
 
-  @SuppressWarnings(
-    'PMD.ApexCRUDViolation'
-  ) // system mode by design (see class comment); Database.countQueryWithBinds and queryWithBinds also count as CRUD for PMD
   private static Integer countQuotes(
     LaneSearchRequest req,
     Map<String, Pricing_Place__c> places
@@ -97,9 +94,6 @@ public without sharing class LaneTrendService {
   }
 
   /** Ruling 8: a null bidCountSoql IS the signal that this request can never match a bid - that side's count is 0, not derived here. */
-  @SuppressWarnings(
-    'PMD.ApexCRUDViolation'
-  ) // system mode by design (see class comment)
   private static Integer countBids(
     LaneSearchRequest req,
     Map<String, Pricing_Place__c> places
@@ -111,9 +105,6 @@ public without sharing class LaneTrendService {
       : Database.countQueryWithBinds(soql, binds, AccessLevel.SYSTEM_MODE);
   }
 
-  @SuppressWarnings(
-    'PMD.ApexCRUDViolation'
-  ) // system mode by design (see class comment)
   private static List<Sample> readQuoteSamples(
     LaneSearchRequest req,
     Map<String, Pricing_Place__c> places,
@@ -135,9 +126,6 @@ public without sharing class LaneTrendService {
   }
 
   /** Ruling 8: a null bidSoql IS the signal that this request can never match a bid - no bid samples, not derived here. */
-  @SuppressWarnings(
-    'PMD.ApexCRUDViolation'
-  ) // system mode by design (see class comment)
   private static List<Sample> readBidSamples(
     LaneSearchRequest req,
     Map<String, Pricing_Place__c> places,
