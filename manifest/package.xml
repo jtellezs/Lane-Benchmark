@@ -62,6 +62,7 @@
         <members>carrierLeads</members>
         <members>splitLaneOptions</members>
         <members>marketTestRates</members>
+        <members>laneTrendChart</members>
         <name>LightningComponentBundle</name>
     </types>
     <types>
@@ -95,7 +96,14 @@
         <members>LaneSearchResult</members>
         <members>LaneSearchService</members>
         <members>LaneSearchServiceTest</members>
+        <members>LaneTrend</members>
+        <members>LaneTrendController</members>
+        <members>LaneTrendControllerTest</members>
         <members>LaneTrendQueries</members>
+        <members>LaneTrendScope</members>
+        <members>LaneTrendService</members>
+        <members>LaneTrendServiceTest</members>
+        <members>LaneTrendSummary</members>
         <members>MapboxException</members>
         <members>MapboxGeocoder</members>
         <members>MarketTestFilter</members>

@@ -49,6 +49,18 @@
       }
     },
     {
+      "slug": "lb-trend",
+      "order": 45,
+      "title": {
+        "en": "Reading the lane trend",
+        "fr": "Lire la tendance de la voie"
+      },
+      "hint": {
+        "en": "A monthly line of the lane's median rate, with a min-to-max band and a 6-month/1-year/3-year window. Hollow points are months with fewer than three rates.",
+        "fr": "Une ligne mensuelle du tarif médian de la voie, avec une bande du plus bas au plus haut et une fenêtre 6 mois/1 an/3 ans. Les points creux sont des mois avec moins de trois tarifs."
+      }
+    },
+    {
       "slug": "lb-results",
       "order": 50,
       "title": {
