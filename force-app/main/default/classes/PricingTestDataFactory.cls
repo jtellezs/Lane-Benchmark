@@ -51,6 +51,33 @@ public class PricingTestDataFactory {
   }
 
   public static Graph createGraph() {
+    return createGraph(
+      location('Origin Co', 'Montreal', 'Quebec', 'Canada', 45.5019, -73.5674),
+      location(
+        'Destination Co',
+        'Toronto',
+        'Ontario',
+        'Canada',
+        43.6532,
+        -79.3832
+      )
+    );
+  }
+
+  /**
+   * The same graph, but its two location accounts are the ones supplied, uninserted. It already
+   * inserts four accounts in a single DML; a caller that needs particular cities can put them in
+   * that DML instead of paying for two more.
+   *
+   * That is not a micro-optimisation. Measured on a clean org (training, 2026-09-20), one Account
+   * insert costs 13 SOQL queries because two triggers fire on it, and LaneTrendServiceTest's
+   * fixture was spending 26 of its 100 creating locations this graph was about to create anyway.
+   * Use buildLocation to make the arguments.
+   */
+  public static Graph createGraph(
+    Account originLocation,
+    Account destinationLocation
+  ) {
     Graph g = new Graph();
 
     g.customer = new Account(
@@ -71,22 +98,8 @@ public class PricingTestDataFactory {
       rtms__TMS_Type__c = 'Carrier (Ground)',
       CurrencyIsoCode = 'CAD'
     );
-    g.originLocation = location(
-      'Origin Co',
-      'Montreal',
-      'Quebec',
-      'Canada',
-      45.5019,
-      -73.5674
-    );
-    g.destinationLocation = location(
-      'Destination Co',
-      'Toronto',
-      'Ontario',
-      'Canada',
-      43.6532,
-      -79.3832
-    );
+    g.originLocation = originLocation;
+    g.destinationLocation = destinationLocation;
     insert new List<Account>{
       g.customer,
       g.vendor,
@@ -150,7 +163,30 @@ public class PricingTestDataFactory {
     Decimal lat,
     Decimal lng
   ) {
-    Account a = new Account(
+    Account a = buildLocation(
+      name,
+      city,
+      province,
+      country,
+      postalCode,
+      lat,
+      lng
+    );
+    insert a;
+    return a;
+  }
+
+  /** createLocation's record without the insert, so a caller can put it in a DML of its own. */
+  public static Account buildLocation(
+    String name,
+    String city,
+    String province,
+    String country,
+    String postalCode,
+    Decimal lat,
+    Decimal lng
+  ) {
+    return new Account(
       Name = name,
       RecordTypeId = recordTypeId('Account', 'Shipper_Consignee'),
       rtms__TMS_Type__c = 'Shipper/Consignee',
@@ -163,8 +199,6 @@ public class PricingTestDataFactory {
       ShippingLongitude = lng,
       CurrencyIsoCode = 'CAD'
     );
-    insert a;
-    return a;
   }
 
   public static rtms__EquipmentType__c createEquipment(

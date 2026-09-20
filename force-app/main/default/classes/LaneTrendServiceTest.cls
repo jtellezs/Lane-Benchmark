@@ -513,25 +513,32 @@ private class LaneTrendServiceTest {
     );
     LaneTrendFixture f = forPlaces(origin, destination);
 
-    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph();
-    Account originLoc = PricingTestDataFactory.createLocation(
-      'Origin Co',
-      'Halifax',
-      'Nova Scotia',
-      'Canada',
-      'B3H 0A1',
-      44.6488,
-      -63.5752
+    // The graph already inserts four accounts in one DML, two of them locations, so this asks it
+    // to make those two Halifax and Moncton rather than inserting two more. Measured on a clean
+    // org: one Account insert costs 13 SOQL queries because two triggers fire on it, and this
+    // fixture was spending 26 of its 100 on accounts the graph was about to create anyway.
+    PricingTestDataFactory.Graph g = PricingTestDataFactory.createGraph(
+      PricingTestDataFactory.buildLocation(
+        'Origin Co',
+        'Halifax',
+        'Nova Scotia',
+        'Canada',
+        'B3H 0A1',
+        44.6488,
+        -63.5752
+      ),
+      PricingTestDataFactory.buildLocation(
+        'Destination Co',
+        'Moncton',
+        'New Brunswick',
+        'Canada',
+        'E1C 0A1',
+        46.0878,
+        -64.7782
+      )
     );
-    Account destLoc = PricingTestDataFactory.createLocation(
-      'Destination Co',
-      'Moncton',
-      'New Brunswick',
-      'Canada',
-      'E1C 0A1',
-      46.0878,
-      -64.7782
-    );
+    Account originLoc = g.originLocation;
+    Account destLoc = g.destinationLocation;
     rtms__Load__c load = PricingTestDataFactory.createLoad(
       g,
       originLoc,
