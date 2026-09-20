@@ -311,13 +311,27 @@ private class RfpBidAccessTest {
       new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 900) }
     )[0];
     System.runAs(viewer) {
+      // Phase 9 (commit 9c05a02, "Add the Market_Test__c marker and the permissions it needs")
+      // gave Lane_Benchmark_User create, edit and delete on Benchmark_Rate__c, because a market
+      // test rate IS a Benchmark_Rate__c and a pricer has to be able to add one. So the object
+      // gates - Gate.create/edit/remove, which only ask isCreateable/isUpdateable/isDeletable -
+      // no longer refuse this user, and asserting that they do (as this test did until 2026-09-20,
+      // failing unnoticed ever since phase 9) tests a boundary the app deliberately moved.
+      //
+      // What actually keeps a Lane Benchmark pricer out of another team's RFP bids is lane
+      // visibility, and that is what this now asserts on all three verbs.
       try {
         RfpBidAccess.insertBids(
           new List<Benchmark_Rate__c>{ RfpTestDataFactory.buildBid(f.lane, 1) }
         );
         System.assert(false, 'expected LaneSearchException');
       } catch (LaneSearchException e) {
-        System.assertEquals('You cannot create bids.', e.getMessage());
+        System.assertEquals(
+          'A bid needs a lane.',
+          e.getMessage(),
+          'the lane is stripped by stripInaccessible before the lane gate sees it, because this ' +
+          'user cannot read RFP_Lane__c at all - so the bid arrives with no lane to attach to'
+        );
       }
       try {
         RfpBidAccess.updateBid(
@@ -325,14 +339,22 @@ private class RfpBidAccessTest {
         );
         System.assert(false, 'expected LaneSearchException');
       } catch (LaneSearchException e) {
-        System.assertEquals('You cannot edit bids.', e.getMessage());
+        System.assertEquals(
+          RfpBidAccess.LANE_UNAVAILABLE,
+          e.getMessage(),
+          'the stored bid does have a lane, so updateBid gets as far as assertLaneVisible - and ' +
+          'that is the gate that refuses'
+        );
       }
-      try {
-        RfpBidAccess.deleteBidsOfLanes(new Set<Id>{ f.lane.Id });
-        System.assert(false, 'expected LaneSearchException');
-      } catch (LaneSearchException e) {
-        System.assertEquals('You cannot delete bids.', e.getMessage());
-      }
+      // Delete refuses by finding nothing rather than by throwing: deleteBidsOfLanes asks
+      // bidsOfLanes first, and no lane of this one is visible, so there is nothing to delete. It
+      // fails safe, but silently - worth asserting precisely because a silent no-op is the kind of
+      // protection someone later mistakes for a missing check.
+      System.assertEquals(
+        0,
+        RfpBidAccess.deleteBidsOfLanes(new Set<Id>{ f.lane.Id }).size(),
+        'deletes nothing, because no bid of an invisible lane is visible to delete'
+      );
       // Lane_Benchmark_User has no RFP_Lane__c permission at all: no lane is visible, so the
       // rule hides every bid here even though the permission set can read Benchmark_Rate__c.
       System.assertEquals(
