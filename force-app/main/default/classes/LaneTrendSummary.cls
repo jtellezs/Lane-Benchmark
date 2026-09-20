@@ -13,6 +13,13 @@ public class LaneTrendSummary {
    * component because the component formats and never calculates, as it already does for
    * LaneSearchResult.Stats. The change compares the first and last buckets that are not thin: two
    * quotes at either end would otherwise set the headline for a year.
+   *
+   * That protection weakens as the bucket shrinks and disappears at day granularity. W3 scales the
+   * thin threshold with the unit - three rates for a month, two for a week, one for a day - and a
+   * bucket only exists when it holds at least one rate, so at day buckets nothing is ever thin and
+   * a single rate at either end can set the change. That is the honest trade for a window short
+   * enough to show individual activity rather than a market, and the caption's own rate count is
+   * what a reader has to judge it by.
    */
   public static void summarise(
     LaneTrend trend,

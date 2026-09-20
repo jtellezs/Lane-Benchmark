@@ -667,6 +667,35 @@ describe("c-lane-trend-chart", () => {
     expect(texts).toEqual(["Dec 2025", "Feb 2026"]);
   });
 
+  // Mutation (observed): delete the block that forces the newest bucket back onto the axis - the
+  // last label becomes "16 Sep" and the final assertion fails. This block had no coverage at all
+  // until now: it is live behaviour, it is the fix for the collision the owner reported, and the
+  // whole suite stayed green without it.
+  //
+  // The gaps are chosen so the newest bucket is the one that loses. At a 28-day span the last two
+  // buckets sit 21 units apart where each needs about 44, so the overlap walk drops 17 Sep and
+  // stops at 16 Sep; the force-last block then pops 16 Sep and puts 17 Sep back.
+  it("puts the newest bucket's label back even when the spacing rule had dropped it", async () => {
+    const gaps = [0, 5, 11, 17, 23, 26, 27];
+    const points = gaps.map((dayIndex) => {
+      const d = new Date(Date.UTC(2026, 7, 21 + dayIndex));
+      return point({
+        bucketKey: `2026-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
+          d.getUTCDate()
+        ).padStart(2, "0")}`,
+        bucketIndex: dayIndex,
+        label: `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]}`
+      });
+    });
+    const el = await open(trend({ points, bucketSpan: 28, bucketUnit: "day" }));
+    const texts = [
+      ...el.shadowRoot.querySelectorAll('[data-id="axis-label"]')
+    ].map((x) => x.textContent.trim());
+
+    expect(texts[texts.length - 1]).toContain("17 Sep");
+    expect(texts).not.toContain("16 Sep");
+  });
+
   // Mutation (observed): delete the overlap walk that builds `kept` and label every evenly-spaced
   // candidate - adjacent same-week days land ~20 units apart where each needs ~35, and the
   // minimum-gap assertion fails. This fixture is the shape the owner hit on a real lane: three
@@ -828,18 +857,20 @@ describe("c-lane-trend-chart", () => {
     ).not.toBeNull();
   });
 
-  it("still draws real coordinates when the window spans exactly one month", async () => {
-    // bucketSpan === 1 is a legitimate one-month window, not a contract violation - the
-    // Math.max(bucketSpan, 2) floor exists only so (span - 1) is never zero. Checking only that
-    // an <svg> exists would not catch that floor being "simplified" away later: the element
-    // would still render even with NaN coordinates, so this checks the coordinates themselves.
+  it("draws real coordinates rather than NaN when Apex sends a span too small for its own points", async () => {
+    // This shape is a contract violation, and saying so is the point: a bucketSpan of 1 has exactly
+    // one bucket index, so two points cannot both belong to it. Apex cannot produce this. The
+    // Math.max(bucketSpan, 2) floor exists to survive it anyway, because (span - 1) would otherwise
+    // be zero and every coordinate NaN - and an <svg> still renders full of NaN, so a test that
+    // only asserted the element exists would not notice. The comment used to call this "a
+    // legitimate one-month window", which it is not.
     const el = await open(
       trend({
         bucketSpan: 1,
         points: [
           point({ bucketKey: "2026-01", label: "Jan", bucketIndex: 0 }),
           point({
-            bucketKey: "2026-01b",
+            bucketKey: "2026-02",
             label: "Jan",
             bucketIndex: 0,
             median: 2600

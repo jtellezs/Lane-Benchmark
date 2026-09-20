@@ -1251,10 +1251,12 @@ private class LaneTrendServiceTest {
    */
   @IsTest
   static void theRowCapLeavesRoomForBothSidesInOneTransaction() {
-    // 135 bytes a row, from the measurement: 1,554,051 bytes for 11,499 rows. Rounded up, and held
-    // to three quarters of the heap rather than all of it, because this is an extrapolation from one
-    // read and the thing it guards against cannot be caught when it happens.
-    Integer bytesPerRow = 136;
+    // 197 bytes a row, measured read-only in PostProduc on 2026-09-20 by holding everything the
+    // transaction holds at once - the query rows, a Sample each, the amounts list and median's
+    // clone. The earlier 136 priced the SObject read alone and was therefore not the peak, which is
+    // the only figure a cap has to survive. Held to three quarters of the heap because the thing it
+    // guards against cannot be caught when it happens.
+    Integer bytesPerRow = 197;
     Integer heapBudget = 4500000;
 
     // Heap is asserted first on purpose, twice over. It is the limit that actually binds - 6,000,000
@@ -1276,11 +1278,12 @@ private class LaneTrendServiceTest {
       'the same doubling must also stay under the 50,000 SOQL rows a transaction is allowed'
     );
     System.assertEquals(
-      15000,
+      11000,
       LaneTrendService.ROW_CAP,
       'the agreed value under both ceilings above, and the only assertion here that catches the cap ' +
         'being quietly lowered - both invariants still pass for anything smaller. A three-year read ' +
-        'of the widest search is 11,499 rows across both sides, so this truncates no window we ship'
+        'of the widest search reads 9,848 rows across both sides and does not truncate, so this ' +
+        'caps no window we ship'
     );
   }
 

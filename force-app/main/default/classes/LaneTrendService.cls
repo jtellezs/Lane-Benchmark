@@ -13,28 +13,28 @@
  */
 public without sharing class LaneTrendService {
   /**
-   * W5: 15,000 per side, on a measurement and then on two arithmetic corrections. A three-year read
-   * of the widest search in the org - 11,499 rows - cost 1,554,051 bytes of the 6,000,000 heap, which
-   * is 135 bytes a row, and 11,499 of the 50,000 query rows a transaction is allowed. The old cap of
-   * 10,000, not the platform, is what stopped a three-year window.
+   * W5: 11,000 per side, on a measurement of the **peak**, which is the third answer this number
+   * has had and the first one priced against what the transaction actually holds.
    *
-   * Two things make the safe number smaller than it first looks. **The LIMIT is bound per side**:
-   * readQuoteSamples and readBidSamples each bind their own :trendRowCap, so a lane that truncates on
-   * both sides reads 2 x ROW_CAP from the sample reads alone. And **heap binds before rows do**: at
-   * 135 bytes a row the 6,000,000-byte heap is exhausted at about 44,400 combined rows, while the row
-   * limit allows 50,000. The spec's first answer of 25,000 per side was 113% of heap, and the second
-   * answer of 20,000 was 90% - neither leaves room to be wrong, and a LimitException cannot be caught.
+   * The cap is spent once per side - readQuoteSamples and readBidSamples each bind their own
+   * :trendRowCap - so the worst case is 2 x ROW_CAP. The earlier figures were sized on 135 bytes a
+   * row, taken from the cost of the SObject read alone. That is not the peak: trendFor holds the
+   * query rows, a Sample per row, the amounts list a bucket builds, and the clone median() makes,
+   * all live at once. Measured read-only in PostProduc on 2026-09-20 by holding all four for
+   * 15,000 rows: **197 bytes a row**, so 15,000 a side was 5,919,700 of the 6,000,000-byte
+   * synchronous heap - 98.7%, with nothing left over, on a failure that cannot be caught.
    *
-   * 15,000 puts the worst case at 30,000 rows: 68% of heap and 60% of the row limit. It still covers
-   * the largest window this feature ships - the three-year read above is 11,499 rows across both sides
-   * together, so 15,000 holds even if a lane were pathologically one-sided.
-   * theRowCapLeavesRoomForBothSidesInOneTransaction asserts heap first, because heap is the ceiling
-   * that actually fires: every cap that is safe on heap is safe on rows, so the row assertion beside
-   * it records the second limit rather than guarding it independently. The equality on the number is
-   * the one that catches the cap being quietly lowered, which neither invariant would.
+   * 11,000 puts the worst case at 4,334,000 bytes, 72% of heap, inside the three-quarters budget
+   * the test asserts. It still covers the largest real read: the widest three-year search in the
+   * org (Ontario to Quebec, province precision) returns 9,848 query rows across both sides and
+   * reports truncated = false.
+   *
+   * Beware measuring this with Limits.getHeapSize() around a trendFor() call: it reports heap in
+   * use at that instant, so by the time trendFor returns its interior is already collected and the
+   * reading comes back near zero. The peak has to be reproduced by holding the collections.
    */
-  public static final Integer ROW_CAP = 15000;
-  /** @TestVisible so a test can prove the guard without inserting 15,001 rows. camelCase, not final. */
+  public static final Integer ROW_CAP = 11000;
+  /** @TestVisible so a test can prove the guard without inserting 11,001 rows. camelCase, not final. */
   @TestVisible
   private static Integer rowCapOverride;
 
@@ -45,7 +45,7 @@ public without sharing class LaneTrendService {
    * The conditions are the search's own (D2) and therefore carry the market-test filter the pricer
    * set (D7), so this chart and the statistics card above it always describe the same rows. Both
    * sources are counted before either is read (D3): a COUNT() costs one query row, while reading
-   * 15,000 rows to discover they were too many costs 15,000 - and a LimitException cannot be
+   * 11,000 rows to discover they were too many costs 11,000 - and a LimitException cannot be
    * caught.
    *
    * The two gates are asymmetric and both are honored, neither re-derived here (Ruling 8/9):
