@@ -56,8 +56,8 @@
         "fr": "Lire la tendance de la voie"
       },
       "hint": {
-        "en": "A monthly line of the lane's median rate, with a min-to-max band and a 6-month/1-year/3-year window. Hollow points are months with fewer than three rates.",
-        "fr": "Une ligne mensuelle du tarif médian de la voie, avec une bande du plus bas au plus haut et une fenêtre 6 months/1 year. Les points creux sont des mois avec moins de trois tarifs."
+        "en": "Nine windows from one week to three years, each grouped by day, week or month depending on length. Hollow points mark buckets with too few rates for their size.",
+        "fr": "Neuf fenêtres d'une semaine à trois ans, chacune regroupée par jour, semaine ou mois selon sa durée. Les points creux marquent les périodes avec trop peu de tarifs pour leur taille."
       }
     },
     {

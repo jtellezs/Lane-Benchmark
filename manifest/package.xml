@@ -97,6 +97,8 @@
         <members>LaneSearchService</members>
         <members>LaneSearchServiceTest</members>
         <members>LaneTrend</members>
+        <members>LaneTrendBuckets</members>
+        <members>LaneTrendBucketsTest</members>
         <members>LaneTrendController</members>
         <members>LaneTrendControllerTest</members>
         <members>LaneTrendQueries</members>

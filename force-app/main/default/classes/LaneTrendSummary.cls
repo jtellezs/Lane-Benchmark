@@ -11,7 +11,7 @@ public class LaneTrendSummary {
   /**
    * The numbers the sentence under the chart is built from. Computed here rather than in the
    * component because the component formats and never calculates, as it already does for
-   * LaneSearchResult.Stats. The change compares the first and last months that are not thin: two
+   * LaneSearchResult.Stats. The change compares the first and last buckets that are not thin: two
    * quotes at either end would otherwise set the headline for a year.
    */
   public static void summarise(
@@ -40,7 +40,7 @@ public class LaneTrendSummary {
   }
 
   /**
-   * Shared with LaneTrendService.bucket() and LaneTrendScope: the trend's one drop rule. A sample
+   * Shared with LaneTrendBuckets.bucket() and LaneTrendScope: the trend's one drop rule. A sample
    * with no date cannot be placed on a time axis; one with no amount is not a rate; and one whose
    * amount is zero is not a price the market set.
    *
@@ -55,7 +55,7 @@ public class LaneTrendSummary {
    * calls that thin and draws it hollow. That is what D5 means: two priced quotes do not make a
    * market - the owner's ruling on that consequence, recorded in the spec's 2026-09-19 amendment.
    *
-   * Public so bucket() (which stays in LaneTrendService, where the SOQL is read) can reuse the same
+   * Public so LaneTrendBuckets.bucket() (a different class since Task 2) can reuse the same
    * rule rather than re-deriving it.
    */
   public static Boolean isUsable(LaneTrendService.Sample s) {

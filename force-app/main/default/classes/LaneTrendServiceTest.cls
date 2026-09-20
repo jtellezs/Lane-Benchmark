@@ -165,7 +165,7 @@ private class LaneTrendServiceTest {
     System.assertEquals(
       1,
       points[1].bucketIndex,
-      'a lost *12 year term in monthsBetween would miscount once the window crosses a year'
+      'a lost *12 year term in LaneTrendBuckets.between would miscount once the window crosses a year'
     );
     System.assertEquals(
       '2026-01',
@@ -607,9 +607,10 @@ private class LaneTrendServiceTest {
   /**
    * Reviewer finding (Important 3): every other fixture puts all its rates in one calendar month, so
    * summarise()'s two-or-more-solid-months half never runs in any of them - solid.size() < 2 returns
-   * early every time. Three bids per month (never fewer than THIN_COUNT, so none is thin) in three
-   * consecutive calendar months, anchored on Date.today().addMonths() rather than a fixed day offset
-   * so this is correct on every day of the year, not just the day it was written.
+   * early every time. Three bids per month (never fewer than the month value
+   * LaneTrendBuckets.thinCountFor returns, 3, so none is thin) in three consecutive calendar
+   * months, anchored on Date.today().addMonths() rather than a fixed day offset so this is
+   * correct on every day of the year, not just the day it was written.
    *
    * Placed by CreatedDate, which is what the trend buckets on: Valid_From__c no longer decides which
    * month a rate lands in, so setting it here would place nothing. CreatedDate is not writable, and

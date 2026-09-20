@@ -37,7 +37,7 @@ public class LaneTrend {
   public Integer totalRates = 0;
   @AuraEnabled
   public Decimal overallMedian;
-  /** Change between the first and last months that are not thin; null when fewer than two qualify. */
+  /** Change between the first and last buckets that are not thin; null when fewer than two qualify. */
   @AuraEnabled
   public Decimal changePct;
   @AuraEnabled
