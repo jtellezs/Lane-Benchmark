@@ -1250,16 +1250,32 @@ private class LaneTrendServiceTest {
    */
   @IsTest
   static void theRowCapLeavesRoomForBothSidesInOneTransaction() {
-    System.assertEquals(
-      20000,
-      LaneTrendService.ROW_CAP,
-      'lowered from 25,000: two sides at 25,000 each is exactly the 50,000-row transaction ceiling'
+    // 135 bytes a row, from the measurement: 1,554,051 bytes for 11,499 rows. Rounded up, and held
+    // to three quarters of the heap rather than all of it, because this is an extrapolation from one
+    // read and the thing it guards against cannot be caught when it happens.
+    Integer bytesPerRow = 136;
+    Integer heapBudget = 4500000;
+
+    // Heap is asserted first on purpose, twice over. It is the limit that actually binds - 6,000,000
+    // bytes runs out near 44,400 rows while the row limit allows 50,000 - and an Apex assertion halts
+    // the method, so whichever fires first is the only message anyone reads. Pinning the number first
+    // would abort before either of these explanations ever printed.
+    System.assert(
+      LaneTrendService.ROW_CAP * 2 * bytesPerRow < heapBudget,
+      'both sides can truncate in one transaction, so the cap is spent twice: ROW_CAP * 2 rows at ' +
+        '~136 bytes each must stay inside three quarters of the 6,000,000-byte heap. 25,000 a side ' +
+        'was 112% of heap and 20,000 was 90% - heap, not the row limit, is what binds here'
     );
     System.assert(
       LaneTrendService.ROW_CAP * 2 < 50000,
-      'both sides can truncate in one transaction, and a LimitException cannot be caught: ' +
-        'ROW_CAP * 2 must stay under the 50,000 SOQL rows a transaction is allowed, with room ' +
-        'left for the two counts and loadPlaces'
+      'and the same doubling must stay under the 50,000 SOQL rows a transaction is allowed, with ' +
+      'room left for the two counts and loadPlaces'
+    );
+    System.assertEquals(
+      15000,
+      LaneTrendService.ROW_CAP,
+      'the agreed value under both ceilings above; a three-year read of the widest search is 11,499 ' +
+      'rows across both sides, so this does not truncate any window the feature ships'
     );
   }
 
