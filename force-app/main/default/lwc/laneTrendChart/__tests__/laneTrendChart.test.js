@@ -637,6 +637,36 @@ describe("c-lane-trend-chart", () => {
     });
   });
 
+  // Mutation (observed): measure the bare label instead of the text that renders - drop the year
+  // suffix before taking the width in `clears`. "Jan 2026" is then measured as three characters
+  // rather than eight, it wrongly clears "Dec 2025" at 44 units, and this test sees three labels
+  // with the year on Jan instead of two with it on Feb.
+  //
+  // The spacing here is deliberate and narrow: at 44 units apart, two year-bearing labels need ~55
+  // and two bare ones need ~28, so this is one of the few gaps where counting the year or not
+  // changes the answer. A wider fixture passes either way and proves nothing - which a first
+  // attempt at this test did, and which is why the span is pinned rather than round.
+  it("counts the year suffix when deciding whether a label fits, and promotes the year to the next label it keeps", async () => {
+    const el = await open(
+      trend({
+        bucketUnit: "month",
+        bucketSpan: 14,
+        points: [
+          point({ bucketKey: "2025-12", bucketIndex: 0, label: "Dec" }),
+          point({ bucketKey: "2026-01", bucketIndex: 1, label: "Jan" }),
+          point({ bucketKey: "2026-02", bucketIndex: 2, label: "Feb" })
+        ]
+      })
+    );
+    const texts = [
+      ...el.shadowRoot.querySelectorAll('[data-id="axis-label"]')
+    ].map((x) => x.textContent.trim());
+
+    // Jan cannot fit beside Dec once both carry their year, so it goes - and the year it would have
+    // carried moves to Feb, because the year belongs to the labels drawn, not the points chosen.
+    expect(texts).toEqual(["Dec 2025", "Feb 2026"]);
+  });
+
   // Mutation (observed): delete the overlap walk that builds `kept` and label every evenly-spaced
   // candidate - adjacent same-week days land ~20 units apart where each needs ~35, and the
   // minimum-gap assertion fails. This fixture is the shape the owner hit on a real lane: three
@@ -699,7 +729,12 @@ describe("c-lane-trend-chart", () => {
     const el = await open(
       trend({
         bucketUnit: "month",
-        bucketSpan: 14,
+        // The span matches the points: three consecutive months in a three-month window. It read 14
+        // before, which put all three inside the leftmost sixth of the axis, 44 units apart where
+        // "Dec 2025" alone needs about 49 - so the overlap rule dropped Jan, the year moved to Feb,
+        // and this test failed on spacing while claiming to be about years. The crowded case is
+        // real and worth covering, but it belongs to the collision test, not this one.
+        bucketSpan: 3,
         points: [
           point({ bucketKey: "2025-12", bucketIndex: 0, label: "Dec" }),
           point({ bucketKey: "2026-01", bucketIndex: 1, label: "Jan" }),

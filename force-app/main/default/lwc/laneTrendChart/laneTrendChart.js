@@ -38,11 +38,11 @@ const GRID_LABEL_X = 8;
 // Show at most a dozen, evenly spaced - and then drop any that would still overlap (below).
 const MAX_AXIS_LABELS = 12;
 // Matches font-size="9" on the axis <text> in the template. 0.6em is a fair average advance width
-// for digits and short month names in the SLDS stack; it only has to be close, since the gap below
-// absorbs the error. Two characters of slack cover the year suffix a label may pick up later.
+// for digits and short month names in the SLDS stack; it only has to be close, since the gap
+// absorbs the error. One character of slack, and the text measured is the text that renders.
 const AXIS_CHAR_W = 9 * 0.6;
 const AXIS_LABEL_GAP = 6;
-const axisLabelWidth = (label) => (label.length + 2) * AXIS_CHAR_W;
+const axisLabelWidth = (label) => (label.length + 1) * AXIS_CHAR_W;
 
 // SLDS design tokens with hex fallbacks (spec 5), so the chart reads correctly in both themes.
 // Only the dot fill varies per point (below); the rest are static and set directly in the
@@ -334,62 +334,59 @@ export default class LaneTrendChart extends LightningElement {
       );
     }
 
-    // A dozen labels is few enough only when the buckets they sit on are spread out. They are
-    // positioned by date, not by rank, so a lane quiet for three weeks and then busy for five
-    // consecutive days puts five labels ~20 units apart where each needs ~35 - which is how
-    // "9 Sep 10 Sep 11 Sep" ends up printed over itself. Walk left to right and keep a label only
-    // when it clears the last one kept.
-    const kept = [];
-    spaced.forEach((i) => {
-      if (!kept.length) {
-        kept.push(i);
-        return;
-      }
-      const prev = kept[kept.length - 1];
-      const need =
-        (axisLabelWidth(points[prev].label) + axisLabelWidth(points[i].label)) /
-          2 +
+    // A label's width and its text are decided together, in one pass, because the year suffix is
+    // part of the text: a first-of-year label is five characters wider than its bare form, so
+    // measuring the bare form and appending the year afterwards reserves too little room and lets
+    // exactly the widest label on the axis collide. The year also depends on which labels survive -
+    // when a first-of-year label is dropped, the next one kept has to carry the year instead - so
+    // the two decisions cannot be separated even in principle.
+    const entryAfter = (i, previous) => {
+      const p = points[i];
+      const year = p.bucketKey.slice(0, 4);
+      return {
+        key: p.bucketKey,
+        x: x(p.bucketIndex),
+        y: AXIS_LABEL_Y,
+        label:
+          year === (previous ? previous.year : null)
+            ? p.label
+            : `${p.label} ${year}`,
+        year
+      };
+    };
+    const clears = (previous, entry) =>
+      entry.x - previous.x >=
+      (axisLabelWidth(previous.label) + axisLabelWidth(entry.label)) / 2 +
         AXIS_LABEL_GAP;
-      if (x(points[i].bucketIndex) - x(points[prev].bucketIndex) >= need) {
-        kept.push(i);
+
+    // Positions come from dates, not from rank, so a dozen labels is few enough only when the
+    // buckets they sit on are spread out. A lane quiet for three weeks and then trading on five
+    // consecutive days puts five labels a day apart where each needs three - which is how
+    // "9 Sep 10 Sep 11 Sep" ends up printed over itself. Keep a label only when it clears the last.
+    const axis = [];
+    spaced.forEach((i) => {
+      const previous = axis.length ? axis[axis.length - 1] : null;
+      const entry = entryAfter(i, previous);
+      if (!previous || clears(previous, entry)) {
+        axis.push(entry);
       }
     });
 
     // The newest bucket keeps its label whatever the spacing says, so the axis never reads as
-    // ending before the data does. If it crowds its neighbours, they give way rather than it.
+    // ending before the data does. Where it crowds its neighbours, they give way rather than it.
     const lastIndex = points.length - 1;
-    if (kept[kept.length - 1] !== lastIndex) {
-      while (kept.length > 1) {
-        const prev = kept[kept.length - 1];
-        const need =
-          (axisLabelWidth(points[prev].label) +
-            axisLabelWidth(points[lastIndex].label)) /
-            2 +
-          AXIS_LABEL_GAP;
-        if (
-          x(points[lastIndex].bucketIndex) - x(points[prev].bucketIndex) >=
-          need
-        ) {
-          break;
-        }
-        kept.pop();
+    if (axis[axis.length - 1].key !== points[lastIndex].bucketKey) {
+      while (
+        axis.length > 1 &&
+        !clears(
+          axis[axis.length - 1],
+          entryAfter(lastIndex, axis[axis.length - 1])
+        )
+      ) {
+        axis.pop();
       }
-      kept.push(lastIndex);
+      axis.push(entryAfter(lastIndex, axis[axis.length - 1]));
     }
-
-    let lastYear = null;
-    const axis = [];
-    kept.forEach((i) => {
-      const p = points[i];
-      const year = p.bucketKey.slice(0, 4);
-      axis.push({
-        key: p.bucketKey,
-        x: x(p.bucketIndex),
-        y: AXIS_LABEL_Y,
-        label: year === lastYear ? p.label : `${p.label} ${year}`
-      });
-      lastYear = year;
-    });
 
     return {
       viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
