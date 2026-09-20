@@ -56,8 +56,8 @@
         "fr": "Lire la tendance de la voie"
       },
       "hint": {
-        "en": "Nine windows from one week to three years, each grouped by day, week or month depending on length. Hollow points mark buckets with too few rates for their size.",
-        "fr": "Neuf fenêtres d'une semaine à trois ans, chacune regroupée par jour, semaine ou mois selon sa durée. Les points creux marquent les périodes avec trop peu de tarifs pour leur taille."
+        "en": "Nine windows from one week to three years, each grouped by day, week or month depending on length. Pick a window to draw the chart; hollow points mark buckets with too few rates for their size.",
+        "fr": "Neuf fenêtres d'une semaine à trois ans, chacune regroupée par jour, semaine ou mois selon sa durée. Choisissez une fenêtre pour dessiner le graphique; les points creux marquent les périodes avec trop peu de tarifs pour leur taille."
       }
     },
     {

@@ -25,7 +25,12 @@
         </div>
       </div>
       <div class="slds-card__body slds-card__body_inner">
-        <template lwc:if={loading}>
+        <template lwc:if={awaitingWindow}>
+          <p data-id="trend-prompt" class="slds-text-color_weak">
+            Pick a window above to see how this lane moved.
+          </p>
+        </template>
+        <template lwc:elseif={loading}>
           <p data-id="trend-loading" class="slds-text-color_weak">
             Loading the trend…
           </p>

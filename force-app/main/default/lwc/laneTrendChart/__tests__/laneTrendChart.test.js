@@ -104,7 +104,19 @@ const requestJson = JSON.stringify({
   marketTestFilter: "EXCLUDE"
 });
 
-async function open(result, json = requestJson) {
+/**
+ * The card asks before it queries, so choosing a window is part of opening it. Tests about the
+ * asking itself use `mount` below, which stops before the click.
+ */
+async function open(result, json = requestJson, windowKey = "1y") {
+  const el = await mount(result, json);
+  el.shadowRoot.querySelector(`[data-window="${windowKey}"]`).click();
+  await settle();
+  return el;
+}
+
+/** A card with a lane and nothing asked for yet - the state every search now starts in. */
+async function mount(result, json = requestJson) {
   getTrend.mockResolvedValue(result);
   const el = createElement("c-lane-trend-chart", { is: LaneTrendChart });
   el.requestJson = json;
@@ -133,6 +145,66 @@ describe("c-lane-trend-chart", () => {
     ).not.toBeNull();
   });
 
+  // Mutation (observed): put `this.load()` back in the requestJson setter - getTrend is called on
+  // mount and the first assertion fails. This is the whole change: a trend costs about 3 seconds
+  // of server time on a busy lane, and it used to be spent on every search whether or not anyone
+  // looked at the chart.
+  it("asks nothing until a window is chosen, and says so where the chart would be", async () => {
+    const el = await mount(trend());
+
+    expect(getTrend).not.toHaveBeenCalled();
+    expect(
+      el.shadowRoot.querySelector('[data-id="trend-prompt"]').textContent
+    ).toContain("Pick a window");
+    expect(el.shadowRoot.querySelector('[data-id="trend-summary"]')).toBeNull();
+  });
+
+  // The card stays visible with all nine buttons in this state on purpose. Hiding it behind one
+  // "show me" control would save the same query and cost the feature its discoverability.
+  it("still shows its title and every window while it is waiting to be asked", async () => {
+    const el = await mount(trend());
+
+    expect(
+      el.shadowRoot.querySelector('[data-id="lane-trend-card"]')
+    ).not.toBeNull();
+    expect(el.shadowRoot.querySelectorAll("[data-window]")).toHaveLength(9);
+    expect(
+      [...el.shadowRoot.querySelectorAll("[data-window]")].every(
+        (b) => b.getAttribute("aria-pressed") === "false"
+      )
+    ).toBe(true);
+  });
+
+  it("queries once, for the window actually chosen", async () => {
+    const el = await mount(trend());
+    el.shadowRoot.querySelector('[data-id="window-2w"]').click();
+    await settle();
+
+    expect(getTrend).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(getTrend.mock.calls[0][0].requestJson).lookbackDays).toBe(
+      14
+    );
+  });
+
+  // Mutation (observed): drop the `this.windowKey = null` reset in the setter - the prompt does not
+  // come back for the new lane and the old lane's window stays highlighted over it.
+  it("goes back to asking when the lane changes, rather than querying the new one", async () => {
+    const el = await open(trend());
+    expect(getTrend).toHaveBeenCalledTimes(1);
+
+    el.requestJson = JSON.stringify({
+      originKey: "toronto|on|ca",
+      destinationKey: "calgary|ab|ca"
+    });
+    await settle();
+
+    expect(getTrend).toHaveBeenCalledTimes(1);
+    expect(
+      el.shadowRoot.querySelector('[data-id="trend-prompt"]')
+    ).not.toBeNull();
+    expect(el.shadowRoot.querySelector('[data-id="trend-summary"]')).toBeNull();
+  });
+
   it("shows a loading state while the request is in flight, then clears it", async () => {
     let resolveTrend;
     getTrend.mockReturnValue(
@@ -143,6 +215,15 @@ describe("c-lane-trend-chart", () => {
     const el = createElement("c-lane-trend-chart", { is: LaneTrendChart });
     el.requestJson = requestJson;
     document.body.appendChild(el);
+    await settle();
+    // Nothing is in flight until a window is chosen.
+    expect(
+      el.shadowRoot.querySelector('[data-id="trend-prompt"]')
+    ).not.toBeNull();
+    el.shadowRoot.querySelector('[data-id="window-1y"]').click();
+    // One microtask flush so the re-render lands; the answer itself is still held back, so the
+    // card is genuinely mid-flight here rather than finished.
+    await settle();
     expect(
       el.shadowRoot.querySelector('[data-id="trend-loading"]')
     ).not.toBeNull();
@@ -330,9 +411,8 @@ describe("c-lane-trend-chart", () => {
     const fastOneYear = trend({ lookbackDays: 365, totalRates: 16 });
     let resolveSixMonth;
     getTrend
-      // the card's own first load, on the default 1-year window
-      .mockReturnValueOnce(Promise.resolve(fastOneYear))
-      // 6 months: uncached, held back until after the click that follows
+      // 6 months: uncached, held back until after the click that follows. There is no answer
+      // before this one - the card asks nothing until a window is clicked.
       .mockReturnValueOnce(
         new Promise((resolve) => {
           resolveSixMonth = resolve;
@@ -381,6 +461,8 @@ describe("c-lane-trend-chart", () => {
     el.requestJson = requestJson;
     document.body.appendChild(el);
     await settle();
+    el.shadowRoot.querySelector('[data-id="window-1y"]').click();
+    await settle();
     expect(
       el.shadowRoot.querySelector('[data-id="trend-error"]').textContent
     ).toContain("could not be read");
@@ -388,7 +470,7 @@ describe("c-lane-trend-chart", () => {
   });
 
   it("stays closed when the request cannot be parsed", async () => {
-    const el = await open(trend(), "{not json");
+    const el = await mount(trend(), "{not json");
     expect(getTrend).not.toHaveBeenCalled();
     expect(
       el.shadowRoot.querySelector('[data-id="lane-trend-card"]')
@@ -396,7 +478,7 @@ describe("c-lane-trend-chart", () => {
   });
 
   it("stays closed when the request has no destination", async () => {
-    const el = await open(
+    const el = await mount(
       trend(),
       JSON.stringify({ originKey: "montreal|qc|ca" })
     );

@@ -1,7 +1,7 @@
 ---
 title: Lire la tendance de la voie
 order: 45
-hint: Neuf fenêtres d'une semaine à trois ans, chacune regroupée par jour, semaine ou mois selon sa durée. Les points creux marquent les périodes avec trop peu de tarifs pour leur taille.
+hint: Neuf fenêtres d'une semaine à trois ans, chacune regroupée par jour, semaine ou mois selon sa durée. Choisissez une fenêtre pour dessiner le graphique; les points creux marquent les périodes avec trop peu de tarifs pour leur taille.
 ---
 
 ## Sous les statistiques
@@ -10,7 +10,7 @@ L'encadré **Lane trend** se trouve directement sous **Statistics**, pour la voi
 
 ## La fenêtre
 
-**1 week**, **2 weeks**, **1 month**, **2 months**, **3 months**, **6 months**, **1 year**, **2 years** et **3 years** choisissent jusqu'où le graphique remonte; **1 year** est la valeur par défaut. Changer de fenêtre redemande le serveur et redessine le graphique.
+**1 week**, **2 weeks**, **1 month**, **2 months**, **3 months**, **6 months**, **1 year**, **2 years** et **3 years** choisissent jusqu'où le graphique remonte. **Rien n'est dessiné tant que vous n'en choisissez pas une** : l'encadré attend, ses boutons affichés, car lire une tendance sur une voie chargée est une vraie requête et la plupart des recherches n'en ont pas besoin. Choisir une fenêtre va chercher cette fenêtre et la dessine; en changer redemande le serveur et redessine le graphique. Chercher une nouvelle voie efface le graphique et attend d'être interrogé de nouveau.
 
 ## Comment le graphique regroupe les tarifs
 

@@ -66,7 +66,7 @@ export default class LaneTrendChart extends LightningElement {
   request = null;
 
   @track trend = null;
-  windowKey = "1y";
+  windowKey = null;
   loading = false;
   error = null;
   // Bumped by every trend request; an answer carrying an older ticket belongs to an earlier window
@@ -89,7 +89,19 @@ export default class LaneTrendChart extends LightningElement {
     }
     this._requestJson = next;
     this.readRequest();
-    this.load();
+    // A new lane goes back to asking rather than fetching. Measured on the heaviest realistic
+    // case - Ontario to Quebec over three years, 9,228 rates - one trend costs about 3 seconds of
+    // server time, and it used to be spent on every search whether or not anyone looked at the
+    // chart. This does not change what a single trend costs, which is what ROW_CAP governs; it
+    // changes how often that cost is paid.
+    //
+    // The ticket still moves, so an answer already in flight for the previous lane is discarded
+    // rather than landing on this one.
+    this.loadTicket += 1;
+    this.windowKey = null;
+    this.trend = null;
+    this.error = null;
+    this.loading = false;
   }
 
   readRequest() {
@@ -109,6 +121,16 @@ export default class LaneTrendChart extends LightningElement {
 
   get hasLane() {
     return !!this.request;
+  }
+
+  /**
+   * A lane is in hand but no window has been chosen, so nothing has been fetched. The card still
+   * shows its title and all nine buttons in this state on purpose: hiding it behind a single
+   * "show me" control would save the same query and cost the feature its discoverability, and
+   * this chart has already been missed once by someone who could not see it.
+   */
+  get awaitingWindow() {
+    return this.hasLane && this.windowKey === null;
   }
 
   get windows() {
@@ -146,7 +168,7 @@ export default class LaneTrendChart extends LightningElement {
     this.loadTicket += 1;
     const ticket = this.loadTicket;
     this.error = null;
-    if (!this.hasLane) {
+    if (!this.hasLane || !this.windowKey) {
       this.trend = null;
       return;
     }

@@ -1,7 +1,7 @@
 ---
 title: Reading the lane trend
 order: 45
-hint: Nine windows from one week to three years, each grouped by day, week or month depending on length. Hollow points mark buckets with too few rates for their size.
+hint: Nine windows from one week to three years, each grouped by day, week or month depending on length. Pick a window to draw the chart; hollow points mark buckets with too few rates for their size.
 ---
 
 ## Under the statistics
@@ -10,7 +10,7 @@ The **Lane trend** card sits directly under **Statistics**, for the lane you alr
 
 ## The window
 
-**1 week**, **2 weeks**, **1 month**, **2 months**, **3 months**, **6 months**, **1 year**, **2 years** and **3 years** choose how far back the chart looks; **1 year** is the default. Switching windows asks the server again and redraws the chart.
+**1 week**, **2 weeks**, **1 month**, **2 months**, **3 months**, **6 months**, **1 year**, **2 years** and **3 years** choose how far back the chart looks. **Nothing is drawn until you pick one** — the card waits, showing its buttons, because reading a trend over a busy lane is a real query and most searches never need it. Picking a window fetches that window and draws it; switching asks the server again and redraws. Searching a new lane clears the chart and waits to be asked again.
 
 ## How the chart groups rates
 
