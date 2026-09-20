@@ -34,9 +34,15 @@ const PAD_B = 28;
 const AXIS_LABEL_Y = VIEW_H - 8;
 const GRID_LABEL_X = 8;
 
-// W4: 37 monthly labels at three years, or 30 daily ones at a month, collide at 11px in a
-// 572-unit plot. Show at most a dozen, evenly spaced.
+// W4: 37 monthly labels at three years, or 30 daily ones at a month, collide in a 572-unit plot.
+// Show at most a dozen, evenly spaced - and then drop any that would still overlap (below).
 const MAX_AXIS_LABELS = 12;
+// Matches font-size="9" on the axis <text> in the template. 0.6em is a fair average advance width
+// for digits and short month names in the SLDS stack; it only has to be close, since the gap below
+// absorbs the error. Two characters of slack cover the year suffix a label may pick up later.
+const AXIS_CHAR_W = 9 * 0.6;
+const AXIS_LABEL_GAP = 6;
+const axisLabelWidth = (label) => (label.length + 2) * AXIS_CHAR_W;
 
 // SLDS design tokens with hex fallbacks (spec 5), so the chart reads correctly in both themes.
 // Only the dot fill varies per point (below); the rest are static and set directly in the
@@ -319,13 +325,61 @@ export default class LaneTrendChart extends LightningElement {
     // With `labelCount <= points.length` the spacing is at least one, so the rounded indices are
     // distinct - which matters beyond tidiness, since bucketKey is the for:each key.
     const labelCount = Math.min(points.length, MAX_AXIS_LABELS);
-    let lastYear = null;
-    const axis = [];
+    const spaced = [];
     for (let k = 0; k < labelCount; k++) {
-      const i =
+      spaced.push(
         labelCount === 1
           ? 0
-          : Math.round((k * (points.length - 1)) / (labelCount - 1));
+          : Math.round((k * (points.length - 1)) / (labelCount - 1))
+      );
+    }
+
+    // A dozen labels is few enough only when the buckets they sit on are spread out. They are
+    // positioned by date, not by rank, so a lane quiet for three weeks and then busy for five
+    // consecutive days puts five labels ~20 units apart where each needs ~35 - which is how
+    // "9 Sep 10 Sep 11 Sep" ends up printed over itself. Walk left to right and keep a label only
+    // when it clears the last one kept.
+    const kept = [];
+    spaced.forEach((i) => {
+      if (!kept.length) {
+        kept.push(i);
+        return;
+      }
+      const prev = kept[kept.length - 1];
+      const need =
+        (axisLabelWidth(points[prev].label) + axisLabelWidth(points[i].label)) /
+          2 +
+        AXIS_LABEL_GAP;
+      if (x(points[i].bucketIndex) - x(points[prev].bucketIndex) >= need) {
+        kept.push(i);
+      }
+    });
+
+    // The newest bucket keeps its label whatever the spacing says, so the axis never reads as
+    // ending before the data does. If it crowds its neighbours, they give way rather than it.
+    const lastIndex = points.length - 1;
+    if (kept[kept.length - 1] !== lastIndex) {
+      while (kept.length > 1) {
+        const prev = kept[kept.length - 1];
+        const need =
+          (axisLabelWidth(points[prev].label) +
+            axisLabelWidth(points[lastIndex].label)) /
+            2 +
+          AXIS_LABEL_GAP;
+        if (
+          x(points[lastIndex].bucketIndex) - x(points[prev].bucketIndex) >=
+          need
+        ) {
+          break;
+        }
+        kept.pop();
+      }
+      kept.push(lastIndex);
+    }
+
+    let lastYear = null;
+    const axis = [];
+    kept.forEach((i) => {
       const p = points[i];
       const year = p.bucketKey.slice(0, 4);
       axis.push({
@@ -335,7 +389,7 @@ export default class LaneTrendChart extends LightningElement {
         label: year === lastYear ? p.label : `${p.label} ${year}`
       });
       lastYear = year;
-    }
+    });
 
     return {
       viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,

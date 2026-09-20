@@ -637,6 +637,38 @@ describe("c-lane-trend-chart", () => {
     });
   });
 
+  // Mutation (observed): delete the overlap walk that builds `kept` and label every evenly-spaced
+  // candidate - adjacent same-week days land ~20 units apart where each needs ~35, and the
+  // minimum-gap assertion fails. This fixture is the shape the owner hit on a real lane: three
+  // quiet weeks, then a cluster of consecutive trading days at the right-hand edge.
+  it("drops an axis label rather than printing it on top of its neighbour when buckets cluster", async () => {
+    const busyTail = [0, 4, 10, 14, 19, 20, 21, 24, 25, 26, 27];
+    const points = busyTail.map((dayIndex) => {
+      const d = new Date(Date.UTC(2026, 7, 21 + dayIndex));
+      return point({
+        bucketKey: `2026-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(
+          d.getUTCDate()
+        ).padStart(2, "0")}`,
+        bucketIndex: dayIndex,
+        label: `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]}`
+      });
+    });
+    const el = await open(trend({ points, bucketSpan: 28, bucketUnit: "day" }));
+    const labels = [
+      ...el.shadowRoot.querySelectorAll('[data-id="axis-label"]')
+    ];
+
+    // Every label still has to be readable on its own, so measure the gap between neighbours
+    // rather than just counting them. 28 units is narrower than the ~35 a "10 Sep" needs, so this
+    // passes only because labels were dropped, not because the font happens to be small.
+    const xs = labels.map((l) => Number(l.getAttribute("x")));
+    for (let i = 1; i < xs.length; i++) {
+      expect(xs[i] - xs[i - 1]).toBeGreaterThanOrEqual(28);
+    }
+    expect(labels.length).toBeLessThan(points.length);
+    expect(labels[labels.length - 1].textContent).toContain("17 Sep");
+  });
+
   // Mutation (observed): restore the old `i % step !== 0` selection - at both 14 and 30 points
   // `(n - 1) % step !== 0`, so the last point's label is never emitted and the final assertion
   // fails. These two counts are not arbitrary: they are the daily bucket counts of the two-week and
