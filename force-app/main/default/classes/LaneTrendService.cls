@@ -1,5 +1,6 @@
 /**
- * Phase 10: bucketing a lane's rates into months.
+ * Phase 10, extended by the lane trend windows feature: bucketing a lane's rates by day, week or
+ * month - whichever LaneTrendBuckets.unitFor derives from the window (spec W1).
  *
  * Both sources are bucketed on CreatedDate - when the rate was recorded, not when the freight moves
  * (owner decision, recorded in the spec's 2026-09-19 amendment; see LaneTrendQueries.quoteSoql for
@@ -11,19 +12,25 @@
  * same lane would not.
  */
 public without sharing class LaneTrendService {
-  /** Spec §4: a three-year window holds more than a 90-day search, and this is its own transaction. */
-  public static final Integer ROW_CAP = 10000;
-  /** @TestVisible so a test can prove the guard without inserting 10,001 rows. camelCase, not final. */
+  /**
+   * W5: 25,000 per side, on a measurement. A three-year read of the widest search in the org -
+   * 11,499 rows - cost 1,554,051 bytes of the 6,000,000 heap and 11,499 of 50,000 query rows, so
+   * the old cap of 10,000, not the platform, is what stopped a three-year window. 25,000 covers
+   * five years of that search with about twice the margin on both limits.
+   */
+  public static final Integer ROW_CAP = 25000;
+  /** @TestVisible so a test can prove the guard without inserting 25,001 rows. camelCase, not final. */
   @TestVisible
   private static Integer rowCapOverride;
 
   /**
-   * The lane's rates over the request's window, bucketed by month.
+   * The lane's rates over the request's window, bucketed by the unit LaneTrendBuckets.unitFor
+   * derives from it (spec W1).
    *
    * The conditions are the search's own (D2) and therefore carry the market-test filter the pricer
    * set (D7), so this chart and the statistics card above it always describe the same rows. Both
    * sources are counted before either is read (D3): a COUNT() costs one query row, while reading
-   * 10,000 rows to discover they were too many costs 10,000 - and a LimitException cannot be
+   * 25,000 rows to discover they were too many costs 25,000 - and a LimitException cannot be
    * caught.
    *
    * The two gates are asymmetric and both are honored, neither re-derived here (Ruling 8/9):
@@ -38,9 +45,7 @@ public without sharing class LaneTrendService {
     LaneTrend trend = new LaneTrend();
     trend.currencyIsoCode = req.currencyIsoCode;
     trend.lookbackDays = req.lookbackDays;
-    // Task 3 derives this from req.lookbackDays; hard-coded here so this task is a move and a
-    // rename only, not a behaviour change.
-    String unit = LaneTrendBuckets.MONTH;
+    String unit = LaneTrendBuckets.unitFor(req.lookbackDays);
     trend.bucketUnit = unit;
     Date windowStart = Date.today().addDays(-req.lookbackDays);
     Date windowStartBucket = LaneTrendBuckets.startOf(windowStart, unit);
@@ -159,8 +164,9 @@ public without sharing class LaneTrendService {
   /**
    * One rate on a date in a currency, which is all a bucket needs from either source.
    *
-   * sampleDate is a Date, because a calendar-month bucket has no use for a time of day, while both
-   * sources' CreatedDate is a Datetime - hence the .date() in the two readers above. That conversion
+   * sampleDate is a Date, because a bucket - day, week or month alike - has no use for a time of
+   * day, while both sources' CreatedDate is a Datetime - hence the .date() in the two readers above.
+   * That conversion
    * resolves in the running user's time zone, which is the same zone the query's own LAST_N_DAYS
    * boundary is evaluated in, so the day a row is admitted on and the day it is bucketed on agree.
    */

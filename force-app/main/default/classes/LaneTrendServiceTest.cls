@@ -1025,12 +1025,12 @@ private class LaneTrendServiceTest {
     System.assertEquals(
       1,
       trend.points.size(),
-      'one rate, one month, one point'
+      'one rate, one bucket, one point'
     );
     System.assertEquals(
       trend.bucketSpan - 1,
       trend.points[0].bucketIndex,
-      'the evidence arrived this month - the last slot on the axis - whatever Valid_From__c says about when the freight moves'
+      'the evidence arrived in the current bucket - the last slot on the axis - whatever Valid_From__c says about when the freight moves'
     );
   }
 
@@ -1046,9 +1046,15 @@ private class LaneTrendServiceTest {
     LaneTrendFixture f = withBidsAcrossThreeMonths();
     String expectedFirstLabel = f.monthLabel(Date.today().addMonths(-2));
     String expectedLastLabel = f.monthLabel(Date.today());
+    LaneSearchRequest req = f.request();
+    // Task 3: the default 90-day lookback now derives WEEK (unitFor(90) <= 92), which would
+    // fragment these three months into many weekly points and break the month-label assertions
+    // below. 180 days is comfortably past the WEEK/MONTH boundary at 92 and still covers the
+    // earliest bid, two months back.
+    req.lookbackDays = 180;
 
     Test.startTest();
-    LaneTrend trend = LaneTrendService.trendFor(f.request());
+    LaneTrend trend = LaneTrendService.trendFor(req);
     Test.stopTest();
 
     System.assertEquals(
@@ -1177,6 +1183,98 @@ private class LaneTrendServiceTest {
       3,
       trend.totalRates,
       'one currency only - six rates here would mean CAD and USD had been blended onto one axis'
+    );
+  }
+
+  /**
+   * W1: the unit follows the window, and the response says which it used. Without this the caption
+   * would name a count of "months" that were days.
+   *
+   * Mutation: hard-code trend.bucketUnit to LaneTrendBuckets.MONTH in trendFor (the pre-Task-3
+   * state) and this goes red - Expected: day, Actual: month. Observed: this is exactly the RED this
+   * test produced before LaneTrendBuckets.unitFor was wired into trendFor.
+   */
+  @IsTest
+  static void aShortWindowBucketsByDayAndSaysSo() {
+    LaneTrendFixture f = withQuotes(3);
+    LaneSearchRequest req = f.request();
+    req.lookbackDays = 7;
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(req);
+    Test.stopTest();
+
+    System.assertEquals(
+      LaneTrendBuckets.DAY,
+      trend.bucketUnit,
+      'a one-week window cannot be bucketed by month: it would be one point'
+    );
+  }
+
+  /**
+   * W1's other half: paired with aShortWindowBucketsByDayAndSaysSo to prove the unit varies with
+   * the window rather than being pinned to one constant.
+   *
+   * Green before Task 3 too - the pre-Task-3 code hard-coded MONTH, so this is not an observed red
+   * on its own; aShortWindowBucketsByDayAndSaysSo is the one that was. Traced: mutating unitFor to
+   * return DAY or WEEK for a 365-day window, or lifting the WEEK/MONTH cutoff past 365, reddens this
+   * test - Expected: month, Actual: day (or week).
+   */
+  @IsTest
+  static void aLongWindowStillBucketsByMonth() {
+    LaneTrendFixture f = withQuotes(3);
+    LaneSearchRequest req = f.request();
+    req.lookbackDays = 365;
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(req);
+    Test.stopTest();
+
+    System.assertEquals(LaneTrendBuckets.MONTH, trend.bucketUnit);
+  }
+
+  /** W5: measured, not guessed - 11,499 rows cost 26% of heap, so the old cap was the only thing
+   * stopping a three-year window. A constant pin is the only practical guard a unit test can give
+   * here: proving the cap behaviourally would need a read of more than ten thousand rows, which no
+   * Apex test can construct. It does discriminate - changing ROW_CAP back to 10000 reddens it. */
+  @IsTest
+  static void theRowCapIsTwentyFiveThousand() {
+    System.assertEquals(25000, LaneTrendService.ROW_CAP);
+  }
+
+  /**
+   * The default window's unit, pinned because this task silently changed it. A request that never
+   * sets lookbackDays is not hypothetical: LaneTrendController.getTrend deserializes whatever JSON
+   * it is handed and calls trendFor directly, and both paths to a missing value land on 90 -
+   * LaneSearchRequest initialises the field to 90, and validate() re-applies `?? 90` for an explicit
+   * null. unitFor puts 90 at or under the 92-day week boundary, so the default window buckets by
+   * week where before this task every window was hard-coded to month.
+   *
+   * The component is the only production caller and always sends 182 or 365, both still month, so
+   * nothing on the page moved. This test exists because nothing else in the repo exercises an omitted
+   * lookbackDays against a real bucket unit, and a default that changed once can change again.
+   *
+   * Traced: dropping validate()'s `?? 90`, or the field's initialiser, leaves lookbackDays null, and
+   * unitFor(null) returns DAY - Expected: week, Actual: day.
+   */
+  @IsTest
+  static void theDefaultWindowBucketsByWeek() {
+    LaneTrendFixture f = withQuotes(3);
+    LaneSearchRequest req = f.request();
+
+    Test.startTest();
+    LaneTrend trend = LaneTrendService.trendFor(req);
+    Test.stopTest();
+
+    System.assertEquals(
+      LaneTrendBuckets.WEEK,
+      trend.bucketUnit,
+      'the default 90-day window falls at or under unitFor\'s 92-day week boundary'
+    );
+    System.assertEquals(
+      90,
+      trend.lookbackDays,
+      'and the response reports the window it actually used, not a null'
     );
   }
 }
