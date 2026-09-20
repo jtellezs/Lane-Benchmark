@@ -65,6 +65,23 @@ const MONTH_NAMES = [
 // before this month, 2026-09) instead of wrapping a bare month number. label is derived from the
 // same calendar math as bucketKey so the fixture is a label/bucketKey pair Apex could actually
 // emit, not a bucketKey with an unrelated "Jan" stapled to every entry.
+// The day-bucketed counterpart of manyPoints, for the two windows whose daily point counts are
+// dense enough to thin: two weeks (14) and one month (30). Keys and labels come from the same walk
+// so each point is a pair Apex's keyOf/labelOf would really emit - YYYY-MM-DD with a "D Mon" label
+// - rather than a day key wearing a month's name.
+const manyDayPoints = (n) =>
+  Array.from({ length: n }, (_, i) => {
+    const d = new Date(Date.UTC(2026, 0, 1 + i));
+    const month = d.getUTCMonth();
+    return point({
+      bucketKey: `2026-${String(month + 1).padStart(2, "0")}-${String(
+        d.getUTCDate()
+      ).padStart(2, "0")}`,
+      bucketIndex: i,
+      label: `${d.getUTCDate()} ${MONTH_NAMES[month]}`
+    });
+  });
+
 const manyPoints = (n) =>
   Array.from({ length: n }, (_, i) => {
     const monthIndex0 = 8 + i; // Sep 2023 is month index 8 of year 2023
@@ -234,7 +251,12 @@ describe("c-lane-trend-chart", () => {
     const el = await open(
       trend({
         bucketUnit: "day",
-        points: [point(), point({ bucketKey: "2026-01-02", bucketIndex: 1 })]
+        // Both points carry day-shaped keys and "D Mon" labels. The default point() is month-shaped
+        // ("Jan" on a 2026-01 key), which Apex's labelOf could never emit for a day bucket.
+        points: [
+          point({ bucketKey: "2026-01-01", label: "1 Jan" }),
+          point({ bucketKey: "2026-01-02", bucketIndex: 1, label: "2 Jan" })
+        ]
       })
     );
     expect(
@@ -599,8 +621,13 @@ describe("c-lane-trend-chart", () => {
       trend({ points: manyPoints(37), bucketSpan: 37, bucketUnit: "month" })
     );
     const labels = el.shadowRoot.querySelectorAll('[data-id="axis-label"]');
+    const points = manyPoints(37);
     expect(labels.length).toBeGreaterThan(0);
     expect(labels.length).toBeLessThanOrEqual(12);
+    // Both ends, not just the count. An axis that drops an end reads as a window shorter than the
+    // one the reader asked for, and nothing on the chart contradicts it.
+    expect(labels[0].textContent).toContain(points[0].label);
+    expect(labels[labels.length - 1].textContent).toContain(points[36].label);
     [...labels].forEach((l) => {
       // getAttribute returns null, not "0", for a missing attribute - and Number(null) is 0,
       // which Number.isFinite would wrongly accept, so the null case is checked explicitly.
@@ -609,6 +636,29 @@ describe("c-lane-trend-chart", () => {
       expect(Number.isFinite(Number(y))).toBe(true);
     });
   });
+
+  // Mutation (observed): restore the old `i % step !== 0` selection - at both 14 and 30 points
+  // `(n - 1) % step !== 0`, so the last point's label is never emitted and the final assertion
+  // fails. These two counts are not arbitrary: they are the daily bucket counts of the two-week and
+  // one-month windows, the only two of the nine where the old rule dropped an end.
+  it.each([
+    ["two weeks", 14],
+    ["one month", 30]
+  ])(
+    "keeps the most recent bucket's label at %s, where an evenly-stepped axis would have dropped it",
+    async (_name, n) => {
+      const points = manyDayPoints(n);
+      const el = await open(
+        trend({ points, bucketSpan: n, bucketUnit: "day" })
+      );
+      const labels = el.shadowRoot.querySelectorAll('[data-id="axis-label"]');
+      expect(labels.length).toBeLessThanOrEqual(12);
+      expect(labels[0].textContent).toContain(points[0].label);
+      expect(labels[labels.length - 1].textContent).toContain(
+        points[n - 1].label
+      );
+    }
+  );
 
   // Mutation (observed): drop the `year === lastYear` check (always prefix the year) - the
   // `not.toContain("Feb 2026")` assertion fails, since "Feb" would come back "Feb 2026" and the

@@ -308,13 +308,25 @@ export default class LaneTrendChart extends LightningElement {
     // bucketKey's first four characters are the year for every unit (day, week and month all key
     // as YYYY-... - see the header comment on bucketKey in the spec), which is what lets this
     // work without a second field.
-    const step = Math.ceil(points.length / MAX_AXIS_LABELS);
+    // Positions are spaced across the whole range and anchored at both ends, rather than taken as
+    // every step-th point. Stepping by `Math.ceil(n / 12)` keeps index 0 for free but keeps the last
+    // index only when `(n - 1) % step === 0`, which is false at 14 and 30 points - the daily counts
+    // for the two-week and one-month windows - so the most recent bucket, the one a reader looks at
+    // first, went unlabelled on two of the nine windows. Forcing the last index into a stepped
+    // selection is not the fix: at 14 points it puts labels on indices 12 and 13, recreating the very
+    // collision W4 thins to avoid. The selection rule itself has to change.
+    //
+    // With `labelCount <= points.length` the spacing is at least one, so the rounded indices are
+    // distinct - which matters beyond tidiness, since bucketKey is the for:each key.
+    const labelCount = Math.min(points.length, MAX_AXIS_LABELS);
     let lastYear = null;
     const axis = [];
-    points.forEach((p, i) => {
-      if (i % step !== 0) {
-        return;
-      }
+    for (let k = 0; k < labelCount; k++) {
+      const i =
+        labelCount === 1
+          ? 0
+          : Math.round((k * (points.length - 1)) / (labelCount - 1));
+      const p = points[i];
       const year = p.bucketKey.slice(0, 4);
       axis.push({
         key: p.bucketKey,
@@ -323,7 +335,7 @@ export default class LaneTrendChart extends LightningElement {
         label: year === lastYear ? p.label : `${p.label} ${year}`
       });
       lastYear = year;
-    });
+    }
 
     return {
       viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
