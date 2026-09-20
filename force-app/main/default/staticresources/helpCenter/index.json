@@ -49,6 +49,18 @@
       }
     },
     {
+      "slug": "lb-trend",
+      "order": 45,
+      "title": {
+        "en": "Reading the lane trend",
+        "fr": "Lire la tendance de la voie"
+      },
+      "hint": {
+        "en": "Nine windows from one week to three years, each grouped by day, week or month depending on length. Hollow points mark buckets with too few rates for their size.",
+        "fr": "Neuf fenêtres d'une semaine à trois ans, chacune regroupée par jour, semaine ou mois selon sa durée. Les points creux marquent les périodes avec trop peu de tarifs pour leur taille."
+      }
+    },
+    {
       "slug": "lb-results",
       "order": 50,
       "title": {

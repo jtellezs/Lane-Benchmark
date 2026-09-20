@@ -1,0 +1,20 @@
+<h3>Under the statistics</h3>
+<p>The <strong>Lane trend</strong> card sits directly under <strong>Statistics</strong>, for the lane you already searched: a horizontal axis of buckets, a line through each bucket&#39;s median rate, and a shaded band between that bucket&#39;s lowest and highest rate. Point at a dot to see its bucket, median and rate count.</p>
+<h3>The window</h3>
+<p><strong>1 week</strong>, <strong>2 weeks</strong>, <strong>1 month</strong>, <strong>2 months</strong>, <strong>3 months</strong>, <strong>6 months</strong>, <strong>1 year</strong>, <strong>2 years</strong> and <strong>3 years</strong> choose how far back the chart looks; <strong>1 year</strong> is the default. Switching windows asks the server again and redraws the chart.</p>
+<h3>How the chart groups rates</h3>
+<p>The size of a bucket follows the window you picked, not something you choose separately: <strong>1 week</strong>, <strong>2 weeks</strong> and <strong>1 month</strong> group rates by day; <strong>2 months</strong> and <strong>3 months</strong> group by week; <strong>6 months</strong> and longer group by month. Apex decides which from the window, so the axis, the hollow-point rule below and the summary sentence always agree on what kind of bucket they are describing.</p>
+<h3>Hollow points</h3>
+<p>A hollow point marks a bucket with too few rates to trust for its size — three for a month, two for a week — and is left off the median line. Its lowest and highest still shade the band, and it still counts in the total under the chart: a thin bucket is evidence, just not evidence the line should lean on. At day buckets nothing is ever marked thin: a bucket only exists once it holds at least one rate, and one rate is all a day needs.</p>
+<h3>On a quiet lane</h3>
+<p>A bucket only appears once it has a rate in it, so on a lane with little recent activity the shortest windows — <strong>1 week</strong> and <strong>2 weeks</strong> especially — can show very few points, sometimes none. That is the window doing exactly what it should: showing what is actually there. A longer window will usually fill back in.</p>
+<h3>It follows the market-test filter</h3>
+<p>The chart reads the same lane and the same <strong>Market test</strong> filter (<strong>Include</strong>, <strong>Exclude</strong> or <strong>Only</strong>) that produced the statistics above it. Change the filter and both redraw together, so the trend never describes a different set of rates than the median it sits under.</p>
+<h3>When there is not enough history</h3>
+<p>Fewer than two buckets with enough rates to trust, and the card says there is not enough history to show a trend, rather than draw an empty frame.</p>
+<h3>&quot;The trend may be incomplete.&quot;</h3>
+<p>A busy lane over a long window can hold more rows than the chart safely reads in one call. When that happens the chart is still drawn from what it read, with this note under it — narrow the window to see the rest.</p>
+<h3>Which bucket a rate lands in</h3>
+<p>Each rate is placed on the axis by the day it was recorded, not by the day the freight is due to move. A quote you asked for today tells you about today&#39;s market whether the truck rolls next week or next month. The window you choose counts that same day, so every rate the chart finds is a rate it can place — nothing is quietly left off the axis, and the newest bucket is as complete as the older ones.</p>
+<h3>Rates the chart leaves out</h3>
+<p>A row with no rate on it, and a row whose carrier total is zero, are not prices a market set, so the chart leaves them out — exactly as the median, lowest and highest in <strong>Statistics</strong> above already do. A bucket&#39;s rate count here is therefore the non-zero count, which can be smaller than the number of rows the results table shows for the same bucket.</p>

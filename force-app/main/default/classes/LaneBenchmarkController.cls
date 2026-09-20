@@ -66,13 +66,16 @@ public without sharing class LaneBenchmarkController {
   }
 
   /**
+   * Shared by LaneTrendController: the same check, so a trend excludes a project only when the
+   * caller can read it too.
+   *
    * The project a search may leave out. excludeProjectId binds into a system-mode bid query, so it
    * counts only when the caller can read that project in user mode; otherwise two searches would
    * reveal which bids belong to an RFP the caller cannot see (spec §5). A caller with no read on
    * RFP_Project__c at all (Lane_Benchmark_User) makes the query throw: no exclusion either.
    * RfpHistoryService calls LaneSearchService.search directly and keeps its exclusion.
    */
-  private static Id readableProject(Id projectId) {
+  public static Id readableProject(Id projectId) {
     if (projectId == null) {
       return null;
     }

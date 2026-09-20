@@ -1,0 +1,146 @@
+<template>
+  <template lwc:if={hasLane}>
+    <article class="slds-card slds-m-bottom_small" data-id="lane-trend-card">
+      <div class="slds-card__header slds-grid">
+        <header class="slds-media slds-media_center slds-has-flexi-truncate">
+          <div class="slds-media__body">
+            <h2 class="slds-card__header-title slds-text-heading_small">
+              Lane trend
+            </h2>
+          </div>
+        </header>
+        <div class="slds-no-flex">
+          <template for:each={windows} for:item="w">
+            <button
+              key={w.key}
+              data-id={w.dataId}
+              data-window={w.key}
+              class={w.buttonClass}
+              aria-pressed={w.ariaPressed}
+              onclick={handleWindow}
+            >
+              {w.label}
+            </button>
+          </template>
+        </div>
+      </div>
+      <div class="slds-card__body slds-card__body_inner">
+        <template lwc:if={loading}>
+          <p data-id="trend-loading" class="slds-text-color_weak">
+            Loading the trend…
+          </p>
+        </template>
+        <template lwc:elseif={error}>
+          <p data-id="trend-error" role="alert" class="slds-text-color_error">
+            {error}
+          </p>
+        </template>
+        <template lwc:elseif={canDraw}>
+          <svg
+            role="img"
+            aria-labelledby="trend-title"
+            aria-describedby="trend-desc"
+            viewBox={geometry.viewBox}
+            class="trend-svg slds-m-bottom_x-small"
+          >
+            <title id="trend-title">{figureTitle}</title>
+            <desc id="trend-desc">{summary}</desc>
+            <polygon
+              data-id="trend-band"
+              points={geometry.band}
+              fill="var(--slds-g-color-palette-blue-90, #d8e6fe)"
+              stroke="none"
+            ></polygon>
+            <template for:each={geometry.gridY} for:item="g">
+              <text
+                key={g.key}
+                x={g.x}
+                y={g.y}
+                font-size="9"
+                fill="var(--slds-g-color-neutral-base-50, #747474)"
+              >
+                {g.label}
+              </text>
+            </template>
+            <polyline
+              data-id="trend-line"
+              points={geometry.line}
+              fill="none"
+              stroke="var(--slds-g-color-accent-base-50, #0176d3)"
+              stroke-width="2"
+            ></polyline>
+            <template for:each={geometry.dots} for:item="d">
+              <circle
+                key={d.key}
+                data-id="trend-dot"
+                data-thin={d.thin}
+                cx={d.cx}
+                cy={d.cy}
+                r="4"
+                stroke="var(--slds-g-color-accent-base-50, #0176d3)"
+                stroke-width="2"
+                fill={d.fill}
+              >
+                <title>{d.title}</title>
+              </circle>
+            </template>
+            <template for:each={geometry.axis} for:item="a">
+              <text
+                key={a.key}
+                data-id="axis-label"
+                x={a.x}
+                y={a.y}
+                font-size="9"
+                text-anchor="middle"
+                fill="var(--slds-g-color-neutral-base-50, #747474)"
+              >
+                {a.label}
+              </text>
+            </template>
+          </svg>
+          <table data-id="trend-table" class="slds-assistive-text">
+            <caption>
+              {figureTitle}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">{bucketUnitHeader}</th>
+                <th scope="col">Rates</th>
+                <th scope="col">Median</th>
+                <th scope="col">Lowest</th>
+                <th scope="col">Highest</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template for:each={tableRows} for:item="r">
+                <tr key={r.key} data-id="trend-row">
+                  <td>{r.label}</td>
+                  <td>{r.count}</td>
+                  <td>{r.median}</td>
+                  <td>{r.minimum}</td>
+                  <td>{r.maximum}</td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <p data-id="trend-summary" class="slds-text-body_regular">
+            {summary}
+          </p>
+          <template lwc:if={isTruncated}>
+            <p
+              data-id="trend-truncated"
+              class="slds-text-color_weak slds-text-body_small"
+            >
+              The trend may be incomplete. Narrow the window to see all of it.
+            </p>
+          </template>
+        </template>
+        <template lwc:else>
+          <p data-id="trend-empty" class="slds-text-color_weak">
+            There is not enough history on this lane to show a trend yet.
+          </p>
+        </template>
+      </div>
+    </article>
+  </template>
+</template>

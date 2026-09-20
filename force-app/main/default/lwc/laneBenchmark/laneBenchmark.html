@@ -101,6 +101,10 @@
           route-loading={isRouteLoading}
           unit={unit}
         ></c-lane-benchmark-stats>
+        <c-lane-trend-chart
+          data-id="lane-trend"
+          request-json={lastRequestJson}
+        ></c-lane-trend-chart>
         <c-lane-benchmark-selling
           data-id="selling"
           stats-by-currency={statsByCurrency}

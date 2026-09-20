@@ -6,6 +6,7 @@ import mapPreviewUrl from "@salesforce/apex/LaneBenchmarkController.mapPreviewUr
 import truckRoute from "@salesforce/apex/LaneBenchmarkController.truckRoute";
 import splitOptions from "@salesforce/apex/SplitLaneController.splitOptions";
 import findCarrierLeads from "@salesforce/apex/CarrierLeadController.findCarrierLeads";
+import getTrend from "@salesforce/apex/LaneTrendController.getTrend";
 import {
   subscribe,
   unsubscribe,
@@ -52,6 +53,11 @@ jest.mock(
 );
 jest.mock(
   "@salesforce/apex/SplitLaneController.splitOptions",
+  () => ({ default: jest.fn() }),
+  { virtual: true }
+);
+jest.mock(
+  "@salesforce/apex/LaneTrendController.getTrend",
   () => ({ default: jest.fn() }),
   { virtual: true }
 );
@@ -152,6 +158,7 @@ describe("c-lane-benchmark", () => {
       stateLaneLabel: null,
       truncated: false
     });
+    getTrend.mockResolvedValue(null);
   });
   afterEach(() => {
     while (document.body.firstChild)
@@ -812,5 +819,27 @@ describe("c-lane-benchmark", () => {
     expect(
       el.shadowRoot.querySelector("c-lane-benchmark-results").rows.length
     ).toBe(1);
+  });
+
+  it("puts the lane trend directly under the statistics card, ahead of selling", async () => {
+    const el = await mount();
+    pickLane(el);
+    applySearch(el);
+    await settle();
+    // Query all three so a trend that slipped below selling (still "after stats" on a
+    // two-element query) would redden this, not just a trend that never rendered.
+    const order = [
+      ...el.shadowRoot.querySelectorAll(
+        "c-lane-benchmark-stats, c-lane-trend-chart, c-lane-benchmark-selling"
+      )
+    ].map((node) => node.tagName.toLowerCase());
+    expect(order).toEqual([
+      "c-lane-benchmark-stats",
+      "c-lane-trend-chart",
+      "c-lane-benchmark-selling"
+    ]);
+    expect(el.shadowRoot.querySelector("c-lane-trend-chart").requestJson).toBe(
+      search.mock.calls[0][0].requestJson
+    );
   });
 });
