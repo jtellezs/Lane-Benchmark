@@ -1264,18 +1264,22 @@ private class LaneTrendServiceTest {
       LaneTrendService.ROW_CAP * 2 * bytesPerRow < heapBudget,
       'both sides can truncate in one transaction, so the cap is spent twice: ROW_CAP * 2 rows at ' +
         '~136 bytes each must stay inside three quarters of the 6,000,000-byte heap. 25,000 a side ' +
-        'was 112% of heap and 20,000 was 90% - heap, not the row limit, is what binds here'
+        'was 113% of heap and 20,000 was 90% - heap, not the row limit, is what binds here'
     );
+    // Confirmatory, not an independent guard, and worth saying so rather than letting the next
+    // reader assume two ceilings are being watched: every cap that passes the heap budget above is
+    // already inside the row limit, so this assertion cannot be the one that fires. It records the
+    // second limit and the headroom left for the two counts and loadPlaces.
     System.assert(
       LaneTrendService.ROW_CAP * 2 < 50000,
-      'and the same doubling must stay under the 50,000 SOQL rows a transaction is allowed, with ' +
-      'room left for the two counts and loadPlaces'
+      'the same doubling must also stay under the 50,000 SOQL rows a transaction is allowed'
     );
     System.assertEquals(
       15000,
       LaneTrendService.ROW_CAP,
-      'the agreed value under both ceilings above; a three-year read of the widest search is 11,499 ' +
-      'rows across both sides, so this does not truncate any window the feature ships'
+      'the agreed value under both ceilings above, and the only assertion here that catches the cap ' +
+        'being quietly lowered - both invariants still pass for anything smaller. A three-year read ' +
+        'of the widest search is 11,499 rows across both sides, so this truncates no window we ship'
     );
   }
 

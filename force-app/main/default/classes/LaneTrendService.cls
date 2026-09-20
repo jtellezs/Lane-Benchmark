@@ -22,14 +22,16 @@ public without sharing class LaneTrendService {
    * readQuoteSamples and readBidSamples each bind their own :trendRowCap, so a lane that truncates on
    * both sides reads 2 x ROW_CAP from the sample reads alone. And **heap binds before rows do**: at
    * 135 bytes a row the 6,000,000-byte heap is exhausted at about 44,400 combined rows, while the row
-   * limit allows 50,000. The spec's first answer of 25,000 per side was 112% of heap, and the second
+   * limit allows 50,000. The spec's first answer of 25,000 per side was 113% of heap, and the second
    * answer of 20,000 was 90% - neither leaves room to be wrong, and a LimitException cannot be caught.
    *
    * 15,000 puts the worst case at 30,000 rows: 68% of heap and 60% of the row limit. It still covers
    * the largest window this feature ships - the three-year read above is 11,499 rows across both sides
    * together, so 15,000 holds even if a lane were pathologically one-sided.
-   * theRowCapLeavesRoomForBothSidesInOneTransaction asserts both ceilings, heap first, so the next
-   * raise has to meet the argument rather than edit a constant.
+   * theRowCapLeavesRoomForBothSidesInOneTransaction asserts heap first, because heap is the ceiling
+   * that actually fires: every cap that is safe on heap is safe on rows, so the row assertion beside
+   * it records the second limit rather than guarding it independently. The equality on the number is
+   * the one that catches the cap being quietly lowered, which neither invariant would.
    */
   public static final Integer ROW_CAP = 15000;
   /** @TestVisible so a test can prove the guard without inserting 15,001 rows. camelCase, not final. */
