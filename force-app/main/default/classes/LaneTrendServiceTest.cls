@@ -1233,13 +1233,34 @@ private class LaneTrendServiceTest {
     System.assertEquals(LaneTrendBuckets.MONTH, trend.bucketUnit);
   }
 
-  /** W5: measured, not guessed - 11,499 rows cost 26% of heap, so the old cap was the only thing
-   * stopping a three-year window. A constant pin is the only practical guard a unit test can give
-   * here: proving the cap behaviourally would need a read of more than ten thousand rows, which no
-   * Apex test can construct. It does discriminate - changing ROW_CAP back to 10000 reddens it. */
+  /**
+   * W5: the cap is measured, not guessed - a three-year read of the widest search in the org is
+   * 11,499 rows, so the old 10,000 was the only thing stopping a three-year window.
+   *
+   * The second assertion is the one that matters, and it exists because the first draft of this
+   * feature got it wrong. The LIMIT is bound per side: readQuoteSamples and readBidSamples each bind
+   * their own :trendRowCap, so a lane that truncates on both sides reads 2 x ROW_CAP rows from the
+   * sample reads alone. Salesforce allows 50,000 SOQL rows per transaction, and a LimitException
+   * cannot be caught - so a cap of 25,000 per side would have thrown, uncatchably, on exactly the
+   * biggest lanes over the longest windows that raising the cap was meant to serve.
+   *
+   * Asserting the invariant rather than the number is deliberate: it reddens for whoever raises
+   * ROW_CAP next without redoing this arithmetic, which a bare `assertEquals(20000, ...)` would not
+   * explain. The headroom left over covers the two COUNT() aggregates and loadPlaces.
+   */
   @IsTest
-  static void theRowCapIsTwentyFiveThousand() {
-    System.assertEquals(25000, LaneTrendService.ROW_CAP);
+  static void theRowCapLeavesRoomForBothSidesInOneTransaction() {
+    System.assertEquals(
+      20000,
+      LaneTrendService.ROW_CAP,
+      'lowered from 25,000: two sides at 25,000 each is exactly the 50,000-row transaction ceiling'
+    );
+    System.assert(
+      LaneTrendService.ROW_CAP * 2 < 50000,
+      'both sides can truncate in one transaction, and a LimitException cannot be caught: ' +
+        'ROW_CAP * 2 must stay under the 50,000 SOQL rows a transaction is allowed, with room ' +
+        'left for the two counts and loadPlaces'
+    );
   }
 
   /**
@@ -1254,8 +1275,17 @@ private class LaneTrendServiceTest {
    * nothing on the page moved. This test exists because nothing else in the repo exercises an omitted
    * lookbackDays against a real bucket unit, and a default that changed once can change again.
    *
-   * Traced: dropping validate()'s `?? 90`, or the field's initialiser, leaves lookbackDays null, and
-   * unitFor(null) returns DAY - Expected: week, Actual: day.
+   * Traced, and stated carefully because the obvious claim is wrong: dropping either defaulting
+   * mechanism alone changes nothing here, because this test builds its request with
+   * `new LaneSearchRequest()` and the two are redundant on that path - the field initialiser has
+   * already set 90 before applyDefaults' `?? 90` runs. Dropping both does not redden this assertion
+   * either; it makes validateLookback throw a LaneSearchException before unitFor is ever reached. So
+   * "Expected: week, Actual: day" is not a failure this test can produce.
+   *
+   * What it does catch: moving unitFor's WEEK/MONTH cutoff below 90 (the unit becomes month), and
+   * any change to the default itself - 30 would give day, 100 would give month. Those are the
+   * mutations this test is a guard against, and they are the ones that would silently re-granularise
+   * every caller that omits the window.
    */
   @IsTest
   static void theDefaultWindowBucketsByWeek() {

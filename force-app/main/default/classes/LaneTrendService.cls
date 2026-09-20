@@ -13,13 +13,24 @@
  */
 public without sharing class LaneTrendService {
   /**
-   * W5: 25,000 per side, on a measurement. A three-year read of the widest search in the org -
-   * 11,499 rows - cost 1,554,051 bytes of the 6,000,000 heap and 11,499 of 50,000 query rows, so
-   * the old cap of 10,000, not the platform, is what stopped a three-year window. 25,000 covers
-   * five years of that search with about twice the margin on both limits.
+   * W5: 20,000 per side, on a measurement and then on an arithmetic correction. A three-year read of
+   * the widest search in the org - 11,499 rows - cost 1,554,051 bytes of the 6,000,000 heap and
+   * 11,499 of the 50,000 query rows a transaction is allowed, so the old cap of 10,000, not the
+   * platform, is what stopped a three-year window.
+   *
+   * The spec first set this to 25,000 and that was wrong, because **the LIMIT is bound per side**:
+   * readQuoteSamples and readBidSamples each bind their own :trendRowCap, so a lane that truncates on
+   * both sides reads 2 x ROW_CAP from the sample reads alone. At 25,000 that is 50,000 - the entire
+   * transaction ceiling, before the two COUNT() aggregates and loadPlaces - and a LimitException
+   * cannot be caught. It would have thrown on precisely the biggest lanes over the longest windows
+   * that raising the cap existed to serve.
+   *
+   * 20,000 keeps the worst case at 40,000 with 10,000 to spare, and still covers about five years of
+   * that widest search per side. theRowCapLeavesRoomForBothSidesInOneTransaction asserts the
+   * invariant rather than the number, so the next raise has to meet this argument.
    */
-  public static final Integer ROW_CAP = 25000;
-  /** @TestVisible so a test can prove the guard without inserting 25,001 rows. camelCase, not final. */
+  public static final Integer ROW_CAP = 20000;
+  /** @TestVisible so a test can prove the guard without inserting 20,001 rows. camelCase, not final. */
   @TestVisible
   private static Integer rowCapOverride;
 
@@ -30,7 +41,7 @@ public without sharing class LaneTrendService {
    * The conditions are the search's own (D2) and therefore carry the market-test filter the pricer
    * set (D7), so this chart and the statistics card above it always describe the same rows. Both
    * sources are counted before either is read (D3): a COUNT() costs one query row, while reading
-   * 25,000 rows to discover they were too many costs 25,000 - and a LimitException cannot be
+   * 20,000 rows to discover they were too many costs 20,000 - and a LimitException cannot be
    * caught.
    *
    * The two gates are asymmetric and both are honored, neither re-derived here (Ruling 8/9):

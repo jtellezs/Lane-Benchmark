@@ -35,7 +35,7 @@ number is what every decision below answers to.
 | W2  | **Nine windows: 1 week, 2 weeks, 1 month, 2 months, 3 months, 6 months, 1 year, 2 years, 3 years.** The mapping in W1 lands every one of them between roughly 7 and 37 points, which is the range a 640-unit viewBox can draw legibly once W4 thins the labels.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | W3  | **The thin threshold scales with the bucket**: 3 rates for a month, 2 for a week, 1 for a day. Phase 10's D5 fixed it at 3 because every bucket was a month. Left fixed, a lane at 0.56 rates a day would have essentially every daily bucket thin — and thin buckets are skipped by the trend line, so the chart would show hollow dots with no line at all. That reads as broken rather than as honest, which is the same visual the three-year window was withdrawn for. **A consequence to state plainly: with a threshold of 1, no daily bucket is ever thin**, because a bucket only exists when it holds at least one rate. At that zoom the reader is looking at individual activity rather than a market median, and the hollow warning stops applying. |
 | W4  | **At most about twelve axis labels, evenly spaced, with the year shown wherever it changes.** Both ends now need this: 37 monthly labels at three years and 30 daily labels at one month both collide at 11px in a 572-unit plot. The alternative the owner raised — numbering buckets so that a smaller number is nearer today — was weighed and rejected: it fixes the repeated-"Jan" ambiguity but turns "what happened in November" into arithmetic, gives a screen reader "17" instead of "Feb 2025", and does not actually solve crowding, since 37 two-character labels still collide.                                                                                                                                                                    |
-| W5  | **`ROW_CAP` rises from 10,000 to 25,000 per side**, on a measurement rather than a guess. A three-year read of the widest search in the org was run in anonymous Apex: 11,499 rows cost **1,554,051 bytes of the 6,000,000 heap (26%)** and 11,499 of 50,000 query rows (23%). The old cap, not the platform, is what stopped a three-year window. 25,000 covers five years of the widest search with roughly two times the margin on both limits.                                                                                                                                                                                                                                                                                                               |
+| W5  | **`ROW_CAP` rises from 10,000 to 20,000 per side**, on a measurement rather than a guess. A three-year read of the widest search in the org was run in anonymous Apex: 11,499 rows cost **1,554,051 bytes of the 6,000,000 heap (26%)** and 11,499 of 50,000 query rows (23%). The old cap, not the platform, is what stopped a three-year window. 20,000 covers about five years of the widest search per side while keeping both sides inside one transaction's row ceiling. **This decision first said 25,000 and that was an arithmetic error — see the 2026-09-20 amendment below, which is the reason for the number.**                                                                                                                                    |
 | W6  | **Truncation on a long window loses the oldest buckets, and that is worse than it sounds.** The reads order newest first, so a truncated three-year window silently drops exactly the early history the window was chosen to show. W5 is what keeps this out of reach for real searches; if a future window ever exceeds the cap, the note must say which end was lost rather than only that the trend may be incomplete.                                                                                                                                                                                                                                                                                                                                        |
 | W7  | **`monthSpan` and `monthKey`/`monthIndex` are renamed.** They become `bucketSpan`, `bucketKey` and `bucketIndex`, and `LaneTrend` gains `bucketUnit` (`day`, `week` or `month`). A field named for months that holds days is the class of false statement this feature has already corrected eight times in comments, test names and help pages.                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | W8  | **The caption names the unit.** "30 days, 17 rates, median 2,450 CAD, up 6% since 21 Aug" rather than a count that silently means something different per window. Phase 10's Ruling 22 already made this sentence count buckets that carry rates rather than the axis span; W8 only adds which kind of bucket they are.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -86,7 +86,7 @@ beside `bucket()`, which is the only thing that reads it, not on `LaneTrendSumma
 about the summary — the zero-amount rule, the median, the change between the first
 and last non-thin buckets — is untouched.
 
-`ROW_CAP` becomes 25,000 (W5). No other limit changes; both counts still run before
+`ROW_CAP` becomes 20,000 (W5, as amended 2026-09-20). No other limit changes; both counts still run before
 both reads.
 
 ## 5. The component
@@ -128,3 +128,33 @@ measurement bounds for the widest search the tool allows.
 
 A custom date range. Quarter buckets. A per-lane suggestion of which window to use.
 Changing what the search itself does — this is the trend's control only.
+
+---
+
+## Amendment, 2026-09-20: W5's cap is 20,000 per side, not 25,000
+
+W5 originally raised `ROW_CAP` from 10,000 to 25,000 per side. That was wrong, and it was found in Task 3's
+review rather than by the measurement that produced it, because the measurement asked the right question of
+one read and the cap governs two.
+
+**The error.** The row limit is bound _per side_: `readQuoteSamples` and `readBidSamples` each bind their own
+`:trendRowCap`. So a lane that truncates on both sides reads `2 x ROW_CAP` rows from the sample reads alone.
+Salesforce allows **50,000 SOQL rows per transaction**, and a `LimitException` **cannot be caught**. At 25,000
+per side the worst case is exactly 50,000 — the entire ceiling — before the two `COUNT()` aggregates and
+`loadPlaces`. The original 10,000 was safe at 20,000 worst-case; raising it to 25,000 crossed the line.
+
+What makes this the worst kind of error is _where_ it would have landed: not on an edge case, but on the
+biggest lanes over the longest windows — exactly the searches the raise existed to make drawable. The feature
+would have failed, uncatchably, on its own headline case.
+
+**The correction.** 20,000 per side keeps the worst case at 40,000 with 10,000 rows to spare for the counts
+and `loadPlaces`, and still covers roughly five years of the widest measured search on each side — the
+three-year read that motivated the raise is 11,499 rows across _both_ sides, so a 20,000 per-side cap is not
+close to binding for any real lane.
+
+**What stops this recurring.** `theRowCapLeavesRoomForBothSidesInOneTransaction` asserts the _invariant_,
+`ROW_CAP * 2 < 50000`, not just the number. A bare equality on 20,000 would redden for the next person who
+raises the cap without telling them why; the invariant states the argument they have to meet.
+
+The measurement in W5 stands and was never in question — 26% of heap and 23% of query rows for 11,499 rows is
+what it says. Only the inference from one read's cost to a two-read cap was wrong.
