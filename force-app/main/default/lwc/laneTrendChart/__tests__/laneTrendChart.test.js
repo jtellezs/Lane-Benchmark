@@ -22,6 +22,10 @@ const point = (over = {}) => ({
   ...over
 });
 
+// bucketUnit defaults to "month" because every other default here is month-shaped: a 365-day
+// lookback (which Apex's own mapping puts at month) and bucket keys/labels ("2026-01", "Jan")
+// that only make sense as calendar months. A test that needs a different unit overrides it, and
+// the fixture then has to override the shape that goes with it.
 const trend = (over = {}) => ({
   points: [
     point(),
@@ -30,6 +34,7 @@ const trend = (over = {}) => ({
   currencyIsoCode: "CAD",
   lookbackDays: 365,
   bucketSpan: 12,
+  bucketUnit: "month",
   truncated: false,
   totalRates: 16,
   overallMedian: 2450,
@@ -121,15 +126,49 @@ describe("c-lane-trend-chart", () => {
     expect(sent.lookbackDays).toBe(182);
   });
 
-  it("offers six months and one year only, because three years overruns the row cap", async () => {
+  it("offers all nine windows, shortest first", async () => {
     const el = await open(trend());
-    const buttons = [...el.shadowRoot.querySelectorAll("[data-window]")];
-    expect(buttons.map((b) => b.dataset.window)).toEqual(["6m", "1y"]);
-    // Measured on PostProduc 2026-09-19: the busiest province pair (Ontario to Quebec) runs about
-    // 3,839 quotes a year, so a three-year window lands near 11,500 against a cap of 10,000 per
-    // side - real lanes would have truncated as a matter of course. The axis was unreadable at 37
-    // months as well, but the cap is the reason the option is gone rather than relabelled.
-    expect(el.shadowRoot.querySelector('[data-id="window-3y"]')).toBeNull();
+    const keys = [...el.shadowRoot.querySelectorAll("[data-window]")].map(
+      (b) => b.dataset.window
+    );
+    expect(keys).toEqual([
+      "1w",
+      "2w",
+      "1m",
+      "2m",
+      "3m",
+      "6m",
+      "1y",
+      "2y",
+      "3y"
+    ]);
+  });
+
+  it("sends each window its own lookback", async () => {
+    const el = await open(trend());
+    const sent = async (key) => {
+      getTrend.mockClear();
+      el.shadowRoot
+        .querySelector(`[data-id="window-${key}"]`)
+        .dispatchEvent(new CustomEvent("click"));
+      await settle();
+      return JSON.parse(getTrend.mock.calls[0][0].requestJson).lookbackDays;
+    };
+    expect(await sent("1w")).toBe(7);
+    expect(await sent("3m")).toBe(90);
+    expect(await sent("3y")).toBe(1095);
+  });
+
+  it("names the unit in the caption, so a count of days is not read as months", async () => {
+    const el = await open(
+      trend({
+        bucketUnit: "day",
+        points: [point(), point({ bucketKey: "2026-01-02", bucketIndex: 1 })]
+      })
+    );
+    expect(
+      el.shadowRoot.querySelector('[data-id="trend-summary"]').textContent
+    ).toContain("2 days");
   });
 
   it("says so rather than drawing a frame when fewer than two months are usable", async () => {

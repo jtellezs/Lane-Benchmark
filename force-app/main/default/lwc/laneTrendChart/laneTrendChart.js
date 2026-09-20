@@ -1,16 +1,27 @@
 import { LightningElement, api, track } from "lwc";
 import getTrend from "@salesforce/apex/LaneTrendController.getTrend";
 
-// Six months and one year only. Three years was offered until 2026-09-19 and was withdrawn on a
-// measurement, not a preference: the busiest province pair in the org (Ontario to Quebec) runs about
-// 3,839 quotes a year, so three years lands near 11,500 against LaneTrendService.ROW_CAP of 10,000
-// per side - a real lane would have truncated as a matter of course and captioned itself "may be
-// incomplete" every time. At one year the same pair sits near 38% of the cap. The 37-month axis was
-// also unreadable, month-only labels repeating "Jan" three times, but the cap is the reason.
+// Nine windows, one week to three years (spec W2). The row cap that withdrew three years on
+// 2026-09-19 was raised in Apex (W5) on the same measurement that withdrew it, so it is back; the
+// bucket that made 37 months unreadable is no longer fixed at a month either (W1) - Apex buckets
+// each window by day, week or month depending on its length and states the choice on
+// `trend.bucketUnit`, which is what the summary getter below reads to name it.
 const WINDOWS = [
+  { key: "1w", label: "1 week", days: 7 },
+  { key: "2w", label: "2 weeks", days: 14 },
+  { key: "1m", label: "1 month", days: 30 },
+  { key: "2m", label: "2 months", days: 60 },
+  { key: "3m", label: "3 months", days: 90 },
   { key: "6m", label: "6 months", days: 182 },
-  { key: "1y", label: "1 year", days: 365 }
+  { key: "1y", label: "1 year", days: 365 },
+  { key: "2y", label: "2 years", days: 730 },
+  { key: "3y", label: "3 years", days: 1095 }
 ];
+
+// W8: the caption counts buckets that carry rates (Ruling 22) and now says which kind they are.
+// Apex is the only layer that decides which unit a window gets (W1); this map only spells out
+// the noun for a unit Apex already chose, never re-derives it from lookbackDays or anything else.
+const UNIT_NOUN = { day: "days", week: "weeks", month: "months" };
 
 // Geometry constants for the hand-drawn SVG (D4). A fixed viewBox, scaled by CSS, is what lets
 // the chart resize without a resize listener.
@@ -155,7 +166,7 @@ export default class LaneTrendChart extends LightningElement {
     return (this.trend?.points || []).filter((p) => !p.thin);
   }
 
-  /** Two or more months not thinned by D5 - fewer than that draws no line worth trusting. */
+  /** Two or more buckets not thinned by D5 - fewer than that draws no line worth trusting. */
   get hasEnough() {
     return this.solidPoints.length >= 2;
   }
@@ -187,9 +198,15 @@ export default class LaneTrendChart extends LightningElement {
    * Ruling 22: counts points.length, not bucketSpan. bucketSpan is the window's calendar span (a
    * 365-day window can touch 13 distinct calendar months) - right for Task 6's axis, wrong here,
    * because the window is already named by the highlighted button and restating it as a
-   * different, larger number reads as a contradiction. points.length is the number of months
-   * that carry rates - thin months included, since D5 only excludes a thin month from the trend
-   * line, not from the evidence - and it is the number the reader can verify by counting dots.
+   * different, larger number reads as a contradiction. points.length is the number of buckets
+   * that carry rates - thin buckets included, since D5 only excludes a thin bucket from the
+   * trend line, not from the evidence - and it is the number the reader can verify by counting
+   * dots.
+   *
+   * W8: which noun that count gets is read off `trend.bucketUnit`, not decided here - Apex is the
+   * only layer that picks the unit (W1), and this getter only spells out the plural Apex already
+   * chose. `UNIT_NOUN[...] || "buckets"` is defensive against a fourth unit Apex's own contract
+   * (`'day' | 'week' | 'month'`) does not currently allow, so that branch has no reachable test.
    */
   get summary() {
     if (!this.trend) {
@@ -204,7 +221,8 @@ export default class LaneTrendChart extends LightningElement {
       t.changePct === null || t.changePct === undefined
         ? ""
         : `, ${t.changePct >= 0 ? "up" : "down"} ${Math.abs(t.changePct)}% since ${t.firstLabel}`;
-    return `${t.points.length} months, ${t.totalRates} rates, median ${median} ${t.currencyIsoCode}${direction}.`;
+    const unit = UNIT_NOUN[t.bucketUnit] || "buckets";
+    return `${t.points.length} ${unit}, ${t.totalRates} rates, median ${median} ${t.currencyIsoCode}${direction}.`;
   }
 
   /**
@@ -212,7 +230,7 @@ export default class LaneTrendChart extends LightningElement {
    * for the hand-drawn SVG (D4) - no charting library.
    *
    * The x axis spans `bucketSpan`, not `points.length`: bucketSpan is the whole window the pricer
-   * chose, and points are only the months that happened to carry a rate. Sizing the axis by the
+   * chose, and points are only the buckets that happened to carry a rate. Sizing the axis by the
    * window rather than by what showed up is what lets a quiet stretch read as the gap it is,
    * instead of being squeezed out next to its neighbours. `bucketIndex` is used exactly as Apex
    * sends it - it is already guaranteed to fall in [0, bucketSpan) there, so clamping it here
@@ -225,7 +243,7 @@ export default class LaneTrendChart extends LightningElement {
    * No `|| points.length` fallback on bucketSpan (Ruling 25): `canDraw` has already ruled out a
    * falsy or non-positive bucketSpan, so by the time this runs bucketSpan is trustworthy. The
    * `Math.max(bucketSpan, 2)` floor is not that fallback - it exists only so a legitimate
-   * one-month window (bucketSpan === 1) does not divide by zero on (span - 1) below.
+   * one-bucket window (bucketSpan === 1) does not divide by zero on (span - 1) below.
    */
   get geometry() {
     const points = this.trend?.points || [];
@@ -256,9 +274,9 @@ export default class LaneTrendChart extends LightningElement {
       .map((p) => `${x(p.bucketIndex)},${y(p.median)}`)
       .join(" ");
 
-    // The band shows spread, not trend, so - unlike the line above - it keeps every month,
-    // thin ones included: D5 withholds a thin month's authority over the trend line, not its
-    // evidence of that month's spread.
+    // The band shows spread, not trend, so - unlike the line above - it keeps every bucket,
+    // thin ones included: D5 withholds a thin bucket's authority over the trend line, not its
+    // evidence of that bucket's spread.
     const top = points.map((p) => `${x(p.bucketIndex)},${y(p.maximum)}`);
     const bottom = points
       .slice()
