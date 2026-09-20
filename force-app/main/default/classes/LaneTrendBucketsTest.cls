@@ -19,6 +19,18 @@ private class LaneTrendBucketsTest {
   }
 
   @IsTest
+  static void pinsTheDayWeekAndWeekMonthBoundariesToTheLongestRealCalendarSpan() {
+    // 31 is the longest possible calendar month, so it is the only day/week cutoff under which
+    // every real one-month window classifies as DAY. 92 is the longest possible span of three
+    // consecutive calendar months, so it is the only week/month cutoff under which every real
+    // three-month window classifies as WEEK. See LaneTrendBuckets.unitFor's doc comment.
+    System.assertEquals(LaneTrendBuckets.DAY, LaneTrendBuckets.unitFor(31));
+    System.assertEquals(LaneTrendBuckets.WEEK, LaneTrendBuckets.unitFor(32));
+    System.assertEquals(LaneTrendBuckets.WEEK, LaneTrendBuckets.unitFor(92));
+    System.assertEquals(LaneTrendBuckets.MONTH, LaneTrendBuckets.unitFor(93));
+  }
+
+  @IsTest
   static void everyUnitsKeySortsAsStringExactlyAsItSortsInTime() {
     // The chart's order comes from keys.sort() on strings, so a key whose lexical order differs
     // from its chronological order silently reorders the axis.
@@ -59,6 +71,34 @@ private class LaneTrendBucketsTest {
       monthKeys,
       'unpadded, October would sort before February'
     );
+
+    List<String> monthKeysAcrossYear = new List<String>{
+      LaneTrendBuckets.keyOf(
+        Date.newInstance(2026, 1, 5),
+        LaneTrendBuckets.MONTH
+      ),
+      LaneTrendBuckets.keyOf(
+        Date.newInstance(2025, 12, 5),
+        LaneTrendBuckets.MONTH
+      )
+    };
+    monthKeysAcrossYear.sort();
+    System.assertEquals(
+      new List<String>{ '2025-12', '2026-01' },
+      monthKeysAcrossYear,
+      'a year boundary must sort 2025-12 before 2026-01'
+    );
+
+    // 2026-01-01 is a Thursday, so its Monday falls in both the previous year and the previous
+    // month - one assertion closes the WEEK key's year-boundary and month-boundary gaps at once.
+    System.assertEquals(
+      '2025-12-29',
+      LaneTrendBuckets.keyOf(
+        Date.newInstance(2026, 1, 1),
+        LaneTrendBuckets.WEEK
+      ),
+      'a week spanning a year and month boundary must key on its Monday, not the date handed in'
+    );
   }
 
   @IsTest
@@ -75,8 +115,39 @@ private class LaneTrendBucketsTest {
       'Sunday belongs to the week that started the Monday before it'
     );
     System.assertEquals(
+      mon,
+      LaneTrendBuckets.startOfWeek(mon),
+      'a Monday input is already the start of its own week'
+    );
+    System.assertEquals(
       '2026-09-14',
       LaneTrendBuckets.keyOf(sun, LaneTrendBuckets.WEEK)
+    );
+  }
+
+  @IsTest
+  static void labelOfFormatsShortForEachUnitAndAnchorsTheWeekToMonday() {
+    System.assertEquals(
+      '16 Sep',
+      LaneTrendBuckets.labelOf(
+        Date.newInstance(2026, 9, 16),
+        LaneTrendBuckets.DAY
+      )
+    );
+    System.assertEquals(
+      '14 Sep',
+      LaneTrendBuckets.labelOf(
+        Date.newInstance(2026, 9, 20),
+        LaneTrendBuckets.WEEK
+      ),
+      'a Sunday passed in must label its Monday, not the date it was handed'
+    );
+    System.assertEquals(
+      'Oct',
+      LaneTrendBuckets.labelOf(
+        Date.newInstance(2026, 10, 5),
+        LaneTrendBuckets.MONTH
+      )
     );
   }
 
@@ -101,13 +172,13 @@ private class LaneTrendBucketsTest {
       )
     );
     System.assertEquals(
-      2,
+      1,
       LaneTrendBuckets.between(
-        Date.newInstance(2026, 9, 14),
-        Date.newInstance(2026, 9, 30),
+        Date.newInstance(2026, 9, 15),
+        Date.newInstance(2026, 9, 21),
         LaneTrendBuckets.WEEK
       ),
-      'Mondays 14th, 21st, 28th: the 30th falls in the third week, index 2'
+      'without anchoring both ends to Monday, Tue 15th to Mon 21st gives 6/7 = 0 instead of 1'
     );
   }
 

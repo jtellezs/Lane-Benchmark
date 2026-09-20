@@ -34,7 +34,17 @@ public with sharing class LaneTrendBuckets {
     'Dec'
   };
 
-  /** Day up to a month, week up to a quarter, month beyond: every window lands near 7 to 37 points. */
+  /**
+   * Day up to a month, week up to a quarter, month beyond: every window lands near 7 to 37 points.
+   *
+   * The two cutoffs are pinned to the calendar, not chosen freely: 31 is the longest possible
+   * calendar month (Jan/Mar/May/Jul/Aug/Oct/Dec), so it is the only cutoff under which every real
+   * one-month window classifies as DAY - 30 would misclassify a 31-day month as WEEK. 92 is the
+   * longest possible span of three consecutive calendar months (e.g. Jun 1 - Sep 1), so it is the
+   * only cutoff under which every real three-month window classifies as WEEK - 91 would
+   * misclassify several real three-month spans as MONTH. See LaneTrendBucketsTest's
+   * pinsTheDayWeekAndWeekMonthBoundariesToTheLongestRealCalendarSpan.
+   */
   public static String unitFor(Integer lookbackDays) {
     if (lookbackDays == null || lookbackDays <= 31) {
       return DAY;
@@ -68,6 +78,12 @@ public with sharing class LaneTrendBuckets {
     return String.valueOf(start.day()) + ' ' + MONTH_LABELS[start.month() - 1];
   }
 
+  /**
+   * For MONTH this ignores day-of-month entirely, so it is only meaningful when both dates are
+   * already aligned to a bucket boundary - it is not a general calendar-distance function. Task 2
+   * relies on this: bucketIndex = between(windowStart, bucketStart, unit), where bucketStart is
+   * itself bucket-aligned.
+   */
   public static Integer between(Date from0, Date to0, String unit) {
     if (unit == MONTH) {
       return (to0.year() - from0.year()) * 12 + (to0.month() - from0.month());
