@@ -11,9 +11,9 @@ jest.mock(
 const settle = () => Promise.resolve().then(() => Promise.resolve());
 
 const point = (over = {}) => ({
-  monthKey: "2026-01",
+  bucketKey: "2026-01",
   label: "Jan",
-  monthIndex: 0,
+  bucketIndex: 0,
   count: 8,
   median: 2400,
   minimum: 2000,
@@ -25,11 +25,11 @@ const point = (over = {}) => ({
 const trend = (over = {}) => ({
   points: [
     point(),
-    point({ monthKey: "2026-02", label: "Feb", monthIndex: 1, median: 2550 })
+    point({ bucketKey: "2026-02", label: "Feb", bucketIndex: 1, median: 2550 })
   ],
   currencyIsoCode: "CAD",
   lookbackDays: 365,
-  monthSpan: 12,
+  bucketSpan: 12,
   truncated: false,
   totalRates: 16,
   overallMedian: 2450,
@@ -140,9 +140,9 @@ describe("c-lane-trend-chart", () => {
         points: [
           point(),
           point({
-            monthKey: "2026-02",
+            bucketKey: "2026-02",
             label: "Feb",
-            monthIndex: 1,
+            bucketIndex: 1,
             thin: true
           })
         ],
@@ -157,18 +157,18 @@ describe("c-lane-trend-chart", () => {
   });
 
   it("states the months that carry rates, not the window's calendar span", async () => {
-    // monthSpan (13) is what a 365-day window touches on the calendar axis - correct for Task
+    // bucketSpan (13) is what a 365-day window touches on the calendar axis - correct for Task
     // 6's axis, wrong for this sentence. The sentence must count points.length (5) instead,
     // since that is what the reader can verify by counting dots on the chart.
     const el = await open(
       trend({
-        monthSpan: 13,
+        bucketSpan: 13,
         points: [
-          point({ monthKey: "2025-09", label: "Sep", monthIndex: 0 }),
-          point({ monthKey: "2025-10", label: "Oct", monthIndex: 1 }),
-          point({ monthKey: "2025-11", label: "Nov", monthIndex: 2 }),
-          point({ monthKey: "2025-12", label: "Dec", monthIndex: 3 }),
-          point({ monthKey: "2026-01", label: "Jan", monthIndex: 4 })
+          point({ bucketKey: "2025-09", label: "Sep", bucketIndex: 0 }),
+          point({ bucketKey: "2025-10", label: "Oct", bucketIndex: 1 }),
+          point({ bucketKey: "2025-11", label: "Nov", bucketIndex: 2 }),
+          point({ bucketKey: "2025-12", label: "Dec", bucketIndex: 3 }),
+          point({ bucketKey: "2026-01", label: "Jan", bucketIndex: 4 })
         ]
       })
     );
@@ -281,18 +281,18 @@ describe("c-lane-trend-chart", () => {
     trend({
       points: [
         point({
-          monthKey: "2026-01",
+          bucketKey: "2026-01",
           label: "Jan",
-          monthIndex: 0,
+          bucketIndex: 0,
           count: 9,
           median: 2000,
           minimum: 1800,
           maximum: 2900
         }),
         point({
-          monthKey: "2026-02",
+          bucketKey: "2026-02",
           label: "Feb",
-          monthIndex: 1,
+          bucketIndex: 1,
           count: 1,
           median: 2600,
           minimum: 2600,
@@ -300,9 +300,9 @@ describe("c-lane-trend-chart", () => {
           thin: true
         }),
         point({
-          monthKey: "2026-03",
+          bucketKey: "2026-03",
           label: "Mar",
-          monthIndex: 2,
+          bucketIndex: 2,
           count: 7,
           median: 2200,
           minimum: 1900,
@@ -401,18 +401,18 @@ describe("c-lane-trend-chart", () => {
   });
 
   it("spaces months across the window's whole span, not just the plotted months", async () => {
-    // monthIndex 0, 1 and 5 inside a 6-month span: the gap from index 1 to 5 must be four times
-    // the gap from 0 to 1. A mutation that positioned dots by array index instead of monthIndex
+    // bucketIndex 0, 1 and 5 inside a 6-month span: the gap from index 1 to 5 must be four times
+    // the gap from 0 to 1. A mutation that positioned dots by array index instead of bucketIndex
     // would space all three evenly (ratio 1), and a mutation that sized the axis by
-    // points.length (3) instead of monthSpan (6) would push month 5 off the right edge of the
+    // points.length (3) instead of bucketSpan (6) would push month 5 off the right edge of the
     // viewBox - both are checked below.
     const el = await open(
       trend({
-        monthSpan: 6,
+        bucketSpan: 6,
         points: [
-          point({ monthKey: "2026-01", label: "Jan", monthIndex: 0 }),
-          point({ monthKey: "2026-02", label: "Feb", monthIndex: 1 }),
-          point({ monthKey: "2026-06", label: "Jun", monthIndex: 5 })
+          point({ bucketKey: "2026-01", label: "Jan", bucketIndex: 0 }),
+          point({ bucketKey: "2026-02", label: "Feb", bucketIndex: 1 }),
+          point({ bucketKey: "2026-06", label: "Jun", bucketIndex: 5 })
         ]
       })
     );
@@ -438,17 +438,17 @@ describe("c-lane-trend-chart", () => {
       trend({
         points: [
           point({
-            monthKey: "2026-01",
+            bucketKey: "2026-01",
             label: "Jan",
-            monthIndex: 0,
+            bucketIndex: 0,
             median: 2000,
             minimum: 1800,
             maximum: 2200
           }),
           point({
-            monthKey: "2026-02",
+            bucketKey: "2026-02",
             label: "Feb",
-            monthIndex: 1,
+            bucketIndex: 1,
             median: 2800,
             minimum: 2600,
             maximum: 3000
@@ -466,7 +466,7 @@ describe("c-lane-trend-chart", () => {
     // The earlier band-vertex-count test only counts vertices (six), which a self-intersecting
     // polygon still has if .reverse() is dropped from `bottom`. This checks their order instead:
     // the vertex x-coordinates must trace right across the maxima, then back left across the
-    // minima - the same x-coordinates the dots already sit at, since both use x(p.monthIndex).
+    // minima - the same x-coordinates the dots already sit at, since both use x(p.bucketIndex).
     const el = await open(threeMonthsOneThin());
     const dotX = [
       ...el.shadowRoot.querySelectorAll('[data-id="trend-dot"]')
@@ -487,20 +487,20 @@ describe("c-lane-trend-chart", () => {
     ]);
   });
 
-  // Ruling 25: monthSpan is an Apex contract, not a value to paper over.
+  // Ruling 25: bucketSpan is an Apex contract, not a value to paper over.
 
-  it("falls through to the empty state rather than drawing a misleading chart when monthSpan is missing or zero", async () => {
+  it("falls through to the empty state rather than drawing a misleading chart when bucketSpan is missing or zero", async () => {
     // A `|| points.length` fallback would let this quietly draw a chart sized by array position
-    // instead of the window - a chart that looks right but is not sized by monthSpan, which is
-    // the specific wrongness Ruling 11's monthIndex contract exists to prevent. Two sequential
+    // instead of the window - a chart that looks right but is not sized by bucketSpan, which is
+    // the specific wrongness Ruling 11's bucketIndex contract exists to prevent. Two sequential
     // scenarios rather than a loop, so as not to await inside one.
-    const withMissingSpan = await open(trend({ monthSpan: null }));
+    const withMissingSpan = await open(trend({ bucketSpan: null }));
     expect(withMissingSpan.shadowRoot.querySelector("svg")).toBeNull();
     expect(
       withMissingSpan.shadowRoot.querySelector('[data-id="trend-empty"]')
     ).not.toBeNull();
 
-    const withZeroSpan = await open(trend({ monthSpan: 0 }));
+    const withZeroSpan = await open(trend({ bucketSpan: 0 }));
     expect(withZeroSpan.shadowRoot.querySelector("svg")).toBeNull();
     expect(
       withZeroSpan.shadowRoot.querySelector('[data-id="trend-empty"]')
@@ -508,19 +508,19 @@ describe("c-lane-trend-chart", () => {
   });
 
   it("still draws real coordinates when the window spans exactly one month", async () => {
-    // monthSpan === 1 is a legitimate one-month window, not a contract violation - the
-    // Math.max(monthSpan, 2) floor exists only so (span - 1) is never zero. Checking only that
+    // bucketSpan === 1 is a legitimate one-month window, not a contract violation - the
+    // Math.max(bucketSpan, 2) floor exists only so (span - 1) is never zero. Checking only that
     // an <svg> exists would not catch that floor being "simplified" away later: the element
     // would still render even with NaN coordinates, so this checks the coordinates themselves.
     const el = await open(
       trend({
-        monthSpan: 1,
+        bucketSpan: 1,
         points: [
-          point({ monthKey: "2026-01", label: "Jan", monthIndex: 0 }),
+          point({ bucketKey: "2026-01", label: "Jan", bucketIndex: 0 }),
           point({
-            monthKey: "2026-01b",
+            bucketKey: "2026-01b",
             label: "Jan",
-            monthIndex: 0,
+            bucketIndex: 0,
             median: 2600
           })
         ]

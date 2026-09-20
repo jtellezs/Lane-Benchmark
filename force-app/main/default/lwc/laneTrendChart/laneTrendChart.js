@@ -161,15 +161,15 @@ export default class LaneTrendChart extends LightningElement {
   }
 
   /**
-   * Ruling 25: every point's monthIndex is only meaningful against a positive monthSpan - a
-   * falsy or non-positive monthSpan is an Apex contract violation, not a case to paper over by
+   * Ruling 25: every point's bucketIndex is only meaningful against a positive bucketSpan - a
+   * falsy or non-positive bucketSpan is an Apex contract violation, not a case to paper over by
    * falling back to points.length. A points.length fallback would silently downgrade the axis
    * to array-index spacing: a chart that looks right but is not sized by the window - quietly
    * wrong, which is the one failure mode a chart must not have, since a reader has nothing to
    * check it against.
    */
   get hasValidSpan() {
-    return this.trend?.monthSpan > 0;
+    return this.trend?.bucketSpan > 0;
   }
 
   /** What the template gates the chart on: D5's count rule and Ruling 25's span contract. */
@@ -184,7 +184,7 @@ export default class LaneTrendChart extends LightningElement {
   /**
    * The sentence most pricers will read. Formats numbers Apex already computed; does no maths.
    *
-   * Ruling 22: counts points.length, not monthSpan. monthSpan is the window's calendar span (a
+   * Ruling 22: counts points.length, not bucketSpan. bucketSpan is the window's calendar span (a
    * 365-day window can touch 13 distinct calendar months) - right for Task 6's axis, wrong here,
    * because the window is already named by the highlighted button and restating it as a
    * different, larger number reads as a contradiction. points.length is the number of months
@@ -211,28 +211,28 @@ export default class LaneTrendChart extends LightningElement {
    * Positions only. Every statistic was computed in Apex; this turns numbers into coordinates
    * for the hand-drawn SVG (D4) - no charting library.
    *
-   * The x axis spans `monthSpan`, not `points.length`: monthSpan is the whole window the pricer
+   * The x axis spans `bucketSpan`, not `points.length`: bucketSpan is the whole window the pricer
    * chose, and points are only the months that happened to carry a rate. Sizing the axis by the
    * window rather than by what showed up is what lets a quiet stretch read as the gap it is,
-   * instead of being squeezed out next to its neighbours. `monthIndex` is used exactly as Apex
-   * sends it - it is already guaranteed to fall in [0, monthSpan) there, so clamping it here
+   * instead of being squeezed out next to its neighbours. `bucketIndex` is used exactly as Apex
+   * sends it - it is already guaranteed to fall in [0, bucketSpan) there, so clamping it here
    * would only hide a future regression rather than surface it.
    *
    * `fill` is computed per point here, not read off a single component getter, because an LWC
    * template cannot evaluate an expression: one getter cannot vary per iteration of a for:each,
    * so each dot carries its own colour.
    *
-   * No `|| points.length` fallback on monthSpan (Ruling 25): `canDraw` has already ruled out a
-   * falsy or non-positive monthSpan, so by the time this runs monthSpan is trustworthy. The
-   * `Math.max(monthSpan, 2)` floor is not that fallback - it exists only so a legitimate
-   * one-month window (monthSpan === 1) does not divide by zero on (span - 1) below.
+   * No `|| points.length` fallback on bucketSpan (Ruling 25): `canDraw` has already ruled out a
+   * falsy or non-positive bucketSpan, so by the time this runs bucketSpan is trustworthy. The
+   * `Math.max(bucketSpan, 2)` floor is not that fallback - it exists only so a legitimate
+   * one-month window (bucketSpan === 1) does not divide by zero on (span - 1) below.
    */
   get geometry() {
     const points = this.trend?.points || [];
     if (!this.canDraw) {
       return null;
     }
-    const span = Math.max(this.trend.monthSpan, 2);
+    const span = Math.max(this.trend.bucketSpan, 2);
     const low = Math.min(...points.map((p) => p.minimum));
     const high = Math.max(...points.map((p) => p.maximum));
     const range = high - low || 1;
@@ -243,8 +243,8 @@ export default class LaneTrendChart extends LightningElement {
     const y = (v) => PAD_T + plotH * (1 - (v - low) / range);
 
     const dots = points.map((p) => ({
-      key: p.monthKey,
-      cx: x(p.monthIndex),
+      key: p.bucketKey,
+      cx: x(p.bucketIndex),
       cy: y(p.median),
       thin: p.thin === true ? "true" : "false",
       fill: p.thin === true ? COLOR_DOT_HOLLOW : COLOR_LINE,
@@ -253,17 +253,17 @@ export default class LaneTrendChart extends LightningElement {
 
     const line = points
       .filter((p) => !p.thin)
-      .map((p) => `${x(p.monthIndex)},${y(p.median)}`)
+      .map((p) => `${x(p.bucketIndex)},${y(p.median)}`)
       .join(" ");
 
     // The band shows spread, not trend, so - unlike the line above - it keeps every month,
     // thin ones included: D5 withholds a thin month's authority over the trend line, not its
     // evidence of that month's spread.
-    const top = points.map((p) => `${x(p.monthIndex)},${y(p.maximum)}`);
+    const top = points.map((p) => `${x(p.bucketIndex)},${y(p.maximum)}`);
     const bottom = points
       .slice()
       .reverse()
-      .map((p) => `${x(p.monthIndex)},${y(p.minimum)}`);
+      .map((p) => `${x(p.bucketIndex)},${y(p.minimum)}`);
     const band = top.concat(bottom).join(" ");
 
     return {
@@ -272,8 +272,8 @@ export default class LaneTrendChart extends LightningElement {
       band,
       dots,
       axis: points.map((p) => ({
-        key: p.monthKey,
-        x: x(p.monthIndex),
+        key: p.bucketKey,
+        x: x(p.bucketIndex),
         y: AXIS_LABEL_Y,
         label: p.label
       })),
@@ -297,7 +297,7 @@ export default class LaneTrendChart extends LightningElement {
   /** The same numbers as the chart, laid out for the visually-hidden table (spec 5). */
   get tableRows() {
     return (this.trend?.points || []).map((p) => ({
-      key: p.monthKey,
+      key: p.bucketKey,
       label: p.label,
       count: p.count,
       median: p.median,

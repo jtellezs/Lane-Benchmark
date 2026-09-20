@@ -13,27 +13,9 @@
 public without sharing class LaneTrendService {
   /** Spec §4: a three-year window holds more than a 90-day search, and this is its own transaction. */
   public static final Integer ROW_CAP = 10000;
-  /** D5: three quotes do not make a market. */
-  public static final Integer THIN_COUNT = 3;
-
   /** @TestVisible so a test can prove the guard without inserting 10,001 rows. camelCase, not final. */
   @TestVisible
   private static Integer rowCapOverride;
-
-  private static final List<String> MONTH_LABELS = new List<String>{
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec'
-  };
 
   /**
    * The lane's rates over the request's window, bucketed by month.
@@ -56,13 +38,14 @@ public without sharing class LaneTrendService {
     LaneTrend trend = new LaneTrend();
     trend.currencyIsoCode = req.currencyIsoCode;
     trend.lookbackDays = req.lookbackDays;
+    // Task 3 derives this from req.lookbackDays; hard-coded here so this task is a move and a
+    // rename only, not a behaviour change.
+    String unit = LaneTrendBuckets.MONTH;
+    trend.bucketUnit = unit;
     Date windowStart = Date.today().addDays(-req.lookbackDays);
-    Date windowStartMonth = Date.newInstance(
-      windowStart.year(),
-      windowStart.month(),
-      1
-    );
-    trend.monthSpan = monthsBetween(windowStartMonth, Date.today()) + 1;
+    Date windowStartBucket = LaneTrendBuckets.startOf(windowStart, unit);
+    trend.bucketSpan =
+      LaneTrendBuckets.between(windowStartBucket, Date.today(), unit) + 1;
 
     Map<String, Pricing_Place__c> places = LaneSearchService.loadPlaces(req);
     Integer cap = rowCapOverride == null ? ROW_CAP : rowCapOverride;
@@ -92,7 +75,7 @@ public without sharing class LaneTrendService {
     // axis - see LaneTrendScope's class comment for why a guard that can never fire was removed
     // rather than kept.
     List<Sample> plotted = LaneTrendScope.narrow(trend, samples);
-    trend.points = bucket(plotted, windowStartMonth);
+    trend.points = LaneTrendBuckets.bucket(plotted, windowStartBucket, unit);
     LaneTrendSummary.summarise(trend, plotted);
     return trend;
   }
@@ -196,93 +179,5 @@ public without sharing class LaneTrendService {
       this.amount = amount;
       this.currencyIsoCode = currencyIsoCode;
     }
-  }
-
-  /**
-   * One point per month that has rates, in month order, with the count, median, min and max of that
-   * month's amounts. Months with no rates are absent (spec §7: gaps, not zeros), and monthIndex
-   * carries the distance from the window start so the chart can show the gap.
-   *
-   * A sample with no date cannot be placed on a time axis, one with no amount is not a rate, and one
-   * whose amount is zero is not a price the market set - all three are dropped rather than counted,
-   * because counting them would drag a median toward nothing and pin the month's minimum to zero.
-   * LaneTrendSummary.isUsable is the single place that rule lives.
-   */
-  @TestVisible
-  private static List<LaneTrend.Point> bucket(
-    List<Sample> samples,
-    Date windowStart
-  ) {
-    Map<String, List<Decimal>> byMonth = new Map<String, List<Decimal>>();
-    Map<String, Date> firstOfMonth = new Map<String, Date>();
-    for (Sample sample : samples) {
-      if (!LaneTrendSummary.isUsable(sample)) {
-        continue;
-      }
-      String key = monthKeyOf(sample.sampleDate);
-      if (!byMonth.containsKey(key)) {
-        byMonth.put(key, new List<Decimal>());
-        firstOfMonth.put(
-          key,
-          Date.newInstance(
-            sample.sampleDate.year(),
-            sample.sampleDate.month(),
-            1
-          )
-        );
-      }
-      byMonth.get(key).add(sample.amount);
-    }
-
-    List<String> keys = new List<String>(byMonth.keySet());
-    keys.sort();
-
-    List<LaneTrend.Point> points = new List<LaneTrend.Point>();
-    for (String key : keys) {
-      List<Decimal> amounts = byMonth.get(key);
-      Date monthDate = firstOfMonth.get(key);
-      LaneTrend.Point point = new LaneTrend.Point();
-      point.monthKey = key;
-      point.label = MONTH_LABELS[monthDate.month() - 1];
-      point.monthIndex = monthsBetween(windowStart, monthDate);
-      point.count = amounts.size();
-      point.median = SplitLaneService.median(amounts);
-      point.minimum = leastOf(amounts);
-      point.maximum = greatestOf(amounts);
-      point.thin = amounts.size() < THIN_COUNT;
-      points.add(point);
-    }
-    return points;
-  }
-
-  private static String monthKeyOf(Date d) {
-    return String.valueOf(d.year()) +
-      '-' +
-      (d.month() < 10 ? '0' : '') +
-      String.valueOf(d.month());
-  }
-
-  private static Integer monthsBetween(Date from0, Date to0) {
-    return (to0.year() - from0.year()) * 12 + (to0.month() - from0.month());
-  }
-
-  private static Decimal leastOf(List<Decimal> values) {
-    Decimal least = values[0];
-    for (Decimal v : values) {
-      if (v < least) {
-        least = v;
-      }
-    }
-    return least;
-  }
-
-  private static Decimal greatestOf(List<Decimal> values) {
-    Decimal greatest = values[0];
-    for (Decimal v : values) {
-      if (v > greatest) {
-        greatest = v;
-      }
-    }
-    return greatest;
   }
 }

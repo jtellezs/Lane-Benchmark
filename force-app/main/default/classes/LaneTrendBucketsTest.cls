@@ -55,7 +55,7 @@ private class LaneTrendBucketsTest {
       'a day key must zero-pad both month and day, or the 9th sorts after the 10th'
     );
 
-    List<String> monthKeys = new List<String>{
+    List<String> monthUnitKeys = new List<String>{
       LaneTrendBuckets.keyOf(
         Date.newInstance(2026, 10, 5),
         LaneTrendBuckets.MONTH
@@ -65,14 +65,14 @@ private class LaneTrendBucketsTest {
         LaneTrendBuckets.MONTH
       )
     };
-    monthKeys.sort();
+    monthUnitKeys.sort();
     System.assertEquals(
       new List<String>{ '2026-02', '2026-10' },
-      monthKeys,
+      monthUnitKeys,
       'unpadded, October would sort before February'
     );
 
-    List<String> monthKeysAcrossYear = new List<String>{
+    List<String> monthUnitKeysAcrossYear = new List<String>{
       LaneTrendBuckets.keyOf(
         Date.newInstance(2026, 1, 5),
         LaneTrendBuckets.MONTH
@@ -82,10 +82,10 @@ private class LaneTrendBucketsTest {
         LaneTrendBuckets.MONTH
       )
     };
-    monthKeysAcrossYear.sort();
+    monthUnitKeysAcrossYear.sort();
     System.assertEquals(
       new List<String>{ '2025-12', '2026-01' },
-      monthKeysAcrossYear,
+      monthUnitKeysAcrossYear,
       'a year boundary must sort 2025-12 before 2026-01'
     );
 

@@ -1,10 +1,10 @@
 /**
- * Spec W1: which unit a window buckets by, and how that unit keys, labels, counts and thresholds.
- *
- * Split out of LaneTrendService rather than added to it: that class sits at 39 against a PMD class
- * cap that fires at 40, and three-way unit dispatch would trip it. The project's ruling is to split
- * a cohesive family out rather than suppress, as LaneSearchFilters, MarketTestFilter,
- * LaneTrendQueries, LaneTrendSummary and LaneTrendScope each already did.
+ * Spec W1: which unit a window buckets by, how that unit keys, labels, counts and thresholds - and,
+ * since Task 2, the bucketing itself. bucket() used to live on LaneTrendService, but that class sits
+ * near a PMD class complexity cap and the unit it varies by belongs beside the calendar that defines
+ * the unit, not beside the query that reads the rows. The project's ruling is to split a cohesive
+ * family out rather than suppress, as LaneSearchFilters, MarketTestFilter, LaneTrendQueries,
+ * LaneTrendSummary and LaneTrendScope each already did.
  *
  * Every key is lexically sortable, because the chart's chronological order comes from sorting the
  * keys as strings. A key that sorts differently than it reads reorders the axis with nothing red.
@@ -101,6 +101,80 @@ public with sharing class LaneTrendBuckets {
       return 1;
     }
     return unit == WEEK ? 2 : 3;
+  }
+
+  /**
+   * One point per bucket that has rates, in order, with the count, median, min and max of that
+   * bucket's amounts. Buckets with no rates are absent (gaps, not zeros), and bucketIndex carries
+   * the distance from the window start so the chart can draw the absence.
+   */
+  public static List<LaneTrend.Point> bucket(
+    List<LaneTrendService.Sample> samples,
+    Date windowStart,
+    String unit
+  ) {
+    Map<String, List<Decimal>> byBucket = new Map<String, List<Decimal>>();
+    Map<String, Date> startOfBucket = new Map<String, Date>();
+    for (LaneTrendService.Sample sample : samples) {
+      if (!LaneTrendSummary.isUsable(sample)) {
+        continue;
+      }
+      String key = keyOf(sample.sampleDate, unit);
+      if (!byBucket.containsKey(key)) {
+        byBucket.put(key, new List<Decimal>());
+        startOfBucket.put(key, startOf(sample.sampleDate, unit));
+      }
+      byBucket.get(key).add(sample.amount);
+    }
+
+    List<String> keys = new List<String>(byBucket.keySet());
+    keys.sort();
+
+    Integer thinAt = thinCountFor(unit);
+    List<LaneTrend.Point> points = new List<LaneTrend.Point>();
+    for (String key : keys) {
+      List<Decimal> amounts = byBucket.get(key);
+      Date bucketStart = startOfBucket.get(key);
+      LaneTrend.Point point = new LaneTrend.Point();
+      point.bucketKey = key;
+      point.label = labelOf(bucketStart, unit);
+      point.bucketIndex = between(windowStart, bucketStart, unit);
+      point.count = amounts.size();
+      point.median = SplitLaneService.median(amounts);
+      point.minimum = leastOf(amounts);
+      point.maximum = greatestOf(amounts);
+      point.thin = amounts.size() < thinAt;
+      points.add(point);
+    }
+    return points;
+  }
+
+  /** The first moment of the bucket a date falls in: its day, its week's Monday, or its 1st. */
+  public static Date startOf(Date d, String unit) {
+    if (unit == MONTH) {
+      return Date.newInstance(d.year(), d.month(), 1);
+    }
+    return unit == WEEK ? startOfWeek(d) : d;
+  }
+
+  private static Decimal leastOf(List<Decimal> values) {
+    Decimal least = values[0];
+    for (Decimal v : values) {
+      if (v < least) {
+        least = v;
+      }
+    }
+    return least;
+  }
+
+  private static Decimal greatestOf(List<Decimal> values) {
+    Decimal greatest = values[0];
+    for (Decimal v : values) {
+      if (v > greatest) {
+        greatest = v;
+      }
+    }
+    return greatest;
   }
 
   private static String pad(Integer n) {

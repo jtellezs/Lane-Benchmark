@@ -41,9 +41,10 @@ private class LaneTrendServiceTest {
     };
 
     Test.startTest();
-    List<LaneTrend.Point> points = LaneTrendService.bucket(
+    List<LaneTrend.Point> points = LaneTrendBuckets.bucket(
       samples,
-      Date.newInstance(2026, 1, 1)
+      Date.newInstance(2026, 1, 1),
+      LaneTrendBuckets.MONTH
     );
     Test.stopTest();
 
@@ -53,8 +54,8 @@ private class LaneTrendServiceTest {
       'February had no rates, so it is a gap and not a zero'
     );
     LaneTrend.Point jan = points[0];
-    System.assertEquals('2026-01', jan.monthKey);
-    System.assertEquals(0, jan.monthIndex);
+    System.assertEquals('2026-01', jan.bucketKey);
+    System.assertEquals(0, jan.bucketIndex);
     System.assertEquals(3, jan.count);
     System.assert(jan.median == 2000, 'January median: ' + jan.median);
     System.assert(jan.minimum == 1000, 'January minimum: ' + jan.minimum);
@@ -62,10 +63,10 @@ private class LaneTrendServiceTest {
     System.assertEquals(false, jan.thin, 'three rates is not thin');
 
     LaneTrend.Point mar = points[1];
-    System.assertEquals('2026-03', mar.monthKey);
+    System.assertEquals('2026-03', mar.bucketKey);
     System.assertEquals(
       2,
-      mar.monthIndex,
+      mar.bucketIndex,
       'March sits two months after the window start, so the gap is visible on the axis'
     );
     System.assert(mar.median == 700, 'March median: ' + mar.median);
@@ -80,9 +81,10 @@ private class LaneTrendServiceTest {
     };
 
     Test.startTest();
-    List<LaneTrend.Point> points = LaneTrendService.bucket(
+    List<LaneTrend.Point> points = LaneTrendBuckets.bucket(
       samples,
-      Date.newInstance(2026, 1, 1)
+      Date.newInstance(2026, 1, 1),
+      LaneTrendBuckets.MONTH
     );
     Test.stopTest();
 
@@ -110,9 +112,10 @@ private class LaneTrendServiceTest {
     };
 
     Test.startTest();
-    List<LaneTrend.Point> points = LaneTrendService.bucket(
+    List<LaneTrend.Point> points = LaneTrendBuckets.bucket(
       samples,
-      Date.newInstance(2026, 1, 1)
+      Date.newInstance(2026, 1, 1),
+      LaneTrendBuckets.MONTH
     );
     Test.stopTest();
 
@@ -132,9 +135,10 @@ private class LaneTrendServiceTest {
   @IsTest
   static void anEmptyListProducesNoPointsRatherThanThrowing() {
     Test.startTest();
-    List<LaneTrend.Point> points = LaneTrendService.bucket(
+    List<LaneTrend.Point> points = LaneTrendBuckets.bucket(
       new List<LaneTrendService.Sample>(),
-      Date.newInstance(2026, 1, 1)
+      Date.newInstance(2026, 1, 1),
+      LaneTrendBuckets.MONTH
     );
     Test.stopTest();
     System.assertEquals(0, points.size());
@@ -155,9 +159,10 @@ private class LaneTrendServiceTest {
     };
 
     Test.startTest();
-    List<LaneTrend.Point> points = LaneTrendService.bucket(
+    List<LaneTrend.Point> points = LaneTrendBuckets.bucket(
       samples,
-      Date.newInstance(2025, 11, 1)
+      Date.newInstance(2025, 11, 1),
+      LaneTrendBuckets.MONTH
     );
     Test.stopTest();
 
@@ -169,34 +174,34 @@ private class LaneTrendServiceTest {
 
     System.assertEquals(
       '2025-11',
-      points[0].monthKey,
+      points[0].bucketKey,
       'chronological order across the year boundary'
     );
-    System.assertEquals(0, points[0].monthIndex, 'the window start month');
+    System.assertEquals(0, points[0].bucketIndex, 'the window start month');
     System.assertEquals(
       '2025-12',
-      points[1].monthKey,
+      points[1].bucketKey,
       'chronological order across the year boundary'
     );
     System.assertEquals(
       1,
-      points[1].monthIndex,
+      points[1].bucketIndex,
       'a lost *12 year term in monthsBetween would miscount once the window crosses a year'
     );
     System.assertEquals(
       '2026-01',
-      points[2].monthKey,
+      points[2].bucketKey,
       'chronological order across the year boundary'
     );
     System.assertEquals(
       2,
-      points[2].monthIndex,
+      points[2].bucketIndex,
       'two months after the window start, crossing the year: a lost *12 year term would give -10'
     );
   }
 
   /**
-   * monthKeyOf pads single-digit months so keys sort correctly as strings. Unpadded, '2026-10'
+   * LaneTrendBuckets.keyOf pads single-digit months so keys sort correctly as strings. Unpadded, '2026-10'
    * (October) would sort before '2026-2' (February) because the character comparison never
    * reaches the month digits: '1' < '2' at the position where they first differ. Crossing a year
    * boundary does not exercise this - the year digit differs first there - so this needs two
@@ -214,21 +219,22 @@ private class LaneTrendServiceTest {
     };
 
     Test.startTest();
-    List<LaneTrend.Point> points = LaneTrendService.bucket(
+    List<LaneTrend.Point> points = LaneTrendBuckets.bucket(
       samples,
-      Date.newInstance(2026, 2, 1)
+      Date.newInstance(2026, 2, 1),
+      LaneTrendBuckets.MONTH
     );
     Test.stopTest();
 
     System.assertEquals(2, points.size());
     System.assertEquals(
       '2026-02',
-      points[0].monthKey,
+      points[0].bucketKey,
       'unpadded, "2026-10" would sort before "2026-2" and put October first'
     );
-    System.assertEquals(0, points[0].monthIndex);
-    System.assertEquals('2026-10', points[1].monthKey);
-    System.assertEquals(8, points[1].monthIndex);
+    System.assertEquals(0, points[0].bucketIndex);
+    System.assertEquals('2026-10', points[1].bucketKey);
+    System.assertEquals(8, points[1].bucketIndex);
   }
 
   // ---------------------------------------------------------------------------------------------
@@ -980,7 +986,7 @@ private class LaneTrendServiceTest {
     );
     System.assertNotEquals(
       null,
-      trend.monthSpan,
+      trend.bucketSpan,
       'the axis size is still set even when there is nothing to plot on it'
     );
   }
@@ -992,7 +998,7 @@ private class LaneTrendServiceTest {
    * search legitimately matches whose Valid_From__c sits 400 days back - and the axis position is
    * asserted, not just the presence of a point.
    *
-   * Mutations: bucket on Valid_From__c again (the old behaviour) and monthIndex reads about -13,
+   * Mutations: bucket on Valid_From__c again (the old behaviour) and bucketIndex reads about -13,
    * far off the left of the axis; re-add a post-read window partition on top of CreatedDate
    * bucketing and it changes nothing, which is the point - but bucket on Valid_From__c *with* the
    * partition, the exact pre-fix code, and totalRates reads 0.
@@ -1016,8 +1022,8 @@ private class LaneTrendServiceTest {
       'one rate, one month, one point'
     );
     System.assertEquals(
-      trend.monthSpan - 1,
-      trend.points[0].monthIndex,
+      trend.bucketSpan - 1,
+      trend.points[0].bucketIndex,
       'the evidence arrived this month - the last slot on the axis - whatever Valid_From__c says about when the freight moves'
     );
   }
@@ -1098,7 +1104,7 @@ private class LaneTrendServiceTest {
    * exactly the months a pricer reads while the page only says "may be incomplete."
    *
    * Mutation: change ORDER BY CreatedDate DESC to ASC in LaneTrendQueries.bidSoql and the surviving
-   * month is the one thirteen months back, so the monthIndex assertion below goes red.
+   * month is the one thirteen months back, so the bucketIndex assertion below goes red.
    */
   @IsTest
   static void orderingKeepsTheNewestRowsWithinTheCap() {
@@ -1122,8 +1128,8 @@ private class LaneTrendServiceTest {
       'the three rows that fitted the cap all came from one month'
     );
     System.assertEquals(
-      trend.monthSpan - 1,
-      trend.points[0].monthIndex,
+      trend.bucketSpan - 1,
+      trend.points[0].bucketIndex,
       'the surviving month must be the current one - ASC would have spent the cap on bids created thirteen months ago and left the recent months blank'
     );
     System.assertEquals(
