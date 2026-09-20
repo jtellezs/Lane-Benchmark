@@ -34,6 +34,10 @@ const PAD_B = 28;
 const AXIS_LABEL_Y = VIEW_H - 8;
 const GRID_LABEL_X = 8;
 
+// W4: 37 monthly labels at three years, or 30 daily ones at a month, collide at 11px in a
+// 572-unit plot. Show at most a dozen, evenly spaced.
+const MAX_AXIS_LABELS = 12;
+
 // SLDS design tokens with hex fallbacks (spec 5), so the chart reads correctly in both themes.
 // Only the dot fill varies per point (below); the rest are static and set directly in the
 // template.
@@ -226,6 +230,21 @@ export default class LaneTrendChart extends LightningElement {
   }
 
   /**
+   * The assistive table's column header (spec 5) - the screen-reader equivalent of the axis, so
+   * a hard-coded "Month" is simply wrong for a day- or week-bucketed chart. Reuses `UNIT_NOUN`
+   * (the same noun the caption above already spells out for `bucketUnit`, W8) rather than adding
+   * a second unit-to-word mapping - the exact drift W1 warns about, one layer down. A header
+   * names what each row is, so it wants the singular ("Day", not "Days") where the caption wants
+   * the plural ("30 days"); stripping the trailing "s" and capitalizing is a derivation of that
+   * one mapping, not a second one.
+   */
+  get bucketUnitHeader() {
+    const noun = UNIT_NOUN[this.trend?.bucketUnit] || "buckets";
+    const singular = noun.endsWith("s") ? noun.slice(0, -1) : noun;
+    return singular.charAt(0).toUpperCase() + singular.slice(1);
+  }
+
+  /**
    * Positions only. Every statistic was computed in Apex; this turns numbers into coordinates
    * for the hand-drawn SVG (D4) - no charting library.
    *
@@ -284,17 +303,34 @@ export default class LaneTrendChart extends LightningElement {
       .map((p) => `${x(p.bucketIndex)},${y(p.minimum)}`);
     const band = top.concat(bottom).join(" ");
 
+    // W4: show at most a dozen axis labels, evenly spaced, and carry the year on the first label
+    // of each year so three Januaries (or three "5 Jan" weeks) are not indistinguishable.
+    // bucketKey's first four characters are the year for every unit (day, week and month all key
+    // as YYYY-... - see the header comment on bucketKey in the spec), which is what lets this
+    // work without a second field.
+    const step = Math.ceil(points.length / MAX_AXIS_LABELS);
+    let lastYear = null;
+    const axis = [];
+    points.forEach((p, i) => {
+      if (i % step !== 0) {
+        return;
+      }
+      const year = p.bucketKey.slice(0, 4);
+      axis.push({
+        key: p.bucketKey,
+        x: x(p.bucketIndex),
+        y: AXIS_LABEL_Y,
+        label: year === lastYear ? p.label : `${p.label} ${year}`
+      });
+      lastYear = year;
+    });
+
     return {
       viewBox: `0 0 ${VIEW_W} ${VIEW_H}`,
       line,
       band,
       dots,
-      axis: points.map((p) => ({
-        key: p.bucketKey,
-        x: x(p.bucketIndex),
-        y: AXIS_LABEL_Y,
-        label: p.label
-      })),
+      axis,
       gridY: [
         {
           key: "hi",

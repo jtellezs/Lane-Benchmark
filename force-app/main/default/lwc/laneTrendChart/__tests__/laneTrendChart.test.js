@@ -44,6 +44,39 @@ const trend = (over = {}) => ({
   ...over
 });
 
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec"
+];
+
+// W4 fixture: a real three-year, month-bucketed window. bucketKey must be unique across the
+// whole range - a naive `(i % 12) + 1` generator repeats the same 12 keys three times over and
+// for:each would collide on them - so this walks the calendar forward from Sep 2023 (36 months
+// before this month, 2026-09) instead of wrapping a bare month number. label is derived from the
+// same calendar math as bucketKey so the fixture is a label/bucketKey pair Apex could actually
+// emit, not a bucketKey with an unrelated "Jan" stapled to every entry.
+const manyPoints = (n) =>
+  Array.from({ length: n }, (_, i) => {
+    const monthIndex0 = 8 + i; // Sep 2023 is month index 8 of year 2023
+    const year = 2023 + Math.floor(monthIndex0 / 12);
+    const month = (monthIndex0 % 12) + 1;
+    return point({
+      bucketKey: `${year}-${String(month).padStart(2, "0")}`,
+      bucketIndex: i,
+      label: MONTH_NAMES[month - 1]
+    });
+  });
+
 // Carries a marketTestFilter so a test below can pin that the whole search request - not just
 // the two lane keys - travels through to Apex (D7): a trend that dropped this would plot a
 // different row set than the stats card directly above it.
@@ -144,6 +177,9 @@ describe("c-lane-trend-chart", () => {
     ]);
   });
 
+  // Extended to all nine windows (previously only 1w, 3m and 3y were checked) so a typo in any
+  // one window's `days` - 14, 30, 60 and 730 were previously untested - is caught. Mutation
+  // (observed): change WINDOWS' "2y" entry from 730 to 720; the sent("2y") assertion fails.
   it("sends each window its own lookback", async () => {
     const el = await open(trend());
     const sent = async (key) => {
@@ -155,8 +191,43 @@ describe("c-lane-trend-chart", () => {
       return JSON.parse(getTrend.mock.calls[0][0].requestJson).lookbackDays;
     };
     expect(await sent("1w")).toBe(7);
+    expect(await sent("2w")).toBe(14);
+    expect(await sent("1m")).toBe(30);
+    expect(await sent("2m")).toBe(60);
     expect(await sent("3m")).toBe(90);
+    expect(await sent("6m")).toBe(182);
+    expect(await sent("1y")).toBe(365);
+    expect(await sent("2y")).toBe(730);
     expect(await sent("3y")).toBe(1095);
+  });
+
+  // The last review proved by mutation that hard-coding every button's aria-pressed to "true"
+  // still passes the whole suite - nothing asserted the "false" side. This checks both: the
+  // selected button is "true" and every other button is "false", then clicks a different window
+  // and checks the states swap rather than accumulate. Mutation (observed): hard-code
+  // `ariaPressed: selected ? "true" : "false"` to `ariaPressed: "true"` in the `windows` getter -
+  // the unselected-button assertions fail. A second mutation (observed): comment out
+  // `this.windowKey = key;` in `handleWindow` so the selection never updates - the two
+  // post-click assertions fail (6m stays "false", 1y stays "true").
+  it("marks only the selected window button as pressed, not every button, and swaps which one on click", async () => {
+    const el = await open(trend());
+    const pressedOf = (key) =>
+      el.shadowRoot
+        .querySelector(`[data-id="window-${key}"]`)
+        .getAttribute("aria-pressed");
+
+    expect(pressedOf("1y")).toBe("true");
+    ["1w", "2w", "1m", "2m", "3m", "6m", "2y", "3y"].forEach((key) => {
+      expect(pressedOf(key)).toBe("false");
+    });
+
+    el.shadowRoot
+      .querySelector('[data-id="window-6m"]')
+      .dispatchEvent(new CustomEvent("click"));
+    await settle();
+
+    expect(pressedOf("6m")).toBe("true");
+    expect(pressedOf("1y")).toBe("false");
   });
 
   it("names the unit in the caption, so a count of days is not read as months", async () => {
@@ -408,6 +479,53 @@ describe("c-lane-trend-chart", () => {
     expect(cells(rows[1])).toEqual(["Feb", "1", "2600", "2600", "2600"]);
   });
 
+  // The assistive table is the screen-reader equivalent of the SVG axis, so its column header is
+  // the only name a non-sighted user gets for the bucket column - a hard-coded "Month" is simply
+  // wrong for a day- or week-bucketed chart. Fixtures use real day/week shapes (Apex's
+  // labelOf/keyOf: "D Mon" labels, ISO-Monday week keys) rather than reusing the month-shaped
+  // point() defaults, per the brief's warning against a response Apex cannot produce. Mutation
+  // (observed): hard-code the header getter to always return "Month" - the day and week
+  // assertions below fail.
+  it("names the actual bucket unit in the assistive table's header, not always 'Month'", async () => {
+    const dayEl = await open(
+      trend({
+        bucketUnit: "day",
+        lookbackDays: 14,
+        bucketSpan: 14,
+        points: [
+          point({ bucketKey: "2026-01-05", label: "5 Jan", bucketIndex: 0 }),
+          point({ bucketKey: "2026-01-06", label: "6 Jan", bucketIndex: 1 })
+        ]
+      })
+    );
+    expect(
+      dayEl.shadowRoot.querySelectorAll('[data-id="trend-table"] th')[0]
+        .textContent
+    ).toBe("Day");
+
+    const weekEl = await open(
+      trend({
+        bucketUnit: "week",
+        lookbackDays: 90,
+        bucketSpan: 13,
+        points: [
+          point({ bucketKey: "2026-01-05", label: "5 Jan", bucketIndex: 0 }),
+          point({ bucketKey: "2026-01-12", label: "12 Jan", bucketIndex: 1 })
+        ]
+      })
+    );
+    expect(
+      weekEl.shadowRoot.querySelectorAll('[data-id="trend-table"] th')[0]
+        .textContent
+    ).toBe("Week");
+
+    const monthEl = await open(trend());
+    expect(
+      monthEl.shadowRoot.querySelectorAll('[data-id="trend-table"] th')[0]
+        .textContent
+    ).toBe("Month");
+  });
+
   it("titles and describes the figure so it is not an unlabelled picture", async () => {
     const el = await open(trend());
     const svg = el.shadowRoot.querySelector("svg");
@@ -466,6 +584,53 @@ describe("c-lane-trend-chart", () => {
     );
     expect(cx5).toBeLessThanOrEqual(viewBoxWidth);
     expect(cx5).toBeGreaterThan(viewBoxWidth * 0.9);
+  });
+
+  // W4: 37 monthly labels at three years, or 30 daily ones at a month, collide at 11px in a
+  // 572-unit plot. The axis must thin to about a dozen, evenly spaced, positioned labels.
+  // Mutation (observed): remove the `i % step !== 0` guard - labels.length climbs to 37 and the
+  // count assertion fails. Mutation (observed): drop `y: AXIS_LABEL_Y` from the pushed axis
+  // object - the "not null" assertion below fails (a first attempt here checked only
+  // Number.isFinite(Number(y)), which a missing attribute passes vacuously: getAttribute returns
+  // null, and Number(null) is 0, a finite number - exactly the kind of test that cannot fail for
+  // the reason it names).
+  it("never draws more than about a dozen axis labels, however many buckets there are, and positions every one of them", async () => {
+    const el = await open(
+      trend({ points: manyPoints(37), bucketSpan: 37, bucketUnit: "month" })
+    );
+    const labels = el.shadowRoot.querySelectorAll('[data-id="axis-label"]');
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.length).toBeLessThanOrEqual(12);
+    [...labels].forEach((l) => {
+      // getAttribute returns null, not "0", for a missing attribute - and Number(null) is 0,
+      // which Number.isFinite would wrongly accept, so the null case is checked explicitly.
+      const y = l.getAttribute("y");
+      expect(y).not.toBeNull();
+      expect(Number.isFinite(Number(y))).toBe(true);
+    });
+  });
+
+  // Mutation (observed): drop the `year === lastYear` check (always prefix the year) - the
+  // `not.toContain("Feb 2026")` assertion fails, since "Feb" would come back "Feb 2026" and the
+  // crowding W4 exists to prevent (a year on every label) would be recreated.
+  it("shows the year on the first label of each year, so three Januaries are distinguishable, but does not repeat it on every label after", async () => {
+    const el = await open(
+      trend({
+        bucketUnit: "month",
+        bucketSpan: 14,
+        points: [
+          point({ bucketKey: "2025-12", bucketIndex: 0, label: "Dec" }),
+          point({ bucketKey: "2026-01", bucketIndex: 1, label: "Jan" }),
+          point({ bucketKey: "2026-02", bucketIndex: 2, label: "Feb" })
+        ]
+      })
+    );
+    const texts = [
+      ...el.shadowRoot.querySelectorAll('[data-id="axis-label"]')
+    ].map((t) => t.textContent.trim());
+    expect(texts.some((t) => t.includes("2026"))).toBe(true);
+    expect(texts).toContain("Feb");
+    expect(texts).not.toContain("Feb 2026");
   });
 
   // Ruling 24: every test above reads the x dimension only. These two read y.
