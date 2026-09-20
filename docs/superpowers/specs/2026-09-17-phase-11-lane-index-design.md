@@ -121,3 +121,51 @@ Paths are ranked by the middle of their range, and at most three are shown.
 Rate prediction and seasonality (their own phase; the index is what they will
 read). Automatic handoff-cost estimation. Paths deeper than two hops. Anything
 that writes back to a carrier or a customer record.
+
+---
+
+## Amendment, 2026-09-20: three premises re-measured before planning
+
+Section 2's figures were taken on 2026-09-17. Re-measured in PostProduc on 2026-09-20, before writing the
+implementation plan, because this project has twice built on a number that had drifted from the thing it
+described. Two of the three findings change the design; the third changes what the plan can promise.
+
+### 1. Loads already carry the lane keys, so the batch need not walk stops
+
+`rtms__Load__c` has `rtms__City_Lane__c`, `rtms__State_Lane__c` and `rtms__Zip3_Lane__c` populated on
+**318,465 of 340,248 loads**, in the format `Scarborough, ON:Lithia Springs, GA` — the same format
+`BenchmarkRateService.cityLane` writes deliberately and `LaneKeyMatcher` matches with `LIKE`.
+
+Section 3 says the batch should "read loads and their stops, group by place pair". It does not have to.
+Grouping loads directly on their own denormalised key removes the stop join from the batch's hot path
+entirely. The join to `Pricing_Place__c` is still needed — the index keys on normalised places, not on raw
+spellings, which is what collapses `Scarborough, ON` and `SCARBOROUGH ON` into one edge — but it happens
+once per distinct key rather than once per load.
+
+**49,592 distinct raw `rtms__City_Lane__c` values** is therefore the _upper bound_ on `Lane_Edge__c` rows.
+Normalisation will reduce it; the plan should measure the collapsed figure before the first write, because
+it decides whether the write batch is necessary at all.
+
+### 2. `Benchmark_Rate__c` holds one row, so D2's "free" bid source is free and empty
+
+D2 counts bids as a source because they "already carry `City_Lane__c`, `State_Lane__c`, `Zip3_Lane__c`, so
+they are free". The fields do exist and are free to read. There is **one** `Benchmark_Rate__c` record in the
+org.
+
+The source stays in the design, because it costs almost nothing and RFP work will populate it. But the plan
+must not claim the index is built from four sources when three of them are loads, quotes and freight legs
+and the fourth contributes a single row. A test that proves bids fold in correctly is still worth writing —
+it is the only thing that will catch the fold breaking before the data arrives.
+
+### 3. The headline counts have grown, and one of them is ambiguous
+
+Total quotes are now **410,093** and total loads **340,248**. Section 2's "203,023 over three years" and
+"164,845" were either windowed or taken before growth; both readings are consistent with today's totals, so
+the original figures are not contradicted, only outdated as headline numbers. Section 2's per-place
+distribution (314 / 674 / 3,536) was **not** re-measured and should not be relied on without re-measuring.
+
+### What does not change
+
+D1 (one materialised index), D3 (always a range), D4 (two hops), D5 (carriers, not quotes), D6 (a band, not
+a score), D7 (composed never outranks direct) and D8 (derived and disposable) all stand. Nothing measured
+here touches them.
