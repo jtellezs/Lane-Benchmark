@@ -4,40 +4,16 @@
  */
 @IsTest
 private class LaneTrendServiceTest {
-  private static LaneTrendService.Sample s(String isoDate, Decimal amount) {
-    return new LaneTrendService.Sample(Date.valueOf(isoDate), amount);
-  }
-
-  /** Independent of LaneTrendService.MONTH_LABELS (private there) so a test computing an expected
-   * label is not just re-reading production's own constant back at itself. */
-  private static final List<String> MONTH_LABELS = new List<String>{
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec'
-  };
-
-  private static String monthLabel(Date d) {
-    return MONTH_LABELS[d.month() - 1];
-  }
-
   @IsTest
   static void bucketsByCalendarMonthAndComputesMedianMinMax() {
+    LaneTrendFixture fx = new LaneTrendFixture();
     List<LaneTrendService.Sample> samples = new List<LaneTrendService.Sample>{
-      s('2026-01-05', 1000),
-      s('2026-01-20', 2000),
-      s('2026-01-28', 3000),
-      s('2026-03-02', 500),
-      s('2026-03-09', 700),
-      s('2026-03-30', 900)
+      fx.s('2026-01-05', 1000),
+      fx.s('2026-01-20', 2000),
+      fx.s('2026-01-28', 3000),
+      fx.s('2026-03-02', 500),
+      fx.s('2026-03-09', 700),
+      fx.s('2026-03-30', 900)
     };
 
     Test.startTest();
@@ -74,10 +50,11 @@ private class LaneTrendServiceTest {
 
   @IsTest
   static void marksAMonthThinBelowThreeRates() {
+    LaneTrendFixture fx = new LaneTrendFixture();
     List<LaneTrendService.Sample> samples = new List<LaneTrendService.Sample>{
-      s('2026-01-05', 1000),
-      s('2026-01-06', 1200),
-      s('2026-02-05', 9999)
+      fx.s('2026-01-05', 1000),
+      fx.s('2026-01-06', 1200),
+      fx.s('2026-02-05', 9999)
     };
 
     Test.startTest();
@@ -104,11 +81,12 @@ private class LaneTrendServiceTest {
    */
   @IsTest
   static void ignoresSamplesWithNoDateNoAmountOrAZeroAmount() {
+    LaneTrendFixture fx = new LaneTrendFixture();
     List<LaneTrendService.Sample> samples = new List<LaneTrendService.Sample>{
-      s('2026-01-05', 1000),
+      fx.s('2026-01-05', 1000),
       new LaneTrendService.Sample(null, 5000),
       new LaneTrendService.Sample(Date.newInstance(2026, 1, 9), null),
-      s('2026-01-12', 0)
+      fx.s('2026-01-12', 0)
     };
 
     Test.startTest();
@@ -146,16 +124,17 @@ private class LaneTrendServiceTest {
 
   @IsTest
   static void bucketsAcrossACalendarYearBoundary() {
+    LaneTrendFixture fx = new LaneTrendFixture();
     List<LaneTrendService.Sample> samples = new List<LaneTrendService.Sample>{
-      s('2025-11-03', 1000),
-      s('2025-11-10', 1100),
-      s('2025-11-20', 1200),
-      s('2025-12-01', 2000),
-      s('2025-12-15', 2100),
-      s('2025-12-28', 2200),
-      s('2026-01-02', 3000),
-      s('2026-01-15', 3100),
-      s('2026-01-30', 3200)
+      fx.s('2025-11-03', 1000),
+      fx.s('2025-11-10', 1100),
+      fx.s('2025-11-20', 1200),
+      fx.s('2025-12-01', 2000),
+      fx.s('2025-12-15', 2100),
+      fx.s('2025-12-28', 2200),
+      fx.s('2026-01-02', 3000),
+      fx.s('2026-01-15', 3100),
+      fx.s('2026-01-30', 3200)
     };
 
     Test.startTest();
@@ -209,13 +188,14 @@ private class LaneTrendServiceTest {
    */
   @IsTest
   static void sortsASingleDigitMonthBeforeADoubleDigitOneInTheSameYear() {
+    LaneTrendFixture fx = new LaneTrendFixture();
     List<LaneTrendService.Sample> samples = new List<LaneTrendService.Sample>{
-      s('2026-02-03', 1000),
-      s('2026-02-10', 1100),
-      s('2026-02-20', 1200),
-      s('2026-10-01', 2000),
-      s('2026-10-15', 2100),
-      s('2026-10-28', 2200)
+      fx.s('2026-02-03', 1000),
+      fx.s('2026-02-10', 1100),
+      fx.s('2026-02-20', 1200),
+      fx.s('2026-10-01', 2000),
+      fx.s('2026-10-15', 2100),
+      fx.s('2026-10-28', 2200)
     };
 
     Test.startTest();
@@ -260,11 +240,81 @@ private class LaneTrendServiceTest {
     Integer quoteCount;
     Integer bidCount;
 
+    /** Independent of LaneTrendBuckets.MONTH_LABELS (private there) so a test computing an expected
+     * label is not just re-reading production's own constant back at itself. */
+    private final List<String> monthLabels = new List<String>{
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec'
+    };
+
     LaneSearchRequest request() {
       LaneSearchRequest r = new LaneSearchRequest();
       r.originKey = originKey;
       r.destinationKey = destinationKey;
       return r;
+    }
+
+    LaneTrendService.Sample s(String isoDate, Decimal amount) {
+      return new LaneTrendService.Sample(Date.valueOf(isoDate), amount);
+    }
+
+    String monthLabel(Date d) {
+      return monthLabels[d.month() - 1];
+    }
+
+    /**
+     * Puts already-inserted records in a past month, which is the only way a fixture can now choose
+     * a bucket: the trend buckets on CreatedDate, CreatedDate is not writable, and
+     * Test.setCreatedDate is the supported substitute. It needs an Id, so callers insert first and
+     * place afterwards.
+     *
+     * Noon local rather than midnight, so the Datetime.date() the service buckets with and the
+     * LAST_N_DAYS boundary the query filters with agree on the day whatever the running user's time
+     * zone is. There is deliberately no future-dating counterpart: CreatedDate cannot be set ahead of
+     * now, which is half of why the trend buckets on it.
+     */
+    void createdOn(List<Benchmark_Rate__c> bids, Date day) {
+      Datetime at = Datetime.newInstance(day, Time.newInstance(12, 0, 0, 0));
+      for (Benchmark_Rate__c b : bids) {
+        Test.setCreatedDate(b.Id, at);
+      }
+    }
+
+    /**
+     * Three bids valid from the same day, in one currency. Valid_From__c decides only whether the
+     * bid search's own validity check matches the row; which month the chart buckets it into is
+     * decided by CreatedDate, so a fixture that wants a past month calls createdOn() after inserting.
+     *
+     * currencyCode is a parameter rather than a second overload because Ruling 20's tie fixture needs
+     * a non-CAD group - it is the only caller that passes anything but CAD, now that Ruling 19's
+     * fixture is gone - and an overload's own method body would have cost this test class a
+     * cyclomatic-complexity point it did not have at the time. "currency" is a reserved Apex
+     * identifier, hence currencyCode - see LaneTrendScope.samplesInCurrency.
+     */
+    List<Benchmark_Rate__c> threeBidsOn(
+      RFP_Lane__c lane,
+      Date validFrom,
+      Decimal rate,
+      String currencyCode
+    ) {
+      List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
+      for (Integer i = 0; i < 3; i++) {
+        Benchmark_Rate__c bid = RfpTestDataFactory.buildBid(lane, rate);
+        bid.Valid_From__c = validFrom;
+        bid.CurrencyIsoCode = currencyCode;
+        bids.add(bid);
+      }
+      return bids;
     }
   }
 
@@ -593,13 +643,13 @@ private class LaneTrendServiceTest {
       origin,
       destination
     );
-    List<Benchmark_Rate__c> twoMonthsBack = threeBidsOn(
+    List<Benchmark_Rate__c> twoMonthsBack = f.threeBidsOn(
       lane,
       Date.today(),
       1000,
       'CAD'
     );
-    List<Benchmark_Rate__c> oneMonthBack = threeBidsOn(
+    List<Benchmark_Rate__c> oneMonthBack = f.threeBidsOn(
       lane,
       Date.today(),
       1100,
@@ -608,55 +658,11 @@ private class LaneTrendServiceTest {
     List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
     bids.addAll(twoMonthsBack);
     bids.addAll(oneMonthBack);
-    bids.addAll(threeBidsOn(lane, Date.today(), 1300, 'CAD'));
+    bids.addAll(f.threeBidsOn(lane, Date.today(), 1300, 'CAD'));
     insert bids;
-    createdOn(twoMonthsBack, Date.today().addMonths(-2));
-    createdOn(oneMonthBack, Date.today().addMonths(-1));
+    f.createdOn(twoMonthsBack, Date.today().addMonths(-2));
+    f.createdOn(oneMonthBack, Date.today().addMonths(-1));
     return f;
-  }
-
-  /**
-   * Puts already-inserted records in a past month, which is the only way a fixture can now choose a
-   * bucket: the trend buckets on CreatedDate, CreatedDate is not writable, and Test.setCreatedDate
-   * is the supported substitute. It needs an Id, so callers insert first and place afterwards.
-   *
-   * Noon local rather than midnight, so the Datetime.date() the service buckets with and the
-   * LAST_N_DAYS boundary the query filters with agree on the day whatever the running user's time
-   * zone is. There is deliberately no future-dating counterpart: CreatedDate cannot be set ahead of
-   * now, which is half of why the trend buckets on it.
-   */
-  private static void createdOn(List<Benchmark_Rate__c> bids, Date day) {
-    Datetime at = Datetime.newInstance(day, Time.newInstance(12, 0, 0, 0));
-    for (Benchmark_Rate__c b : bids) {
-      Test.setCreatedDate(b.Id, at);
-    }
-  }
-
-  /**
-   * Three bids valid from the same day, in one currency. Valid_From__c decides only whether the bid
-   * search's own validity check matches the row; which month the chart buckets it into is decided by
-   * CreatedDate, so a fixture that wants a past month calls createdOn() after inserting.
-   *
-   * currencyCode is a parameter rather than a second overload because Ruling 20's tie fixture needs
-   * a non-CAD group - it is the only caller that passes anything but CAD, now that Ruling 19's
-   * fixture is gone - and an overload's own method body would have cost this test class a
-   * cyclomatic-complexity point it did not have at the time. "currency" is a reserved Apex
-   * identifier, hence currencyCode - see LaneTrendScope.samplesInCurrency.
-   */
-  private static List<Benchmark_Rate__c> threeBidsOn(
-    RFP_Lane__c lane,
-    Date validFrom,
-    Decimal rate,
-    String currencyCode
-  ) {
-    List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
-    for (Integer i = 0; i < 3; i++) {
-      Benchmark_Rate__c bid = RfpTestDataFactory.buildBid(lane, rate);
-      bid.Valid_From__c = validFrom;
-      bid.CurrencyIsoCode = currencyCode;
-      bids.add(bid);
-    }
-    return bids;
   }
 
   /**
@@ -694,7 +700,7 @@ private class LaneTrendServiceTest {
       origin,
       destination
     );
-    List<Benchmark_Rate__c> earlier = threeBidsOn(
+    List<Benchmark_Rate__c> earlier = f.threeBidsOn(
       lane,
       Date.today(),
       1000,
@@ -702,9 +708,9 @@ private class LaneTrendServiceTest {
     );
     List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
     bids.addAll(earlier);
-    bids.addAll(threeBidsOn(lane, Date.today(), 2000, 'CAD'));
+    bids.addAll(f.threeBidsOn(lane, Date.today(), 2000, 'CAD'));
     insert bids;
-    createdOn(earlier, Date.today().addMonths(-13));
+    f.createdOn(earlier, Date.today().addMonths(-13));
     return f;
   }
 
@@ -740,8 +746,8 @@ private class LaneTrendServiceTest {
       destination
     );
     List<Benchmark_Rate__c> bids = new List<Benchmark_Rate__c>();
-    bids.addAll(threeBidsOn(lane, Date.today(), 1000, 'CAD'));
-    bids.addAll(threeBidsOn(lane, Date.today(), 7000, 'USD'));
+    bids.addAll(f.threeBidsOn(lane, Date.today(), 1000, 'CAD'));
+    bids.addAll(f.threeBidsOn(lane, Date.today(), 7000, 'USD'));
     insert bids;
     return f;
   }
@@ -1038,8 +1044,8 @@ private class LaneTrendServiceTest {
   @IsTest
   static void summariseComputesLabelsAndTheSignOfChangeAcrossMonths() {
     LaneTrendFixture f = withBidsAcrossThreeMonths();
-    String expectedFirstLabel = monthLabel(Date.today().addMonths(-2));
-    String expectedLastLabel = monthLabel(Date.today());
+    String expectedFirstLabel = f.monthLabel(Date.today().addMonths(-2));
+    String expectedLastLabel = f.monthLabel(Date.today());
 
     Test.startTest();
     LaneTrend trend = LaneTrendService.trendFor(f.request());
