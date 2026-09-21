@@ -48,7 +48,15 @@ private class SplitEstimatesTest {
   private static Fx legFixture() {
     Fx f = new Fx();
     f.g = PricingTestDataFactory.createGraph();
-    f.escobedoDock = PricingTestDataFactory.createLocation(
+    // One DML for both docks rather than two. Measured on a clean org, an Account insert costs 13
+    // SOQL queries because two triggers fire on it, so this fixture was spending 26 of the 100 a
+    // test method gets before the method did anything.
+    //
+    // The graph's own Montreal and Toronto locations are deliberately left alone. Handing them
+    // these cities - the change that fixed LaneTrendServiceTest - makes
+    // legReadsNameCarriersAndTakeMediansInTheCardCurrency lose a carrier it expects, because this
+    // class uses them as loads that must NOT match the Escobedo-Laredo lane.
+    f.escobedoDock = PricingTestDataFactory.buildLocation(
       'Escobedo Dock',
       'General Escobedo',
       'Nuevo León',
@@ -57,7 +65,7 @@ private class SplitEstimatesTest {
       25.8000,
       -100.3167
     );
-    f.laredoYard = PricingTestDataFactory.createLocation(
+    f.laredoYard = PricingTestDataFactory.buildLocation(
       'Laredo Yard',
       'Laredo',
       'Texas',
@@ -66,6 +74,7 @@ private class SplitEstimatesTest {
       27.5306,
       -99.4803
     );
+    insert new List<Account>{ f.escobedoDock, f.laredoYard };
     f.escobedo = place('General Escobedo', 'NL', 'MX', 25.8000, -100.3167);
     f.laredo = place('Laredo', 'TX', 'US', 27.5306, -99.4803);
     f.toronto = place('Toronto', 'ON', 'CA', 43.6532, -79.3832);
