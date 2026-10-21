@@ -5,7 +5,22 @@
 - User: julian.tellez@trans-pro.com.postproduc
 - Access: `sf data query --target-org postproduc`
 - Source code: `c:/Projects/Lane Benchmark/PricingDepartemnt/PricingDepartemnt/`
-- GitHub: https://github.com/IulianEnescu78/PricingDepartment.git (origin)
+- GitHub: https://github.com/jtellezs/Lane-Benchmark.git (origin — pushed Oct 2026)
+
+---
+
+## Source of Truth — postproduc IS the most up to date sandbox
+
+**postproduc = GitHub = local source. They all match.**
+
+- All development for the Lane Benchmark + RFP Tool was done in **postproduc** by Iulian Enescu (most classes last modified 2026-09-20).
+- `PlaceBuilderSchedule` and `PlaceBuilderScheduleTest` were created in postproduc on 2026-10-09 by Julian Tellez.
+- All classes were retrieved from postproduc (`sf project retrieve start --target-org postproduc`) and pushed to GitHub in the same session.
+- GitHub repo `jtellezs/Lane-Benchmark` is the authoritative copy — it matches postproduc exactly.
+- There is no other sandbox with newer code. If someone says the repo is "more advanced than the sandboxes" — that's **wrong**. The repo was built FROM postproduc.
+- Flosum also reads from postproduc as its source for production deployments.
+
+**If you're on another computer:** clone from `https://github.com/jtellezs/Lane-Benchmark.git` — that is the latest code.
 
 ---
 
